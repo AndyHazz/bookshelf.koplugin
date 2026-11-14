@@ -144,4 +144,42 @@ t.test("the reader's copy of the status line never shows the job", function()
     eq(commas, 3, "the reader passed allow_job")
 end)
 
+t.test("liveShelf: the host's current shelf when it is showing, else the one given", function()
+    local old = { name = "old" }
+    local live = { name = "live" }
+    package.loaded["apps/filemanager/filemanager"] = { instance = { bookshelf = { _widget = live } } }
+    package.loaded["apps/reader/readerui"] = {}
+    eq(P.liveShelf(old), old, "a shelf that is not on screen must not be used")
+    stack[#stack + 1] = { widget = live }
+    eq(P.liveShelf(old), live)
+    stack[#stack] = nil
+    package.loaded["apps/filemanager/filemanager"] = nil
+end)
+
+t.test("holdAwake: holds once, and puts the earlier flag back", function()
+    local share = { pause_auto_suspend = true }   -- Keep-alive had set it
+    package.loaded["pluginshare"] = share
+    local UI = package.loaded["ui/uimanager"]
+    local prevented, allowed = 0, 0
+    UI.preventStandby = function() prevented = prevented + 1 end
+    UI.allowStandby = function() allowed = allowed + 1 end
+    P.holdAwake(true); P.holdAwake(true)
+    eq(prevented, 1, "held twice")
+    eq(share.pause_auto_suspend, true)
+    P.holdAwake(false); P.holdAwake(false)
+    eq(allowed, 1, "released twice")
+    eq(share.pause_auto_suspend, true, "the earlier value was not put back")
+    share.pause_auto_suspend = nil
+    P.holdAwake(true)
+    eq(share.pause_auto_suspend, true)
+    P.holdAwake(false)
+    eq(share.pause_auto_suspend, false)
+end)
+
+t.test("the turning-book icons are shared, and main.lua uses them", function()
+    eq(#P.BOOK_ICONS, 3)
+    local f = assert(io.open("main.lua")); local src = f:read("*a"); f:close()
+    assert(src:find("icons  = Progress.BOOK_ICONS", 1, true), "the page count scan keeps its own copy")
+end)
+
 t.done()

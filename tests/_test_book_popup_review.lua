@@ -13,6 +13,72 @@ t.test("a plugin's action card is keyed by its registration, not its label", fun
         "a card's place is keyed by a label that can change")
 end)
 
+-- Maintainer: the Hardcover section sat at the foot of the Edit tab, half
+-- under the footer; the Arrange card goes (a long-press on the shelf opens
+-- Arrange) and a Hardcover card takes the slot.
+t.test("Actions: a Hardcover card, no Arrange card, no Hardcover section at the foot", function()
+    assert(w:find('id = "hardcover", text = _("Hardcover link"),', 1, true), "no Hardcover card")
+    assert(w:find('after = "select",   -- its place in an order saved before it existed', 1, true),
+        "the card has no place in an order saved before it")
+    assert(not w:find('id = "shelf_move"', 1, true), "the Arrange card is still there")
+    assert(not w:find('vg[#vg + 1] = heading("Hardcover")', 1, true), "the section at the foot is still there")
+end)
+
+-- Maintainer: the cards mixed one-line and two-line labels. Labels of a
+-- like length, left to wrap on their own (no forced breaks: another font
+-- size would break them badly).
+t.test("card labels of a like length: a shelf, book info, multiple, Hardcover link", function()
+    assert(w:find('text = _("Add to a shelf")', 1, true), "Add to a shelf")
+    assert(w:find('text = _("Show book info")', 1, true), "Show book info")
+    assert(w:find('text = _("Select multiple")', 1, true), "Select multiple")
+    -- Two words each, so the whole grid wraps alike on a PW5 (maintainer).
+    assert(w:find('id = "move", text = _("Move book files\\xE2\\x80\\xA6")', 1, true), "Move book files...")
+    assert(w:find('id = "delete", text = _("Delete book files\\xE2\\x80\\xA6")', 1, true), "Delete book files...")
+    -- "Favorite on/off" broke after the slash (PW5): a card's label keeps
+    -- a word with a slash in it whole.
+    assert(w:find('local function keepSlashWords(text) return (text:gsub("/", "/\\xE2\\x81\\xA0")) end', 1, true),
+        "a slash in a card's label can still break")
+    assert(w:find("TextBoxWidget:new{ text = keepSlashWords(a.text)", 1, true), "the cards do not use it")
+end)
+
+-- Maintainer's order, and two more labels: "Favourite on/off", "Reload
+-- metadata". Built top to bottom in that order, so the code reads as the
+-- grid does.
+t.test("the cards' default order, and the two relabelled", function()
+    local order = { "favorite", "shelf", "info", "refresh", "select", "hardcover",
+                    "move", "history", "reset", "delete" }
+    local last = 0
+    for _i, id in ipairs(order) do
+        local at = w:find('id = "' .. id .. '"', 1, true)
+        assert(at, "no card " .. id)
+        assert(at > last, id .. " is out of order")
+        last = at
+    end
+    assert(w:find('text = _("Favorite on/off")', 1, true), "Favorite on/off")
+    assert(w:find('text = _("Reload metadata")', 1, true), "Reload metadata")
+end)
+
+-- Maintainer: "If a book is linked to hardcover, the old menu would show
+-- that, and the title of the book linked. We have lost that by moving to an
+-- action button."
+t.test("a linked book: the Hardcover card lit, and the linked title under Hardcover's stars", function()
+    assert(w:find('id = "hardcover", text = _("Hardcover link"),\n            on = hc_linked,', 1, true),
+        "the card does not show the book is linked")
+    -- Not under the stars (maintainer: "I don't think it looks right"): a
+    -- line below the actions.
+    assert(not w:find("hcCaption(", 1, true), "the title is still under the stars")
+    assert(w:find('T(_("Hardcover linked to: %1"), hc_linked_label)', 1, true), "no line below the actions")
+    assert(w:find("function tap:onTapHcLinked()", 1, true)
+        and w:find("bw:_openHardcoverMenu(book) end)", w:find("function tap:onTapHcLinked()", 1, true), true),
+        "the line does not open the Hardcover menu")
+end)
+
+t.test("an empty reviews list says when Hardcover withheld them", function()
+    assert(w:find("Hardcover.reviewsWithheld(result)", 1, true), "the popup never asks")
+    assert(w:find("Tokens.reviewsHtml{ reviews = list, empty_text = empty_text }", 1, true),
+        "the reason does not reach the list")
+end)
+
 t.test("arranging: greyed where a button can't act, and kept however the popup closes", function()
     assert(w:find("enabled = at ~= nil and at > 1, on_tap = function() move(-1) end", 1, true), "back is not greyed at the first card")
     assert(w:find("enabled = at ~= nil and at < #arranging.order", 1, true), "on is not greyed at the last card")

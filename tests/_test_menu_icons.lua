@@ -30,7 +30,7 @@ local function codepoint(g)
 end
 
 local NAMES = { "RESET", "SHELF_SIZE", "SHELVES", "THEME",
-                "HARDCOVER", "SETTINGS", "UPDATES",
+                "HARDCOVER", "HARDCOVER_OFF", "SETTINGS", "UPDATES",
                 -- A theme's parts: the Theme menu's rows and the Theme
                 -- library's cards (ornaments: bookshelf_ornaments' cup).
                 "WALLPAPER", "PLANK", "COLORS", "LIGHT", "DARK", "LIGHT_DARK" }
@@ -50,6 +50,13 @@ local WANTS_ICON = {
     bookshelf_updates    = true,
     bookshelf_about      = false,
 }
+
+-- Maintainer: "I don't think the hardcover icon is right - we should change
+-- that I think to a chain link icon". Linking is what it does.
+t.test("Hardcover is a chain link, and its crossed-out one clears a link", function()
+    eq(codepoint(Icons.HARDCOVER), 0xEA38)       -- link-variant
+    eq(codepoint(Icons.HARDCOVER_OFF), 0xEA39)   -- link-variant-off
+end)
 
 t.test("every glyph sits inside the Private Use Area", function()
     for _i, name in ipairs(NAMES) do

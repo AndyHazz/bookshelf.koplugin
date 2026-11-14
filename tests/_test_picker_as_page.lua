@@ -33,8 +33,8 @@ t.test("a page refreshes its own box opening and closing, not the whole screen",
     assert(not lm:find("scrimUnder", 1, true), "the fade is back")
 end)
 
-t.test("the editor's pickers, the Theme library, Modules, Folders and a catalog's download folder open as its pages", function()
-    eq(select(2, ed:gsub("over%s*= Editor%._over%(", "")), 6)
+t.test("the editor's pickers, the Theme library, Modules, Folders, a catalog's download folder and the collections list open as its pages", function()
+    eq(select(2, ed:gsub("over%s*= Editor%._over%(", "")), 7)
 end)
 
 -- Modules was a window of its own over the editor ("Bookshelf

@@ -3731,80 +3731,13 @@ function Settings:_hardcoverSubItems()
 
     -- Bulk auto-link: scan the whole library and link any book that carries
     -- an embedded ISBN / Hardcover id -- the single-book "Auto link" applied
-    -- across the library. Throttled to ~1 request/second to stay under
-    -- Hardcover's 60/min API limit; shows cancellable progress.
-    -- Shared driver for the long Hardcover scans (auto-link, refresh). Runs one
-    -- item per scheduler tick so the UI event loop keeps running between books:
-    -- the progress message stays tappable (cancel works) and nothing freezes,
-    -- unlike a blocking loop. Network items are paced by `rate` to respect
-    -- Hardcover's ~60/min limit; cheap items just yield a tick.
-    --   opts.items     array to walk
-    --   opts.rate      seconds between network ticks (default 1.2)
-    --   opts.step(item, st) -> did_network   (mutates st counters)
-    --   opts.progress(st, total) -> string   progress message text
-    --   opts.summary(st, total)  -> string   final message text
-    --   opts.on_finish(st)        optional, before the summary shows
-    local function runPacedScan(opts)
-        local InfoMessage = require("ui/widget/infomessage")
-        local items = opts.items
-        local total = #items
-        local rate  = opts.rate or 1.2
-        local st = { i = 0, cancelled = false }
-        -- Ignore taps briefly after start: the tap that launched the scan can
-        -- bleed onto the freshly-shown progress message and cancel it instantly.
-        local armed = false
-        UIManager:scheduleIn(0.6, function() armed = true end)
-        local info
-        -- InfoMessage:onCloseWidget fires dismiss_callback on ANY close, incl.
-        -- our own close when swapping in an updated message. Detach before a
-        -- programmatic close so only a genuine user dismissal counts as cancel.
-        local function closeInfo()
-            if info then
-                info.dismiss_callback = nil
-                UIManager:close(info)
-                info = nil
-            end
-        end
-        local function refresh()
-            closeInfo()
-            info = InfoMessage:new{
-                text = opts.progress(st, total),
-                dismiss_callback = function()
-                    if armed then st.cancelled = true end
-                end,
-            }
-            UIManager:show(info)
-        end
-        local function finish()
-            closeInfo()
-            if opts.on_finish then opts.on_finish(st) end
-            -- summary is optional: callers that present their own completion UI
-            -- (e.g. the auto-link HTML report) omit it.
-            if opts.summary then
-                UIManager:show(InfoMessage:new{ text = opts.summary(st, total) })
-            end
-        end
-        local step
-        step = function()
-            if st.cancelled or st.i >= total then return finish() end
-            st.i = st.i + 1
-            local did_network = opts.step(items[st.i], st)
-            if did_network or st.i % 10 == 0 or st.i == total then refresh() end
-            if did_network then
-                UIManager:scheduleIn(rate, step)
-            else
-                UIManager:nextTick(step)
-            end
-        end
-        refresh()
-        UIManager:nextTick(step)
-    end
-
+    -- across the library. Paced to stay under Hardcover's 60/min API
+    -- limit; progress is in the shelf's status line, with Stop.
     local function autoLinkAll(touchmenu_instance)
         local ok_hc, Hardcover = pcall(require, "lib/bookshelf_hardcover")
         if not ok_hc or not Hardcover
                 or not (Hardcover.isAvailable and Hardcover.isAvailable()) then
-            notify(_("Hardcover plugin is not available"))
+            notify(_("Not connected to Hardcover"))
             return
         end
         local Repo = require("lib/bookshelf_book_repository")
@@ -3838,17 +3771,8 @@ function Settings:_hardcoverSubItems()
 
         -- ~2 Hardcover calls per processed book (resolve/search, then fetch
         -- details), so pace at ~2.5s/book to stay under the ~60/min API limit.
-        local RATE = 2.5
+        local RATE = require("lib/bookshelf_hardcover_autolink").RATE
         local est_min = math.max(1, math.ceil(total * RATE / 60))
-
-        -- Display name for the report: prefer the book's title, fall back to a
-        -- de-extensioned filename.
-        local function nameFor(fp, meta)
-            if meta and type(meta.title) == "string" and meta.title ~= "" then
-                return meta.title
-            end
-            return (fp:match("([^/]+)$") or fp):gsub("%.[^%.]+$", "")
-        end
 
         local function showReport(st, best_guess)
             local ok_tok, Tokens = pcall(require, "lib/bookshelf_tokens")
@@ -3859,6 +3783,9 @@ function Settings:_hardcoverSubItems()
                 html_body = Tokens.autoLinkReportHtml{
                     best_guess = best_guess,
                     cancelled  = st.cancelled,
+                    why        = (st.rate_limited and _("Hardcover's request limit for today was reached. Run it again tomorrow to carry on."))
+                              or (st.gave_up and _("Stopped after three books in a row could not be looked up. Check the connection and run it again."))
+                              or nil,
                     linked     = st.linked_list or {},
                     nomatch    = st.nomatch_list or {},
                     no_id      = st.no_id or 0,
@@ -3869,86 +3796,22 @@ function Settings:_hardcoverSubItems()
             })
         end
 
+        -- The pass itself is lib/bookshelf_hardcover_autolink: progress in the
+        -- shelf's status line with Stop, the shelf usable while it runs.
         local function run(best_guess)
             if touchmenu_instance then UIManager:close(touchmenu_instance) end
-            runPacedScan{
-                items = candidates,
-                rate  = RATE,
-                step = function(fp, st)
-                    st.linked_list  = st.linked_list  or {}
-                    st.nomatch_list = st.nomatch_list or {}
-                    if best_guess then
-                        -- Needs title/author, so build the record first, then
-                        -- search Hardcover and score the hits.
-                        local meta = (Repo.buildBookMeta and Repo.buildBookMeta(fp))
-                                     or { filepath = fp }
-                        local ok_call, linked_ok, details =
-                            pcall(Hardcover.bestGuessLink, meta)
-                        if ok_call and linked_ok then
-                            st.linked = (st.linked or 0) + 1
-                            pcall(Hardcover.refreshBook, meta, {})
-                            local d = type(details) == "table" and details or {}
-                            local score
-                            if tonumber(d.title_score) and tonumber(d.author_score) then
-                                score = math.floor((d.title_score + d.author_score) / 2 + 0.5)
-                            end
-                            st.linked_list[#st.linked_list + 1] = {
-                                name = nameFor(fp, meta), matched = d.title,
-                                author = d.author, score = score,
-                            }
-                        elseif not ok_call
-                                or (details ~= "no_match"
-                                    and details ~= "no_confident_match") then
-                            -- An exception, a failed search or a failed link
-                            -- write is an ERROR, not a verdict about the book
-                            -- -- counting it as no-match buried real failures
-                            -- in the report (issue 310's second finding), and
-                            -- exact mode already made the distinction.
-                            st.errors = (st.errors or 0) + 1
-                        else
-                            st.no_match = (st.no_match or 0) + 1
-                            st.nomatch_list[#st.nomatch_list + 1] = { name = nameFor(fp, meta) }
-                        end
-                        return true
-                    end
-                    -- Exact: embedded ISBN / Hardcover id only.
-                    local book = { filepath = fp }
-                    local ids = Hardcover.getEmbeddedIdentifiers
-                                and Hardcover.getEmbeddedIdentifiers(book)
-                    if not ids then
-                        st.no_id = (st.no_id or 0) + 1
-                        return false  -- no network, next tick immediately
-                    end
-                    local ok_call, linked_ok, hc =
-                        pcall(Hardcover.linkFromEmbeddedIdentifiers, book)
-                    if not ok_call then
-                        st.errors = (st.errors or 0) + 1
-                    elseif linked_ok then
-                        st.linked = (st.linked or 0) + 1
-                        -- Fetch details + apply the cover/description decision
-                        -- now, so the book is fully populated in one pass.
-                        local meta = (Repo.buildBookMeta and Repo.buildBookMeta(fp))
-                                     or book
-                        pcall(Hardcover.refreshBook, meta, {})
-                        st.linked_list[#st.linked_list + 1] = {
-                            name = nameFor(fp, meta),
-                            matched = type(hc) == "table" and hc.title or nil,
-                        }
-                    else
-                        st.no_match = (st.no_match or 0) + 1
-                        st.nomatch_list[#st.nomatch_list + 1] = { name = nameFor(fp, book) }
-                    end
-                    return true
-                end,
-                progress = function(st, n)
-                    return T(_("Auto-linking from Hardcover…\n\n%1 / %2 checked  ·  %3 linked\n\n(tap to cancel)"),
-                             tostring(st.i), tostring(n), tostring(st.linked or 0))
-                end,
-                on_finish = function(st)
-                    if (st.linked or 0) > 0 then markDirty("hardcover-auto-link-all") end
-                    showReport(st, best_guess)
-                end,
-            }
+            -- Connected first (offers Wi-Fi when off): a pass started offline
+            -- gave up after three books with "could not be looked up".
+            Hardcover.whenOnline(function()
+                require("lib/bookshelf_hardcover_autolink").run{
+                    items      = candidates,
+                    best_guess = best_guess,
+                    on_finish  = function(st)
+                        if (st.linked or 0) > 0 then markDirty("hardcover-auto-link-all") end
+                        showReport(st, best_guess)
+                    end,
+                }
+            end)
         end
 
         -- Mode picker: exact (embedded id, fast) vs best guess (title/author
@@ -3956,7 +3819,7 @@ function Settings:_hardcoverSubItems()
         local ButtonDialog = require("ui/widget/buttondialog")
         local dialog
         dialog = ButtonDialog:new{
-            title = T(_("Auto-link %1 unlinked book(s)?\n\nContacts Hardcover (rate-limited), up to ~%2 min. Cancellable, with a report at the end."),
+            title = T(_("Auto-link %1 unlinked book(s)?\n\nContacts Hardcover (rate-limited), up to ~%2 min. Progress shows in the status line, with Stop, and a report follows."),
                       tostring(total), tostring(est_min)),
             title_align = "center",
             buttons = {
@@ -3979,6 +3842,21 @@ function Settings:_hardcoverSubItems()
     end
 
     return {
+        {
+            -- Which plugin Hardcover is reached through, and how it is
+            -- signed in: a sign-in without an API key gets no reviews, and
+            -- the reader could not tell which they had.
+            text_func = function()
+                local ok_hc, Hardcover = pcall(require, "lib/bookshelf_hardcover")
+                local c = ok_hc and Hardcover and Hardcover.connection and Hardcover.connection() or nil
+                if not c then return _("Not connected to Hardcover") end
+                local how = (c.method == "oauth" and _("signed in, no API key"))
+                    or (c.method == "api_key" and _("API key"))
+                    or _("not signed in")
+                return T(_("Connected through %1 (%2)"), c.label, how)
+            end,
+            enabled_func = function() return false end,
+        },
         {
             text_func = function()
                 local ok_hc, Hardcover = pcall(require, "lib/bookshelf_hardcover")
@@ -4112,6 +3990,9 @@ function Settings:_hardcoverSubItems()
                 })
             end,
         },
+        -- Where the API key comes from, and Bookshelf's own
+        -- (lib/bookshelf_hardcover_key_ui).
+        require("lib/bookshelf_hardcover_key_ui").menuItem(function() markDirty("hardcover-key") end),
         {
             -- Maintenance lives one level down: refreshing cached data and
             -- clearing it are occasional housekeeping, not everyday settings.
@@ -4123,6 +4004,10 @@ function Settings:_hardcoverSubItems()
                     -- keeps the public ratings current as they drift on
                     -- Hardcover (one batched query, no per-book covers/text).
                     text = _("Refresh ratings only"),
+                    enabled_func = function()
+                        local ok_hc, HC = pcall(require, "lib/bookshelf_hardcover")
+                        return (ok_hc and HC and HC.isAvailable and HC.isAvailable()) or false
+                    end,
                     help_text = _("Fetch up-to-date public ratings and review counts for every linked book in one quick batched request -- seconds, even for a large library. Ratings drift daily; for the rarely-changing details (author, genres, series, description, pages) use Refresh linked book details instead."),
                     callback = function(touchmenu_instance)
                         if touchmenu_instance then
@@ -4156,6 +4041,10 @@ function Settings:_hardcoverSubItems()
                     -- translators). Links untouched; one query per book,
                     -- paced under Hardcover's rate limit.
                     text = _("Refresh linked book details"),
+                    enabled_func = function()
+                        local ok_hc, HC = pcall(require, "lib/bookshelf_hardcover")
+                        return (ok_hc and HC and HC.isAvailable and HC.isAvailable()) or false
+                    end,
                     help_text = _("Re-fetch the cached details (author, description, series, genres, page count, ratings) for every linked book, one rate-limited request per book -- minutes on a large library, cancellable. Use after an upgrade note asks for it, or when cached data looks stale; for just the ratings, Refresh ratings only is much faster."),
                     callback = function(touchmenu_instance)
                         if touchmenu_instance then

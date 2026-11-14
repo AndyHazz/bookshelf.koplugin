@@ -6,7 +6,7 @@
 -- since v5.3; koreader/icons/bookshelf.ornaments is still read (see THE
 -- FOLDERS). Loose files and one level of pack folders; a pack may carry a
 -- theme/ (lib/bookshelf_theme_pack) and an ornaments.json. The first render
--- seeds template.svg (a potted plant, its comments the SVG conventions) and
+-- seeds Plant.svg (a potted plant, its comments the SVG conventions) and
 -- cactus.svg; a deleted seed stays deleted.
 --
 -- WHAT A PIECE IS (listAll -> entries). Measured from its file: aspect (SVG
@@ -40,7 +40,12 @@ M.NEW_SUBDIR    = "ornaments"
 -- The old one. KOReader does not create icons/ itself.
 M.PARENT        = "icons"
 M.SUBDIR        = "bookshelf.ornaments"
-M.TEMPLATE_NAME = "template.svg"
+-- The plant: "template.svg" until 6.5, a name that read oddly as the piece's
+-- name ("Arrange: template", maintainer). A fresh install gets Plant.svg; an
+-- older install keeps its template.svg, which the seed refresh still updates
+-- (SEED_FILES' legacy).
+M.TEMPLATE_NAME = "Plant.svg"
+M.TEMPLATE_LEGACY_NAME = "template.svg"
 -- The ornament collection's icon (U+F0F4): its settings row and the button
 -- in a piece's long-press menu that opens it (maintainer).
 M.COLLECTION_ICON = "\xEF\x83\xB4"
@@ -183,7 +188,7 @@ M.TEMPLATE_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
 M.CACTUS_NAME = "cactus.svg"
 M.CACTUS_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
 <!-- bookshelf:seed=4 -->
-<!-- A cactus, in the same pot as the plant. See template.svg for the rules. -->
+<!-- A cactus, in the same pot as the plant. See Plant.svg for the rules. -->
 <!-- bookshelf:overhang=0 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 106">
   <path d="M14 74 H46 L42 97 A12 2.6 0 0 1 18 97 Z" fill="#a4512c" stroke="#4a2a17" stroke-width="1.2" stroke-linejoin="round"/>
@@ -214,7 +219,7 @@ function M.seedVersionOf(text)
 end
 
 M.SEED_FILES = {
-    { name = M.TEMPLATE_NAME, svg = M.TEMPLATE_SVG },
+    { name = M.TEMPLATE_NAME, svg = M.TEMPLATE_SVG, legacy = M.TEMPLATE_LEGACY_NAME },
     { name = M.CACTUS_NAME,   svg = M.CACTUS_SVG },
 }
 
@@ -311,6 +316,11 @@ end
 local function refreshSeeds(d, fs)
     for _i, seed in ipairs(M.SEED_FILES) do
         local path = d .. "/" .. seed.name
+        -- An older install's copy under the seed's old name: refreshed there.
+        if seed.legacy and fs.attributes(path, "mode") ~= "file"
+                and fs.attributes(d .. "/" .. seed.legacy, "mode") == "file" then
+            path = d .. "/" .. seed.legacy
+        end
         if fs.attributes(path, "mode") == "file" then
             local f = io.open(path, "rb")
             local head = f and f:read(8192) or nil   -- the template's doc comment is long

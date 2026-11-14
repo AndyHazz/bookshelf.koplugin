@@ -578,6 +578,12 @@ function M.show(entry, bw, piece, widget, opts)
     local Panel = InputContainer:extend{}
     dialog = Panel:new{ dimen = Geom:new{ x = 0, y = 0, w = Screen:getWidth(), h = Screen:getHeight() } }
     local function close() UIManager:close(dialog) end
+    -- back(): a tap outside, or Back. Opened from another menu (opts.on_back:
+    -- a pinned piece's own), back to it; else closed. The X still leaves.
+    local function back()
+        close()
+        if opts.on_back then opts.on_back() end
+    end
     local FocusManager = require("ui/widget/focusmanager")
     -- Dragged out of the way, as KOReader's own dialogs can be (maintainer);
     -- one container for the panel's life, so a rebuild keeps where it was
@@ -650,7 +656,7 @@ function M.show(entry, bw, piece, widget, opts)
         -- spaces too.
         local r = drawnRect()
         if ges and ges.pos and r and r.x and not ges.pos:notIntersectWith(r) then return true end
-        close()
+        back()
         return true
     end
     function dialog:onHoldOutside() return true end
@@ -670,7 +676,7 @@ function M.show(entry, bw, piece, widget, opts)
     if Device:hasKeys() then
         dialog.key_events = { Close = { { Device.input.group.Back } } }
     end
-    function dialog:onClose() close(); return true end
+    function dialog:onClose() back(); return true end
     -- However it closes (the X, Back, an action that closes it): write the
     -- reader's file once, and repaint what it covered.
     function dialog:onCloseWidget()

@@ -933,73 +933,161 @@ end)
 
 t.test("the source page offers a shelf of the reader's own, made as a collection", function()
     local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
-    assert(ed:find('text = _("Your own shelf")', 1, true), "no option on the source page")
-    assert(ed:find('Editor._newCollectionShelf(draft, d, on_close)', 1, true))
+    -- "Your own collection" since (maintainer: the shelf is a collection).
+    assert(ed:find('text = _("Your own collection")', 1, true), "no option on the source page")
     eq(D.SOURCE_SORT_DEFAULTS.curated, nil, "a second kind for what a collection already is")
 end)
 
-t.test("naming the shelf makes the collection and points the shelf at it", function()
-    local UI = package.loaded["ui/uimanager"]
-    local shown = {}
-    UI.show = function(_s, w) shown[#shown + 1] = w end
-    UI.close = function() end
-    local made
-    package.loaded["lib/bookshelf_curated"] = {
-        create = function(name) made = name; return name ~= "" and name or nil end,
-    }
-    local scr = package.loaded["device"].screen
-    scr.scaleBySize = scr.scaleBySize or function(_s, n) return n end
-    local typed = "Beach reads"
-    package.loaded["ui/widget/inputdialog"] = { new = function(_s, o)
-        o.getInputText = function() return typed end
-        o.onShowKeyboard = function() end
-        return o
-    end }
-    package.loaded["ui/widget/infomessage"] = { new = function(_s, o) o.is_info = true; return o end }
-    local closed = 0
-    local real_close = Editor._closeMenu
-    Editor._closeMenu = function() closed = closed + 1 end
+t.test("choosing a collection points the shelf at it; a shelf being made opens as spines", function()
     local draft = { label = "New shelf", source = { kind = "none" }, pending = true }
-    local done = 0
-    Editor._newCollectionShelf(draft, {}, function() done = done + 1 end)
-    local input = shown[1]
-    eq(input.input, "", "the placeholder label was offered as the name")
-    input.buttons[1][2].callback()
-    eq(made, "Beach reads")
+    Editor._useCollection(draft, "Beach reads")
     eq(draft.source.kind, "collection"); eq(draft.source.id, "Beach reads")
     eq(draft.sort_priority[1].key, "collection_order")
     eq(draft.label, "Beach reads", "the shelf did not take the collection's name")
     eq(draft.view_mode, "spines", "a shelf being made opens as spines")
-    eq(done, 1); eq(closed, 1)
-
-    -- A name that cannot be used: nothing changes, the reader is told.
-    package.loaded["lib/bookshelf_curated_ui"] = { freeName = function() return "" end }
-    typed = ""
-    local draft2 = { label = "Kept", source = { kind = "library" }, view_mode = "list" }
-    shown = {}
-    Editor._newCollectionShelf(draft2, {}, function() done = done + 1 end)
-    shown[1].buttons[1][2].callback()
-    eq(draft2.source.kind, "library"); eq(done, 1)
-    assert(shown[2] and shown[2].is_info, "no word on why nothing happened")
-
-    -- Left empty: the name the hint shows.
-    package.loaded["lib/bookshelf_curated_ui"] = { freeName = function() return "My shelf" end }
-    typed = "  "
-    local draft4 = { label = "New shelf", source = { kind = "none" }, pending = true }
-    shown = {}
-    Editor._newCollectionShelf(draft4, {}, function() end)
-    shown[1].buttons[1][2].callback()
-    eq(draft4.source.id, "My shelf")
+    eq(type(draft.spine_face_out) == "table" and draft.spine_face_out.chosen, true,
+        "a shelf being made lets each book face out or stand spine out")
+    -- No dealt ornaments: pinned pieces are how one is arranged (maintainer),
+    -- as a shelf made from a book's Add to a shelf.
+    eq(draft.ornament_frequency, 0, "a new collection shelf deals ornaments")
 
     -- An existing shelf keeps its view.
-    typed = "TBR"
     local draft3 = { label = "Kept", source = { kind = "library" }, view_mode = "list" }
-    shown = {}
-    Editor._newCollectionShelf(draft3, {}, function() end)
-    eq(shown[1].input, "Kept", "an existing shelf's name is the natural start")
-    shown[1].buttons[1][2].callback()
+    Editor._useCollection(draft3, "TBR")
+    eq(draft3.source.id, "TBR")
     eq(draft3.view_mode, "list")
-    Editor._closeMenu = real_close
+    eq(draft3.spine_face_out, nil)
+    eq(draft3.ornament_frequency, nil, "an existing shelf's ornaments changed")
+end)
+
+-- ── Hand-ordered shelves: one way in, an Arrange button, Choose for each book ──
+
+local SRC = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+
+t.test("the Source page has one way to a collection, on Your own collection", function()
+    -- Maintainer: "A collection" under Just one and "Your own shelf" led to
+    -- the same list. Then: no buttons on the card; it opens the collections
+    -- list, which can make one and choose one, and sits under the Home cards.
+    local page = SRC:match("\nfunction Editor:_pickSource%b()(.-)\nend\n")
+    assert(page, "_pickSource moved")
+    assert(not page:find('oneChip("collection"', 1, true), "A collection is back under Just one")
+    assert(not page:find('one("collection"', 1, true), "Collection is back on a module's source page")
+    local card = page:match('add%({ type = "option", text = _%("Your own collection"%)(.-)\n        }%)\n')
+    assert(card, "no Your own collection card")
+    assert(not card:find("links", 1, true), "the card has buttons again")
+    assert(card:find("callback = open_collection_picker", 1, true), "the card does not open the collections list")
+    local picker = page:match("local function open_collection_picker%(%)(.-)\n    end\n")
+    assert(picker, "no open_collection_picker")
+    assert(picker:find("CollectionManager\").show", 1, true) or picker:find('collection_manager").show', 1, true),
+        "not the collections list")
+    assert(picker:find("on_pick", 1, true) and picker:find("over", 1, true), "not a page that chooses")
+    local at_card = page:find('text = _("Your own collection")', 1, true)
+    local at_home = page:find('text = _("Home (folders)")', 1, true)
+    local at_chips = page:find('chip("recent"', 1, true)
+    assert(at_home < at_card and at_card < at_chips, "the card is not directly under the Home cards")
+end)
+
+-- Maintainer, PW5: the Source page was too tall. "Just one" drops its "A"s,
+-- and the folder card goes there as two of its buttons.
+t.test("Just one: plain names, and a folder there instead of a card of its own", function()
+    local page = SRC:match("\nfunction Editor:_pickSource%b()(.-)\nend\n")
+    local just = page:match('add%({ type = "heading", text = _%("Just one"%) }%)\n            add%({ type = "chips", items = {(.-)} }%)')
+    assert(just, "no Just one row")
+    for _i, s in ipairs({ '_("Folder")', '_("Flattened folder")', '_("Series")', '_("Author")', '_("Genre")',
+            '_("Format")', '_("Rating")', '_("Language")', '_("Decade")' }) do
+        assert(just:find(s, 1, true), s .. " missing from Just one")
+    end
+    assert(not just:find('_("A ', 1, true) and not just:find('_("An ', 1, true), "an article left")
+    assert(just:find('oneChip("folder", _("Folder"), function() open_folder_picker("folder") end)', 1, true))
+    assert(just:find('oneChip("folder_flat", _("Flattened folder"), function() open_folder_picker("folder_flat") end)', 1, true))
+    assert(not page:find('add({ type = "option", text = _("A folder"), icon', 1, true), "the folder card is still there")
+end)
+
+t.test("_handOrdered: a real collection shown in its own order first", function()
+    local saved = package.loaded["lib/bookshelf_collection_order"]
+    package.loaded["lib/bookshelf_collection_order"] = { exists = function(n) return n == "TBR" end }
+    local function d(kind, id, key)
+        return { source = { kind = kind, id = id }, sort_priority = { { key = key }, { key = "title" } } }
+    end
+    eq(Editor._handOrdered(d("collection", "TBR", "collection_order")), "TBR")
+    eq(Editor._handOrdered(d("collection", "TBR", "title")), nil, "sorted another way")
+    eq(Editor._handOrdered(d("collection", "sci-fi", "collection_order")), nil, "a pinned tag: nothing to arrange")
+    eq(Editor._handOrdered(d("library", nil, "collection_order")), nil)
+    eq(Editor._handOrdered({ source = { kind = "collection", id = "TBR" } }), nil)
+    eq(Editor._handOrdered(nil), nil)
+    package.loaded["lib/bookshelf_collection_order"] = saved
+end)
+
+t.test("a hand-ordered shelf has an Arrange button inside its Sort card", function()
+    local main = SRC:match("local sort_row\n(.-)\n        %-%- Source %+ Filters row")
+    assert(main, "the Sort row moved")
+    local act = main:match("local function arrangeShelf%(coll_id%)(.-)\n            end\n")
+    assert(act, "no one way to the arranging")
+    -- The shelf on screen is arranged where it stands; any other as a list.
+    assert(act:find("bw:_curatedArrangeShelf()", 1, true))
+    assert(act:find("finish()", 1, true), "the editor stays over the shelf being arranged")
+    assert(act:find('.arrange(coll_id, onArranged)', 1, true), "nothing for a shelf that is not on screen")
+    -- Inside the card (maintainer), not a card of its own beside it.
+    assert(main:find("sort_card.inner = {", 1, true), "the button is not the Sort card's own")
+    assert(main:find("sort_row = { sort_card }", 1, true), "a second card beside Sort")
+    assert(not main:find("narrow = true", 1, true))
+    -- The crossed arrows (maintainer): a pencil read as "edit the sort".
+    assert(main:find('icon = "\\u{E740}"', 1, true), "not the move icon")
+    assert(main:find("callback = function() arrangeShelf(hand_id) end", 1, true))
+end)
+
+t.test("a hand-ordered shelf's Sort card names its order alone", function()
+    -- Maintainer: "Collection order, Opened" asked why Opened was there. The
+    -- second level only orders a collection KOReader stores no order for;
+    -- under a hand order no two books tie, so it never acts.
+    local text = SRC:match("local function _sortButtonText%(d%)(.-)\n        end\n")
+    assert(text, "_sortButtonText moved")
+    assert(text:find("if i > 1 and hand then break end", 1, true), "levels that never act are named on the card")
+    assert(text:find("local hand = Editor._handOrdered(d) ~= nil", 1, true))
+end)
+
+t.test("a card's own button sits inside it and takes its own tap", function()
+    local build = SRC:match("local function buildCards%(rows, layout, as_choice%)(.-)\n        return rows_vg")
+    assert(build, "buildCards moved")
+    assert(build:find("local taken = c.inner and (inner_sz + inner_gap) or 0", 1, true),
+        "the card's text runs under its button")
+    assert(build:find("on_tap = b.c.inner.callback", 1, true))
+    assert(build:find("if inner_btn then focus[#focus + 1] = inner_btn end", 1, true), "out of the keys' reach")
+    assert(not build:find("c.narrow", 1, true), "the narrow card went with its one user")
+end)
+
+t.test("the Sort page's Edit collection order goes where the Sort card's button goes", function()
+    assert(SRC:find("function() rebuild() end, arrangeShelf)", 1, true),
+        "the Sort page is not handed the editor's way to the shelf")
+    -- pickerFor sets the stubs up; the page is opened again with the hook.
+    local _d, calls = pickerFor({ kind = "collection", id = "discworld" })
+    local went, row
+    local BD = package.loaded["ui/widget/buttondialog"]
+    local captured
+    BD.new = function(_self, o) captured = o; return o end
+    Editor:_openSort({ source = { kind = "collection", id = "discworld" }, sort_priority = {} },
+        nil, calls.on_arranged, nil, function(id) went = id end)
+    for _i, r in ipairs(captured.buttons) do
+        if r[2] and r[2].text and r[2].text:find("Edit collection order", 1, true) then row = r end
+    end
+    assert(row, "no Edit collection order button")
+    calls.arranged = nil
+    row[2].callback()
+    eq(went, "discworld", "the editor's arrange was not called")
+    eq(calls.arranged, nil, "the list opened as well")
+end)
+
+t.test("Face out: Choose for each book reads as that, and a reason replaces it", function()
+    local SS = package.loaded["lib/bookshelf_spine_shelf"]
+    if SS and SS.faceOutSpec and SS.faceOutSpec({ chosen = true }).chosen then
+        eq(Editor._faceOutText({ spine_face_out = { chosen = true, spine = { ["/a"] = true } } }), "Choose for each book")
+    end
+    local page = SRC:match("\nfunction Editor:_openFaceOut%b()(.-)\nend\n")
+    assert(page:find("n.chosen, n.spine = nil, nil", 1, true),
+        "a reason ticked on top of Choose for each book is stored but never read")
+    assert(page:find("if can_choose or sp.chosen then", 1, true),
+        "offered on a shelf with no way to turn a book")
+    assert(SRC:find("if spec.chosen then return L.chosen end", 1, true), "the row reads None")
 end)
 
 t.done()

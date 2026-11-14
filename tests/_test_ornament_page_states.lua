@@ -134,8 +134,12 @@ t.test("the render plans from the start state and records the next page's", func
 end)
 
 t.test("the page map records every page's state", function()
-    local b = src:match("\nfunction BookshelfWidget:_spinePageFirsts%(build, dims%)\n(.-)\nend\n")
-    assert(b:find("for k, st in pairs(plan.page_orn or {}) do", 1, true))
+    -- The plan is _spineFirstsOf's; the shelf's own map hands it the fetch
+    -- cache to record into, a what-if list hands none.
+    local b = src:match("\nfunction BookshelfWidget:_spineFirstsOf%(items, dims, c%)\n(.-)\nend\n")
+    assert(b and b:find("for k, st in pairs(plan.page_orn or {}) do", 1, true))
+    local own = src:match("\nfunction BookshelfWidget:_spinePageFirsts%(build, dims%)\n(.-)\nend\n")
+    assert(own and own:find("self:_spineFirstsOf(items, d, c)", 1, true), "the shelf's own map records no page states")
 end)
 
 t.test("shuffle ornaments reshuffles the saved order and forgets every page", function()
@@ -442,6 +446,33 @@ t.test("extraction expires the spine list only for a list KOReader's data fills"
     local src = io.open("lib/bookshelf_widget.lua"):read("*a")
     assert(src:find("if not self:_spineListFromPagedSource() then self:_expireSpineFetch() end", 1, true),
         "a cover extracted still makes a fetch-mode source's shelf fetch its whole level")
+end)
+
+-- Maintainer, rig: Swap ornament changed the pinned piece but the shelf
+-- kept drawing the old one: the page was reused, its signature naming the
+-- piece by its id alone, which a swap keeps.
+t.test("a pinned piece swapped for another ornament changes the page's signature", function()
+    local sig = method("_spineItemsSig")
+    local a = sig(nil, { { filepath = "/a.epub" }, { shelf_module = { id = "sm_1", ornament = "cactus.svg" } } })
+    local b = sig(nil, { { filepath = "/a.epub" }, { shelf_module = { id = "sm_1", ornament = "teapot.svg" } } })
+    assert(a ~= b, "the same signature for a different ornament")
+    local c = sig(nil, { { filepath = "/a.epub" }, { shelf_module = { id = "sm_1", ornament = "cactus.svg" } } })
+    assert(a == c, "the same page read as a different one")
+end)
+
+t.test("the spine shelf's kept list knows which ornament a pinned piece is", function()
+    local body = src:match("\nfunction BookshelfWidget:_spineCachedFetch%(n%)\n(.-)\nend\n")
+    assert(body and body:find('tostring(m.w) .. ":" .. tostring(m.ornament or "")', 1, true),
+        "a swapped piece kept the old list for 30 s")
+end)
+
+t.test("a pinned piece's item in the shelf's list names its ornament", function()
+    -- That id keys the spine plan's cache and the kept pages: a swap keeps
+    -- the piece's id and width, so the old picture was drawn again (rig).
+    local SM = dofile("lib/bookshelf_shelf_modules.lua")
+    local a = SM.insertItems({ { filepath = "/a" } }, { { id = "sm_1", after = 1, w = 1, ornament = "cactus.svg" } })
+    local b = SM.insertItems({ { filepath = "/a" } }, { { id = "sm_1", after = 1, w = 1, ornament = "teapot.svg" } })
+    assert(a[2].id ~= b[2].id, "the same item for another ornament: " .. tostring(a[2].id))
 end)
 
 t.done()

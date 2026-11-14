@@ -181,11 +181,19 @@ end
 --                      change" on that side.
 --   on_cancel       -- (bulk) called when the user taps Cancel. Diff is
 --                      dropped.
+--   on_pick(name)   -- pick mode (the shelf editor's Your own collection):
+--                      a tap chooses that collection and closes; + New
+--                      collection makes one and chooses it. Called once,
+--                      after the list has closed, with nil when it closed
+--                      without a choice.
+--   selected        -- (pick) the collection the shelf shows now, marked.
 function CollectionManager.show(opts)
     opts = opts or {}
     local book      = opts.book
     local bulk_mode = opts.bulk == true
     local book_mode = book ~= nil and not bulk_mode
+    local pick_mode = type(opts.on_pick) == "function" and not book_mode and not bulk_mode
+    local picked
 
     -- Draft membership. book_mode: `draft` is name -> true/false, from the
     -- book's current membership; mutated on tap, written on Save. bulk:
@@ -410,6 +418,12 @@ function CollectionManager.show(opts)
                         draft_remove[name] = nil
                     end
                     UIManager:close(input)
+                    if pick_mode then
+                        -- Made to be shown: chosen at once.
+                        picked = name
+                        UIManager:close(modal)
+                        return
+                    end
                     -- Clear the search so the new collection is in view.
                     query = nil
                     if modal then modal.search_query = nil; modal.page = 1 end
@@ -424,7 +438,11 @@ function CollectionManager.show(opts)
     -- A tap: book mode toggles the draft; bulk cycles no change > add to
     -- all > remove from all; manage opens the Edit menu.
     local function onTap(name)
-        if book_mode then
+        if pick_mode then
+            picked = name
+            UIManager:close(modal)
+            return
+        elseif book_mode then
             draft[name] = not draft[name]
         elseif bulk_mode then
             if draft_add[name] then
@@ -449,7 +467,9 @@ function CollectionManager.show(opts)
     local PickerCell = require("lib/bookshelf_picker_cell")
     local function renderCell(name, dimen)
         local selected, tint, subtitle = false, false, nil
-        if book_mode then
+        if pick_mode then
+            selected = name == opts.selected
+        elseif book_mode then
             selected = draft[name] == true
         elseif bulk_mode then
             local baseline = _baselineState(name)
@@ -536,6 +556,9 @@ function CollectionManager.show(opts)
             .. "remove them from it, and again to leave it as it is.")
     elseif book_mode then
         title = _("Edit collections")
+    elseif pick_mode then
+        title = _("Choose a collection")
+        intro = _("The shelf shows the collection's books, in the order you place them.")
     else
         title = _("Manage collections")
         intro = _("Tap a custom collection to rename, delete, or pin "
@@ -567,7 +590,7 @@ function CollectionManager.show(opts)
         on_cell_tap    = onTap,
         -- Ticking a collection marks it at once (no pressed look first);
         -- managing one opens its menu, so it keeps the press.
-        select_on_tap  = book_mode or bulk_mode,
+        select_on_tap  = book_mode or bulk_mode or pick_mode,
         cell_long_tap  = holdMenu,
         header_actions = header_actions,
         footer_rows    = footer_rows,
@@ -575,6 +598,9 @@ function CollectionManager.show(opts)
         over           = opts.over,
         on_closed      = function()
             if opts.on_close then opts.on_close() end
+            -- After the close has gone through: the editor it reopens is
+            -- shown on a clear stack.
+            if pick_mode then UIManager:nextTick(function() opts.on_pick(picked) end) end
         end,
     } }
     UIManager:show(modal)

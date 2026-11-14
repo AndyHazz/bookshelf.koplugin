@@ -7108,5 +7108,155 @@ test("cacheEpoch: every invalidation moves it, favourites and read state include
 end)
 
 -- ============================================================================
+-- Issue 602: the minutes the Time left sort orders by
+-- ============================================================================
+
+_G._tl_repo = Repo
+-- progress: fp -> { pct, status } (a book with a sidecar); pace: fp -> { pages
+-- in the book, pages timed, seconds over them } as the statistics hold them.
+local function withStats(progress, pace, fn, Repo)
+    Repo = Repo or _G._tl_repo
+    local rp, md, bp, hs = Repo.readProgress, Repo._sidecarMd5, Repo._bookPace,
+        package.loaded["docsettings"].hasSidecarFile
+    local queried = {}
+    package.loaded["docsettings"].hasSidecarFile = function(_self, fp) return progress[fp] ~= nil end
+    Repo.readProgress = function(fp)
+        local p = progress[fp]
+        if p then return p[1], p[2] end
+    end
+    Repo._sidecarMd5 = function(fp) return "md5:" .. fp end
+    Repo._bookPace = function(md5)
+        queried[#queried + 1] = md5
+        local p = pace[md5:sub(5)]
+        if p then return p[1], p[2], p[3] end
+    end
+    Repo.invalidateStatsCache()
+    local ok, err = pcall(fn, queried)
+    Repo.readProgress, Repo._sidecarMd5, Repo._bookPace = rp, md, bp
+    package.loaded["docsettings"].hasSidecarFile = hs
+    Repo.invalidateStatsCache()
+    assert(ok, err)
+end
+
+test("the estimate: pages left at the book's own pace, in minutes", function()
+    -- 400 pages, a quarter in: 300 left, at 60 s a page
+    assert(Repo._timeLeft(0.25, 400, 100, 6000) == 300)
+    assert(Repo._timeLeft(1, 400, 100, 6000) == 0)
+    assert(Repo._timeLeft(0.5, 0, 100, 6000) == nil, "no page total")
+    assert(Repo._timeLeft(0.5, 400, 0, 0) == nil, "no pages timed")
+    assert(Repo._timeLeft(nil, 400, 100, 6000) == nil)
+end)
+
+test("%book_time_left and the Time left sort share the one estimate", function()
+    local src = io.open("lib/bookshelf_book_repository.lua"):read("*a")
+    local fn = src:match("function Repo.enrichStats%(book%)(.-)\nend\n")
+    assert(fn and fn:find("Repo._timeLeft(book.book_pct, pages_total, capped_pages, capped_time)", 1, true),
+        "two copies of the sum: the shelf order and the minutes shown can disagree")
+    local tl = src:match("function Repo.timeLeftMinutes%(fp%)(.-)\nend\n")
+    assert(tl and tl:find("Repo._timeLeft(", 1, true))
+end)
+
+test("timeLeftMinutes: a book being read answers what the statistics give for where it is", function()
+    withStats({ ["/tl/a.epub"] = { 0.25, "reading" } }, { ["/tl/a.epub"] = { 400, 100, 6000 } }, function()
+        assert(Repo.timeLeftMinutes("/tl/a.epub") == 300, tostring(Repo.timeLeftMinutes("/tl/a.epub")))
+    end)
+end)
+
+test("timeLeftMinutes: a book never opened has no estimate, and the statistics are not asked", function()
+    withStats({}, { ["/tl/new.epub"] = { 400, 100, 6000 } }, function(queried)
+        assert(Repo.timeLeftMinutes("/tl/new.epub") == nil)
+        assert(#queried == 0, "an unopened library would query the statistics once a book")
+    end)
+end)
+
+test("timeLeftMinutes: a finished book has no time left to sort by", function()
+    withStats({ ["/tl/done.epub"] = { 0.4, "complete" }, ["/tl/done2.epub"] = { 1, "finished" } },
+              { ["/tl/done.epub"] = { 400, 100, 6000 }, ["/tl/done2.epub"] = { 400, 100, 6000 } }, function(queried)
+        assert(Repo.timeLeftMinutes("/tl/done.epub") == nil, "marked finished at 40%: it would sort among the books being read")
+        assert(Repo.timeLeftMinutes("/tl/done2.epub") == nil)
+        assert(#queried == 0)
+    end)
+end)
+
+test("timeLeftMinutes: a book on hold keeps its estimate", function()
+    withStats({ ["/tl/hold.epub"] = { 0.5, "abandoned" } }, { ["/tl/hold.epub"] = { 100, 10, 600 } }, function()
+        assert(Repo.timeLeftMinutes("/tl/hold.epub") == 50)
+    end)
+end)
+
+test("timeLeftMinutes: opened but no statistics for it is no estimate, not an error", function()
+    withStats({ ["/tl/nostat.epub"] = { 0.5, "reading" }, ["/tl/nopct.epub"] = { nil, "reading" } }, {}, function()
+        assert(Repo.timeLeftMinutes("/tl/nostat.epub") == nil)
+        assert(Repo.timeLeftMinutes("/tl/nopct.epub") == nil)
+        assert(Repo.timeLeftMinutes(nil) == nil)
+    end)
+end)
+
+test("timeLeftMinutes: the statistics are asked once a book until reading moves them", function()
+    -- Records are rebuilt for every shelf and every sort; the answer is the book's.
+    withStats({ ["/tl/once.epub"] = { 0.5, "reading" }, ["/tl/none.epub"] = { 0.5, "reading" } },
+              { ["/tl/once.epub"] = { 100, 10, 600 } }, function(queried)
+        Repo.timeLeftMinutes("/tl/once.epub"); Repo.timeLeftMinutes("/tl/once.epub")
+        Repo.timeLeftMinutes("/tl/none.epub"); Repo.timeLeftMinutes("/tl/none.epub")
+        assert(#queried == 2, "asked " .. #queried .. " times for two books")
+        Repo.invalidateStatsCache()
+        assert(Repo.timeLeftMinutes("/tl/once.epub") == 50)
+        assert(#queried == 3, "the minutes from before the reading session are kept")
+    end)
+end)
+
+test("timeLeftMinutes: a book marked finished since loses its estimate", function()
+    local progress = { ["/tl/mark.epub"] = { 0.5, "reading" } }
+    withStats(progress, { ["/tl/mark.epub"] = { 100, 10, 600 } }, function()
+        assert(Repo.timeLeftMinutes("/tl/mark.epub") == 50)
+        progress["/tl/mark.epub"] = { 0.5, "complete" }
+        Repo.invalidateProgressCache("/tl/mark.epub")
+        assert(Repo.timeLeftMinutes("/tl/mark.epub") == nil, "still sorted among the books being read")
+    end)
+end)
+
+test("the Time left sort asks the repository", function()
+    -- The copy loaded last is the one the sort engine asks.
+    local R = dofile("lib/bookshelf_book_repository.lua")
+    withStats({ ["/tl/s1.epub"] = { 0.5, "reading" }, ["/tl/s2.epub"] = { 0.5, "reading" } },
+              { ["/tl/s1.epub"] = { 900, 10, 600 }, ["/tl/s2.epub"] = { 30, 10, 600 } }, function()
+        local SE = require("lib/bookshelf_sort_engine")
+        SE.clearTimeLeftMemo()
+        local recs = { { filepath = "/tl/s1.epub", title = "A" }, { filepath = "/tl/new.epub", title = "B" },
+                       { filepath = "/tl/s2.epub", title = "C" } }
+        SE.sort(recs, { { key = "time_left", reverse = false } })
+        assert(recs[1].filepath == "/tl/s2.epub" and recs[2].filepath == "/tl/s1.epub"
+            and recs[3].filepath == "/tl/new.epub", recs[1].filepath .. " " .. recs[2].filepath)
+    end, R)
+end)
+
+test("the statistics are read on one connection for a whole sort, and let go after", function()
+    local src = io.open("lib/bookshelf_book_repository.lua"):read("*a")
+    local fn = src:match("function Repo._bookPace%(md5%)(.-)\nend\n")
+    assert(fn, "_bookPace moved")
+    -- Measured on a PW5: 17 ms a book opening and preparing each time, 0.6 ms
+    -- on a connection already open.
+    assert(fn:find("Repo._pace_db", 1, true), "a connection opened and prepared for every book")
+    assert(fn:find("ORDER BY last_open DESC LIMIT 1", 1, true), "the row KOReader opened last")
+    assert(src:find("function Repo._closePaceDb()", 1, true))
+end)
+
+test("closing a book drops the shelves sorted by time left, and the remembered answers", function()
+    local src = io.open("lib/bookshelf_book_repository.lua"):read("*a")
+    assert(src:find('"s:time_left:"', 1, true), "the cached, sorted list keeps the old order after reading")
+    local keys = src:match("local READ_STATE_SORT_KEYS = (%b{})")
+    assert(keys and keys:find("time_left = true", 1, true), "Home and folder shelves keep the old order")
+    local SE = require("lib/bookshelf_sort_engine")
+    local n = 0
+    SE.setTimeLeftResolver(function() n = n + 1; return 5 end)
+    local rec = { filepath = "/tl/memo.epub", title = "A" }
+    SE.timeLeftOf(rec); SE.timeLeftOf(rec)
+    assert(n == 1)
+    Repo.invalidateStatsCache()
+    SE.timeLeftOf(rec)
+    assert(n == 2, "the minutes from before the reading session are still remembered")
+end)
+
+-- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

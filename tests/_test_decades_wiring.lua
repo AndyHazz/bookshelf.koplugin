@@ -13,9 +13,10 @@ local editor = read("lib/bookshelf_chip_editor.lua")
 local widget = read("lib/bookshelf_widget.lua")
 local sources = read("lib/bookshelf_sources.lua")
 
-t.test("the chip editor offers Decades and A decade", function()
+t.test("the chip editor offers Decades and Decade", function()
     assert(editor:find('stackChip("decades", _("Decades")', 1, true), "no Decades stack chip")
-    assert(editor:find('oneChip("decade", _("A decade"), group_pick("decade"))', 1, true), "no A decade chip")
+    -- "Decade" under Just one since its "A"s went (maintainer).
+    assert(editor:find('oneChip("decade", _("Decade"), group_pick("decade"))', 1, true), "no Decade chip")
     assert(editor:find('decades       = function() return _("Decades")', 1, true), "no Decades source label")
     assert(editor:find('decade        = function() return _("Decade")', 1, true), "no Decade source label")
     assert(editor:find("decades = true", 1, true), "Decades is not a group kind in the editor")

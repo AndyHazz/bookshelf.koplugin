@@ -43,6 +43,8 @@ package.loaded["lib/bookshelf_scan_progress"] = {
         if dismiss_at and #infos >= dismiss_at then job.stopped = true end
     end,
     finish = function() finished = true end,
+    liveShelf = function(bw) return bw end,
+    holdAwake = function() end,
 }
 package.loaded["lib/bookshelf_cover_fetch"] = { runWhenOnline = function(fn) fn() end }
 local overrides, cleared = {}, {}

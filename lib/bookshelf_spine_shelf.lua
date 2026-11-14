@@ -1197,6 +1197,7 @@ function SpineShelf.faceOutFor(tab)
 end
 
 -- faceOutSpec(v) -> { favorites=, first=, reading=, all=, recent=N|nil }
+-- or { chosen = true, spine = { [filepath] = true } } (Choose for each book).
 function SpineShelf.faceOutSpec(v)
     if v == false then return {} end
     if v == nil or v == true then return { favorites = true } end
@@ -1208,6 +1209,13 @@ function SpineShelf.faceOutSpec(v)
     if type(v) ~= "table" then return { favorites = true } end
     local out = {}
     if v.all then return { all = true } end
+    -- Choose for each book (a hand-ordered shelf): every book faces out but
+    -- the ones the reader turned spine out, kept by path beside the choice.
+    -- It stands alone: a reason overruling the reader's own toggle would
+    -- read as the toggle not working.
+    if v.chosen then
+        return { chosen = true, spine = type(v.spine) == "table" and v.spine or {} }
+    end
     for _i, k in ipairs(SpineShelf.FACE_REASONS) do
         if k == "recent" then
             local n = tonumber(v.recent)
@@ -1225,7 +1233,7 @@ end
 
 -- faceOutEmpty(spec) -> true when nothing would face out.
 function SpineShelf.faceOutEmpty(spec)
-    if spec.all then return false end
+    if spec.all or spec.chosen then return false end
     for _i, k in ipairs(SpineShelf.FACE_REASONS) do
         if spec[k] then return false end
     end
@@ -1365,6 +1373,7 @@ end
 function SpineShelf.facesOut(face_spec, f, src, fav, face_recent)
     if not src.filepath then return false end
     if face_spec.all then return true end
+    if face_spec.chosen then return not (face_spec.spine and face_spec.spine[src.filepath]) end
     return (face_spec.favorites and fav)
         -- Series, run or book alone: see markSeriesHeads.
         or (face_spec.first and f.series_first == true)
@@ -4261,7 +4270,19 @@ local function _optsKey(opts)
             local v = opts[k]
             if type(v) == "table" then
                 local sub = {}
-                for sk, sv in pairs(v) do sub[#sub + 1] = tostring(sk) .. "=" .. tostring(sv) end
+                for sk, sv in pairs(v) do
+                    -- A table inside (Face out's books turned spine out, by
+                    -- path) by its CONTENTS: its address does not change when
+                    -- a book is turned, and the plan from before the turn
+                    -- was handed back.
+                    if type(sv) == "table" then
+                        local inner = {}
+                        for ik, iv in pairs(sv) do inner[#inner + 1] = tostring(ik) .. "=" .. tostring(iv) end
+                        table.sort(inner)
+                        sv = "{" .. table.concat(inner, ",") .. "}"
+                    end
+                    sub[#sub + 1] = tostring(sk) .. "=" .. tostring(sv)
+                end
                 table.sort(sub)
                 v = "{" .. table.concat(sub, ",") .. "}"
             end

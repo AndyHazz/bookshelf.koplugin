@@ -124,7 +124,7 @@ function StaleSweep._pass(BIM, stats, t0)
             in_tx = pcall(function() BIM.db_conn:exec("BEGIN;") end)
         end
         for _i, fp in ipairs(stale_paths) do
-            pcall(function() BIM:deleteBookInfo(fp) end)
+            pcall(function() require("lib/bookshelf_book_repository").bimDelete(BIM, fp) end)
             pcall(function() require("lib/bookshelf_book_repository").forgetBook(fp) end)
             pcall(function() ScaledCoverCache:drop(fp) end)
             stats.stale = stats.stale + 1

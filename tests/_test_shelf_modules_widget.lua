@@ -197,8 +197,22 @@ end)
 -- you to a menu with no clear idea why).
 t.test("a pinned piece's menu says what pinning did, and Unpin undoes it", function()
     local m = fn("_spineModuleMenu")
-    assert(m:find('_("Pinned to this spot: it stays here among the books', 1, true), "no word on what pinning did")
-    assert(m:find('pinned_piece and _("Unpin") or _("Remove")', 1, true), "no Unpin")
+    -- Shortened, with Edit ornament and Unpin beside it (maintainer).
+    assert(m:find('or _("Ornament module, positioned manually")', 1, true), "no word on what pinning did")
+    -- Maintainer: the two Arrange menus share the strip; Unpin goes, and
+    -- Remove ornament stands where Remove from collection does.
+    assert(not m:find('_("Unpin")', 1, true), "Unpin is still there")
+    -- A minus, not the book menu's book-minus: it is no book.
+    assert(m:find('bar[#bar + 1] = { icon = "\\xEE\\xA9\\xB6", text = _("Remove ornament"), callback = remove }', 1, true),
+        "no Remove ornament")
+    -- In the book menu's order: swap, remove, then add last.
+    local sw, rm, add = m:find('_("Swap ornament")', 1, true), m:find('_("Remove ornament")', 1, true),
+        m:find('text = _("Add ornament")', 1, true)
+    assert(sw and rm and add and sw < rm and rm < add, "not Swap, Remove, Add")
+    assert(m:find('_("This shelf uses the %1 collection."), ctab.source.id)', 1, true), "not the book menu's strip")
+    assert(m:find('{ label = _("Edit shelf"), callback = editShelf },\n                    { icon = CUI.ICON_ORNAMENT, label = _("Edit"), callback = adjustPiece },', 1, true),
+        "Edit ornament then Edit shelf, at the right")
+    assert(m:find('bar[#bar + 1] = { text = _("Remove"), callback = remove }', 1, true), "a module lost Remove")
 end)
 
 -- The spine module menu stays open and updates in place (closing and

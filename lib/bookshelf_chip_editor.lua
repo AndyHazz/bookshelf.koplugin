@@ -325,50 +325,20 @@ local function _applySourceDefaults(draft)
     end
 end
 
--- _newCollectionShelf(draft, d, on_close): ask for a name, make a KOReader
--- collection of that name (or take the one there is) and point the shelf at
--- it. Nothing is made until the name is confirmed; backing out leaves the
--- source page as it was. A shelf still being made opens as spines, where the
--- order reads as a shelf and ornaments can stand among the books; an
+-- _useCollection(draft, name): point the shelf at a KOReader collection, as
+-- Source > Your own collection does once one is chosen (or made) in the
+-- collections list. A shelf still being made opens as spines, where the
+-- order reads as a shelf and ornaments can stand among the books, and each
+-- book faces out or stands spine out as the reader chooses (Arrange); an
 -- existing shelf keeps the view it has.
-function Editor._newCollectionShelf(draft, d, on_close)
-    local UIManager = require("ui/uimanager")
-    local InputDialog = require("ui/widget/inputdialog")
-    local Screen = require("device").screen
-    local input
-    local start = draft.label
-    if start == _("New shelf") or start == "New chip" then start = "" end
-    local function make()
-        -- Left empty: the name the hint shows (a keys-only reader should
-        -- not have to type one).
-        local typed = tostring(input:getInputText() or ""):gsub("^%s+", ""):gsub("%s+$", "")
-        if typed == "" then typed = require("lib/bookshelf_curated_ui").freeName() end
-        local name = require("lib/bookshelf_curated").create(typed)
-        if not name then
-            UIManager:show(require("ui/widget/infomessage"):new{
-                text = _("That name cannot be used for a shelf of your own."), timeout = 3 })
-            return
-        end
-        UIManager:close(input)
-        draft.source = { kind = "collection", id = name }
-        _applySourceDefaults(draft)
-        if draft.pending and draft.view_mode == nil then draft.view_mode = "spines" end
-        Editor._closeMenu(d)
-        on_close()
-    end
-    input = InputDialog:new{
-        title = _("Name your shelf"),
-        input = start or "",
-        input_hint = _("My shelf"),
-        allow_newline = false,
-        text_height = Screen:scaleBySize(40),
-        buttons = { {
-            { text = _("Cancel"), id = "close", callback = function() UIManager:close(input) end },
-            { text = _("Create"), is_enter_default = true, callback = make },
-        } },
-    }
-    UIManager:show(input)
-    input:onShowKeyboard()
+function Editor._useCollection(draft, name)
+    draft.source = { kind = "collection", id = name }
+    _applySourceDefaults(draft)
+    if draft.pending and draft.view_mode == nil then draft.view_mode = "spines" end
+    if draft.pending and draft.spine_face_out == nil then draft.spine_face_out = { chosen = true } end
+    -- No dealt ornaments: such a shelf is arranged by pinning pieces where
+    -- they belong, as one made from a book's Add to a shelf (maintainer).
+    if draft.pending and draft.ornament_frequency == nil then draft.ornament_frequency = 0 end
 end
 
 -- Group source kinds. These tabs show GROUP CARDS at the top level
@@ -1063,6 +1033,11 @@ function Editor:editTab(tab_id, opts)
         -- A row whose cards would each be too narrow (a small screen) stacks
         -- them full width (maintainer).
         local stacked = {}
+        -- A card's own button (c.inner = { icon, callback }): an action on
+        -- the setting the card holds, at the card's right end and inside it
+        -- (Sort's "arrange by hand").
+        local inner_sz = Space.px(52)
+        local inner_gap = Space.px(10)
         for _i, row in ipairs(rows) do
             local n = #row
             if n > 1 and (content_w - (n - 1) * gap) / n < Screen:scaleBySize(160) then
@@ -1084,23 +1059,41 @@ function Editor:editTab(tab_id, opts)
                 rows_vg[#rows_vg + 1] = Kit.hintText(table.concat(t, "  "), FS, content_w)
             else
                 local n = #row
-                local w = math.floor((content_w - (n - 1) * gap) / n)
+                local w = math.floor((content_w - (n - 1) * gap) / math.max(1, n))
+                -- What the division left over goes to the last card.
+                local spare = content_w - (n - 1) * gap - n * w
                 local built, h = {}, 0
                 for i, c in ipairs(row) do
-                    local body, pad, enabled, on = card(c, w, as_choice)
-                    built[i] = { body = body, pad = pad, enabled = enabled, on = on, c = c }
+                    local cw_i = w + ((i == n) and spare or 0)
+                    -- The text gives way to the card's own button.
+                    local taken = c.inner and (inner_sz + inner_gap) or 0
+                    local body, pad, enabled, on = card(c, cw_i - taken, as_choice)
+                    built[i] = { body = body, pad = pad, enabled = enabled, on = on, c = c, w = cw_i }
                     h = math.max(h, body:getSize().h + 2 * pad)
+                    if c.inner then h = math.max(h, inner_sz + 2 * Space.px(8)) end
                 end
                 local hg, focus = HorizontalGroup:new{ align = "top" }, {}
                 for i, b in ipairs(built) do
                     if i > 1 then hg[#hg + 1] = HorizontalSpan:new{ width = gap } end
-                    local cw = (i == n) and (content_w - (n - 1) * (w + gap)) or w
+                    local cw = b.w
+                    local content, inner_btn = b.body, nil
+                    if b.c.inner then
+                        -- White and outlined, to show on the grey card. Its
+                        -- tap is its own: the card's goes on being the card's.
+                        inner_btn = Kit.button{ icon_glyph = b.c.inner.icon,
+                            icon_face = Font:getFace("symbols", FS + 4),
+                            width = inner_sz, height = inner_sz, on_tap = b.c.inner.callback }
+                        content = HorizontalGroup:new{ align = "center",
+                            LeftContainer:new{ dimen = Geom:new{ w = cw - 2 * b.pad - inner_sz, h = h }, b.body },
+                            inner_btn }
+                    end
                     local frame_c = Kit.card{ width = cw, height = h, on = b.on,
                         padding_left = b.pad, padding_right = b.pad,
-                        LeftContainer:new{ dimen = Geom:new{ w = cw - 2 * b.pad, h = h }, b.body } }
+                        LeftContainer:new{ dimen = Geom:new{ w = cw - 2 * b.pad, h = h }, content } }
                     local cell = Kit.tapCell(frame_c, cw, h, b.c.callback, b.enabled)
                     cell.focus_radius = Kit.RADIUS
                     hg[#hg + 1], focus[#focus + 1] = cell, cell
+                    if inner_btn then focus[#focus + 1] = inner_btn end
                 end
                 rows_vg[#rows_vg + 1] = hg
                 layout[#layout + 1] = focus
@@ -1371,7 +1364,12 @@ function Editor:editTab(tab_id, opts)
         local function _sortButtonText(d)
             local kind = d.source and d.source.kind
             local parts = {}
+            -- A hand order leaves no two books tied, so the levels under it
+            -- never act: the card names the order alone. (The default second
+            -- level is for a collection KOReader stores no order for.)
+            local hand = Editor._handOrdered(d) ~= nil
             for i, lv in ipairs(d.sort_priority or {}) do
+                if i > 1 and hand then break end
                 local lbl = _resolveSortLabel(i, lv.key, kind)
                 if not _isDefaultDirection(lv.key, lv.reverse) then
                     -- Editor's: the local is declared further down.
@@ -1439,16 +1437,38 @@ function Editor:editTab(tab_id, opts)
         else
             -- One card for the whole order: its levels open together on the
             -- Sort page.
-            sort_row = {
-                {
-                    text_func = function() return _sortButtonText(draft) end,
-                    icon = "\u{EBB9}",   -- sort
-                    callback = function()
-                        Editor:_openSort(draft, function() commit() end, onArranged,
-                            function() rebuild() end)
-                    end,
-                },
+            -- A shelf in its collection's own order is arranged by hand
+            -- (maintainer). The shelf on screen closes the editor and is
+            -- arranged where it stands (BookshelfWidget:_curatedArrangeShelf);
+            -- any other opens the order as a list, over the editor. The
+            -- Sort card's own button and the Sort page's "Edit collection
+            -- order" both come here.
+            local function arrangeShelf(coll_id)
+                local bw = opts.bw
+                if bw and bw.chip == tab_id and not draft.card_only and bw._curatedArrangeShelf then
+                    finish()
+                    if bw:_curatedArrangeShelf() then return end
+                end
+                require("lib/bookshelf_collection_order").arrange(coll_id, onArranged)
+            end
+            -- One card for the whole order: its levels open together on the
+            -- Sort page.
+            local sort_card = {
+                text_func = function() return _sortButtonText(draft) end,
+                icon = "\u{EBB9}",   -- sort
+                callback = function()
+                    Editor:_openSort(draft, function() commit() end, onArranged,
+                        function() rebuild() end, arrangeShelf)
+                end,
             }
+            local hand_id = Editor._handOrdered(draft)
+            if hand_id then
+                sort_card.inner = {
+                    icon = "\u{E740}",   -- arrow-all: move it about
+                    callback = function() arrangeShelf(hand_id) end,
+                }
+            end
+            sort_row = { sort_card }
         end
 
         -- Source + Filters row. The local-library filters (genre / tags /
@@ -2791,6 +2811,7 @@ local function _faceLabels()
         collection = _("In a collection"),
         recent    = _("Recently added"),
         all       = _("All books"),
+        chosen    = _("Choose for each book"),
     }
 end
 
@@ -2801,6 +2822,7 @@ function Editor._faceOutText(draft, full)
     local L = _faceLabels()
     local spec = SS.faceOutSpec(draft.spine_face_out)
     if spec.all then return L.all end
+    if spec.chosen then return L.chosen end
     if SS.faceOutEmpty(spec) then return L.none end
     local parts = {}
     for _i, k in ipairs(SS.FACE_REASONS) do
@@ -2864,6 +2886,8 @@ function Editor:_openFaceOut(draft, on_change)
             -- Switching the collection reason ON needs a name first.
             if k == "collection" and not n.collection then return pickCollection() end
             n.all = nil     -- a reason un-picks "All"
+            -- ...and "Choose for each book", whose turned books it drops.
+            n.chosen, n.spine = nil, nil
             if k == "recent" then
                 n.recent = (n.recent == nil) and SS.FACE_RECENT_DEFAULT or nil
             elseif k == "collection" then
@@ -2881,6 +2905,12 @@ function Editor:_openFaceOut(draft, on_change)
         -- What the page is for, not what is ticked below it (maintainer).
         local summary = _("Choose which books show their cover facing out on this shelf. The rest show their spines.")
         local none = (not sp.all) and SS.faceOutEmpty(sp)
+        -- A hand-ordered shelf (a real collection behind it): face out or
+        -- spine out book by book, from Arrange on the shelf.
+        local can_choose = false
+        pcall(function()
+            can_choose = require("lib/bookshelf_curated_ui").listOf(draft) ~= nil
+        end)
         local blocks = {
             -- Reading state first, the reasons most people answer with, in
             -- the order the book's long-press menu sets them.
@@ -2917,12 +2947,23 @@ function Editor:_openFaceOut(draft, on_change)
                 callback = pickCollection }
         end
         blocks[#blocks + 1] = { type = "heading", text = _("Whole shelf") }
-        blocks[#blocks + 1] = { type = "chips", items = {
+        local whole = {
             { text = L.all, on = sp.all == true, callback = function()
                 draft.spine_face_out = "all"; changed() end },
             { text = L.none, on = none, callback = function()
                 draft.spine_face_out = false; changed() end },
-        } }
+        }
+        if can_choose or sp.chosen then
+            whole[#whole + 1] = { text = L.chosen, on = sp.chosen == true, callback = function()
+                if not spec().chosen then draft.spine_face_out = { chosen = true } end
+                changed()
+            end }
+        end
+        blocks[#blocks + 1] = { type = "chips", items = whole }
+        if sp.chosen then
+            blocks[#blocks + 1] = { type = "hint",
+                text = _("Every book faces out until you turn it. Long-press a book on the shelf, tap 'Arrange', then 'Face out'.") }
+        end
         return { strip = { { type = "summary", text = summary } }, blocks = blocks }
     end
     d = Editor._menu{
@@ -3268,36 +3309,27 @@ function Editor:_pickSource(draft, on_close)
         end)
     end
 
-    local function open_tag_picker()
-        local ReadCollection = require("readcollection")
-        local default_name = ReadCollection.default_collection_name
-        local choices = {}
-        for name, coll in pairs(ReadCollection.coll or {}) do
-            -- Skip the built-in favourites collection: it has its own
-            -- dedicated "★ Favourites" button at the top of the source
-            -- picker. Showing it here too would be a duplicate entry that
-            -- can't be edited or deleted as a regular collection.
-            if name ~= default_name then
-                local count = 0
-                for _ in pairs(coll) do count = count + 1 end
-                choices[#choices + 1] = {
-                    value = name,
-                    label = name,
-                    count = count,
-                }
-            end
-        end
-        table.sort(choices, function(a, b) return a.label:lower() < b.label:lower() end)
+    -- Your own collection: KOReader's collections, in Bookshelf's list of
+    -- them (Manage collections), as a page of the editor. A tap chooses one;
+    -- + New collection makes one and chooses it. Long-press renames or
+    -- deletes, as it does there.
+    local function open_collection_picker()
+        local cur_kind, cur_name = draft.source and draft.source.kind, draft.source and draft.source.id
         Editor._closeMenu(d)
-        pickById("collection", choices, function(picked)
-            if not picked then
-                Editor:_pickSource(draft, on_close)
-                return
-            end
-            draft.source = { kind = "collection", id = picked }
-            _applySourceDefaults(draft)
-            on_close()
-        end)
+        require("lib/bookshelf_collection_manager").show{
+            selected = cur_kind == "collection" and cur_name or nil,
+            over = Editor._over({
+                TabModel.isCardOnly(draft) and _("Shelf module source") or _("Source"),
+                _("Your own collection") }),
+            on_pick = function(name)
+                if not name then
+                    Editor:_pickSource(draft, on_close)
+                    return
+                end
+                Editor._useCollection(draft, name)
+                on_close()
+            end,
+        }
     end
 
     -- OPDS catalogue picker AND manager. Rows come from bookshelf's own catalog
@@ -3495,45 +3527,25 @@ function Editor:_pickSource(draft, on_close)
             add({ type = "option", half = true, text = _("Home (folders)"), desc = DESC.all,
                 icon = "\u{E952}",
                 on = cur == "all", callback = set_simple("all") })
-            -- One folder, as folders or flattened (#76): the same picker,
-            -- differing only in how the shelf draws it.
-            add({ type = "option", text = _("A folder"), icon = "\u{E94A}",
-                desc = ((cur == "folder" or cur == "folder_flat") and idText(cur_id)) or _("Any folder on the device."),
-                on = cur == "folder" or cur == "folder_flat",
-                callback = function() open_folder_picker("folder") end,
-                links = {
-                    { text = _("As folders") .. CHEV, on = cur == "folder",
-                      callback = function() open_folder_picker("folder") end },
-                    { text = _("Flattened") .. CHEV, on = cur == "folder_flat",
-                      callback = function() open_folder_picker("folder_flat") end },
-                } })
+            -- One folder, as folders or flattened (#76): two of the Just
+            -- one buttons below (maintainer: the page was too tall).
         end
+        -- A shelf of the reader's own (issue 390): a KOReader collection
+        -- shown as a shelf, its books in the order the reader places them.
+        -- The card opens the collections list, which makes one or chooses
+        -- one; it sits under the Home cards (maintainer).
+        add({ type = "option", text = _("Your own collection"), icon = SOURCE_ICONS_CURATED,
+            desc = (cur == "collection" and idText(cur_id))
+                or _("Books you pick, in the order you place them. Add a book from its long-press menu."),
+            on = cur == "collection",
+            callback = open_collection_picker,
+        })
         add({ type = "chips", items = {
             chip("recent", _("Recently read")),
             chip("latest", _("Latest added")),
             { text = _("Favorites"), icon = Editor._favGlyph(), on = cur == "favorites",
               callback = set_simple("favorites") },
         } })
-        -- A shelf of the reader's own (issue 390): books they pick, in the
-        -- order they place them. It is a KOReader collection shown as a
-        -- shelf, so this makes one (asked for by name, and only once the name
-        -- is given) or takes one they have. Lit for any single collection's
-        -- shelf, which is the same thing however it was made.
-        add({ type = "option", text = _("Your own shelf"), icon = SOURCE_ICONS_CURATED,
-            desc = (cur == "collection" and idText(cur_id))
-                or _("Books you pick, in the order you place them. Add a book from its long-press menu."),
-            on = cur == "collection",
-            -- Already one: the tap changes WHICH (asking for a name again
-            -- pointed the shelf at a new, empty collection, and its books
-            -- seemed to vanish). Not yet one: make one.
-            callback = function()
-                if cur == "collection" then return open_tag_picker() end
-                Editor._newCollectionShelf(draft, d, on_close)
-            end,
-            links = {
-                { text = _("New shelf") .. "\xE2\x80\xA6", callback = function() Editor._newCollectionShelf(draft, d, on_close) end },
-                { text = _("An existing one") .. CHEV, callback = open_tag_picker },
-            } })
         if card_only then
             -- It shows books, so no stacks (series, authors, a shelf of
             -- shelves...) and nothing online; a shelf of one of them is books.
@@ -3541,7 +3553,6 @@ function Editor:_pickSource(draft, on_close)
             add(one("single_series", _("Series"), group_pick("series")))
             add(one("author", _("Author"), group_pick("author")))
             add(one("genre", _("Genre"), group_pick("genre")))
-            add(one("collection", _("Collection"), open_tag_picker))
             add(one("format", _("Format"), group_pick("format")))
             add(one("rating", _("Rating"), open_rating_picker))
             add(one("language", _("Language"), group_pick("language")))
@@ -3561,16 +3572,19 @@ function Editor:_pickSource(draft, on_close)
                 stackChip("languages", _("Languages"), "\u{ECC9}"),
                 stackChip("decades", _("Decades"), "\u{ED77}"),
             } })
+            -- Plain names, and a folder (as folders, or flattened) among them
+            -- (maintainer: shorter buttons, a shorter page).
             add({ type = "heading", text = _("Just one") })
             add({ type = "chips", items = {
-                oneChip("single_series", _("A series"), group_pick("series")),
-                oneChip("author", _("An author"), group_pick("author")),
-                oneChip("genre", _("A genre"), group_pick("genre")),
-                oneChip("collection", _("A collection"), open_tag_picker),
-                oneChip("format", _("A format"), group_pick("format")),
-                oneChip("rating", _("A rating"), open_rating_picker),
-                oneChip("language", _("A language"), group_pick("language")),
-                oneChip("decade", _("A decade"), group_pick("decade")),
+                oneChip("folder", _("Folder"), function() open_folder_picker("folder") end),
+                oneChip("folder_flat", _("Flattened folder"), function() open_folder_picker("folder_flat") end),
+                oneChip("single_series", _("Series"), group_pick("series")),
+                oneChip("author", _("Author"), group_pick("author")),
+                oneChip("genre", _("Genre"), group_pick("genre")),
+                oneChip("format", _("Format"), group_pick("format")),
+                oneChip("rating", _("Rating"), open_rating_picker),
+                oneChip("language", _("Language"), group_pick("language")),
+                oneChip("decade", _("Decade"), group_pick("decade")),
             } })
             add({ type = "heading", text = _("More") })
             -- Shelf of shelves (5.4): tiles that are shelves of their own.
@@ -3957,6 +3971,19 @@ function Editor:_pickFolderFilter(draft, on_close)
     }
 end
 
+-- _handOrdered(draft) -> the collection's name when the shelf shows a real
+-- collection in its own order first (the shelf a reader arranges by hand),
+-- else nil. A pinned tag is kind "collection" too, with nothing to arrange.
+function Editor._handOrdered(draft)
+    local src = type(draft) == "table" and draft.source
+    if type(src) ~= "table" or src.kind ~= "collection" then return nil end
+    local first = type(draft.sort_priority) == "table" and draft.sort_priority[1]
+    if not (first and first.key == "collection_order") then return nil end
+    local ok, CollectionOrder = pcall(require, "lib/bookshelf_collection_order")
+    if not (ok and CollectionOrder and CollectionOrder.exists(src.id)) then return nil end
+    return src.id
+end
+
 -- Sort directions in words, per key: { reverse = false, reverse = true }.
 -- What the shelf does, where a bare arrow said only "the other way".
 local function _dirLabels(key)
@@ -3968,7 +3995,7 @@ local function _dirLabels(key)
     if key == "percent_read" then return _("Least read first"), _("Most read first") end
     if key == "rating" then return _("Lowest first"), _("Highest first") end
     if key == "size" then return _("Smallest first"), _("Largest first") end
-    if key == "page_count" then return _("Shortest first"), _("Longest first") end
+    if key == "page_count" or key == "time_left" then return _("Shortest first"), _("Longest first") end
     if key == "book_count" then return _("Fewest first"), _("Most first") end
     -- Named for what leads: "First" / "Last" read "Favorites first: Last".
     if key == "read_status" then return _("Unread first"), _("Finished first") end
@@ -4017,7 +4044,7 @@ end
 -- Group shelves: level 1 orders the group cards and offers only the keys a
 -- group can be sorted by; it cannot be cleared (a group view must have an
 -- order). Levels 2+ sort the books inside a group.
-function Editor:_openSort(draft, on_change, on_arranged, on_back)
+function Editor:_openSort(draft, on_change, on_arranged, on_back, arrange)
     local kind = draft.source and draft.source.kind
     local is_group = GROUP_KINDS[kind or ""] or false
     local MAX = 3
@@ -4114,12 +4141,17 @@ function Editor:_openSort(draft, on_change, on_arranged, on_back)
                 local CollectionOrder = require("lib/bookshelf_collection_order")
                 local coll_id = draft.source and draft.source.id
                 if CollectionOrder.exists(coll_id) then
-                    -- Over this page rather than instead of it: confirming or
-                    -- backing out of the arrange window lands here. A confirm
-                    -- drops the book cache and calls on_arranged, which
-                    -- repaints the shelf.
+                    -- From the shelf's editor (arrange): the same place
+                    -- the Sort card's own button goes, the shelf itself with
+                    -- its Arrange menu open. With no editor behind it, the
+                    -- order as a list over this page: a confirm drops the
+                    -- book cache and calls on_arranged, which repaints the
+                    -- shelf.
                     c.items[#c.items + 1] = { text = _("Edit collection order") .. " \xE2\x80\xBA",
-                        callback = function() CollectionOrder.arrange(coll_id, on_arranged) end }
+                        callback = function()
+                            if arrange then return arrange(coll_id) end
+                            CollectionOrder.arrange(coll_id, on_arranged)
+                        end }
                 end
                 add(c)
             end
@@ -4129,7 +4161,7 @@ function Editor:_openSort(draft, on_change, on_arranged, on_back)
             add(chips({ "series_name", "series_index", "series_combined", "series_or_title" }))
             -- Added/opened first: Home's own sort (maintainer).
             add({ type = "heading", text = _("Reading") })
-            add(chips({ "added_or_opened", "date_added", "last_opened", "percent_read", "rating" }))
+            add(chips({ "added_or_opened", "date_added", "last_opened", "percent_read", "time_left", "rating" }))
             add({ type = "heading", text = _("Status") })
             add(chips({ "read_status", "read_status_active", "favorites_first" }))
             add({ type = "heading", text = _("Size") })

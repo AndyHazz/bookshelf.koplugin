@@ -51,7 +51,8 @@ t.test("every BIM row deletion forgets the batch row", function()
     }
     for _i, s in ipairs(sites) do
         local src = io.open(s[1]):read("*a")
-        local dels = select(2, src:gsub("BIM:deleteBookInfo%(", ""))
+        -- Repo.bimDelete: the delete that closes its statement (tests/_test_bim_delete_closes).
+        local dels = select(2, src:gsub("bimDelete%(", ""))
         local forgets = select(2, src:gsub("forgetBook%(", ""))
         eq(dels, s[2], s[1] .. ": the number of deletions changed; check each forgets")
         assert(forgets >= dels, s[1] .. ": a BIM row deletion does not forget the batch row")

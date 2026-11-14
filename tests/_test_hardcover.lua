@@ -172,6 +172,25 @@ test("linkBook stores a Bookshelf-owned link", function()
     assert(link.title == "A Book", "missing title")
 end)
 
+test("the bulk refresh list is the Hardcover plugin's table, as it always was", function()
+    reset()
+    -- A link of Bookshelf's that is not in the plugin's table is a stale
+    -- path (the plugin's table is kept in step on every link). Walking those
+    -- too took the PW5's list from 599 files to 768, each a request.
+    settings["bookshelf_hardcover_links"] = { ["/books/gone.epub"] = { book_id = 5, pages = 90 } }
+    Hardcover.invalidate()
+    for _i, fp in ipairs(Hardcover.linkedFiles()) do
+        assert(fp ~= "/books/gone.epub", "a stale link of Bookshelf's is in the refresh list")
+    end
+    assert(Hardcover.linkedPages()["/books/gone.epub"] == nil, "a stale link's pages were listed")
+end)
+
+test("connection: the Hardcover plugin signs in with an API key", function()
+    reset()
+    local c = Hardcover.connection()
+    assert(c.source == "hardcover" and c.label == "Hardcover plugin" and c.method == "api_key")
+end)
+
 test("re-linking keeps the cover and description choices", function()
     reset()
     assert(Hardcover.linkBook("/books/a.epub", { id = 123, title = "A Book" }))

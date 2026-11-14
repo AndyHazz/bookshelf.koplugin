@@ -93,6 +93,16 @@ _bim_stub = {
     end,
 }
 package.loaded["bookinfomanager"] = _bim_stub
+-- The sweep deletes through Repo.bimDelete (the delete that closes its
+-- statement: tests/_test_bim_delete_closes), not BIM's own.
+package.loaded["lib/bookshelf_book_repository"] = {
+    bimDelete = function(bim, fp)
+        assert(bim == _bim_stub, "not BIM's own connection: the delete would miss the transaction")
+        _G._test_bim_deleted[#_G._test_bim_deleted + 1] = fp
+        return true
+    end,
+    forgetBook = function() end,
+}
 -- ScaledCoverCache stub records which paths got dropped.
 _G._test_scc_dropped = {}
 package.loaded["lib/bookshelf_scaled_cover_cache"] = {

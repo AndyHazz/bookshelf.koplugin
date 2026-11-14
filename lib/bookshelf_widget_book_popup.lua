@@ -1707,6 +1707,12 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     -- ── Hardcover availability + cached rating (read-only) ───────────────────
     local _ok_hc, _HC = pcall(require, "lib/bookshelf_hardcover")
     local hc_available = _ok_hc and _HC and _HC.isAvailable and _HC.isAvailable()
+    -- The book's Hardcover link, as the menu names it ("Dracula · Paperback"):
+    -- the Hardcover card is lit for it, and a line under the actions names it
+    -- (the row at this tab's foot that said so went with the card).
+    local hc_linked_label = book.filepath and _ok_hc and _HC and _HC.linkLabel
+        and _HC.linkLabel(book.filepath) or nil
+    local hc_linked = hc_linked_label ~= nil
     local hc_rating
     if hc_available and book.filepath then
         local link = _HC.getLink and _HC.getLink(book.filepath)
@@ -1825,8 +1831,10 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     local refresh_btn = { text = _("Refresh metadata"), callback = function()
         closeModal()
         local ok_bim, BIM = pcall(require, "bookinfomanager")
+        -- Repo.bimDelete, not BIM's own: that one leaves a statement open,
+        -- and the re-extraction's row was lost with it.
         if ok_bim and BIM and BIM.deleteBookInfo then
-            pcall(function() BIM:deleteBookInfo(book.filepath) end)
+            Repo.bimDelete(BIM, book.filepath)
         end
         -- And from the batch rows, or the extraction check still finds it.
         Repo.forgetBook(book.filepath)
@@ -1937,25 +1945,25 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     end
 
     -- ── Action tiles ─────────────────────────────────────────────────────────
-    -- Most used first. Icons are the bundled symbols font's Material Design
-    -- glyphs (PUA, so safe in any UI font).
-    -- Each has a stable id for the reader's own order (long-press a card).
+    -- In the maintainer's order, built top to bottom as the grid reads.
+    -- Icons are the bundled symbols font's Material Design glyphs (PUA, so
+    -- safe in any UI font). Each has a stable id for the reader's own order
+    -- (long-press a card); a reader who arranged them keeps that, and a card
+    -- added since lands after its `after`.
+    -- Labels of a like length, left to wrap on their own (maintainer: one
+    -- line beside two looked uneven; a forced break would break badly at
+    -- another font size).
     local tile_specs = {
         -- The reader's own mark (Favorites icon: a heart unless they chose
         -- the star), filled when it is a favourite, outlined when not.
-        { id = "favorite", text = _("Favorite"), icon = favCardIcon(inFav()),
+        { id = "favorite", text = _("Favorite on/off"), icon = favCardIcon(inFav()),
           on = inFav(), callback = fav.callback },
-        { id = "history", text = remove_history.text, icon = "\xEE\xA7\x99", callback = remove_history.callback }, -- history
-        { id = "info",    text = show_info.text,   icon = "\xEE\xA7\xBC", callback = show_info.callback },   -- information-outline
-        { id = "select",  text = select_btn.text,  icon = "\xEE\xA0\xB8", callback = select_btn.callback },  -- checkbox-multiple-marked-outline
-        { id = "refresh", text = refresh_btn.text, icon = "\xEE\xAD\x8F", callback = refresh_btn.callback }, -- refresh
     }
     -- Curated shelves (issue 390), straight after Favorite: the way books get
     -- onto one. The chooser opens over this menu and stays while shelves are
-    -- ticked; the card is lit when the book is on any of them. On a curated
-    -- shelf the book stands on, a second card moves it along that shelf
-    -- and from there any other ("Arrange": "Move on shelf" sat beside the
-    -- file's own "Move...").
+    -- ticked; the card is lit when the book is on any of them. (Arranging a
+    -- book on a hand-ordered shelf is a long-press on it there: _holdBook
+    -- opens Arrange, which has a way back here.)
     do
         local CUI = require("lib/bookshelf_curated_ui")
         local Curated = require("lib/bookshelf_curated")
@@ -1963,39 +1971,60 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         for _i, sh in ipairs(CUI.shelves()) do
             if Curated.has(sh.list, book.filepath) then on_a_shelf = true; break end
         end
-        table.insert(tile_specs, 2, { id = "shelf", text = _("Add to shelf"), icon = CUI.ICON_ADD,
+        tile_specs[#tile_specs + 1] = { id = "shelf", text = _("Add to a shelf"), icon = CUI.ICON_ADD,
             after = "favorite",   -- its place in an order saved before it existed
             on = on_a_shelf,
             callback = function()
                 CUI.pick{ paths = { book.filepath }, after_id = bw.chip,
+                    view_mode = bw._viewMode and bw:_viewMode() or nil,
                     on_done = function(changed)
                         if not changed then return end
                         -- A spine shelf keeps its own list for a while.
                         if bw._expireSpineFetch then bw:_expireSpineFetch() end
                         refreshInPlace()
                     end }
-            end })
-        local here = bw._curatedList and bw:_curatedList()
-        if here and Curated.has(here, book.filepath) then
-            table.insert(tile_specs, 3, { id = "shelf_move", text = _("Arrange"), after = "shelf",
-                icon = "\u{E8B5}",   -- cursor-move
-                callback = function()
-                    closeModal()
-                    bw:_curatedMoveMenu(book)
-                end })
-        end
+            end }
+    end
+    tile_specs[#tile_specs + 1] = { id = "info", text = _("Show book info"), icon = "\xEE\xA7\xBC", -- information-outline
+        callback = show_info.callback }
+    -- Re-reads the book's own details and cover from the file; the reader's
+    -- data stays.
+    tile_specs[#tile_specs + 1] = { id = "refresh", text = _("Reload metadata"), icon = "\xEE\xAD\x8F", -- refresh
+        callback = refresh_btn.callback }
+    tile_specs[#tile_specs + 1] = { id = "select", text = _("Select multiple"), icon = "\xEE\xA0\xB8", -- checkbox-multiple-marked-outline
+        callback = select_btn.callback }
+    -- Hardcover: link this book, or change its link (the menu was reached
+    -- from a row at the foot of this tab, half under the footer on a PW5).
+    -- Always offered for a book on the device: with no way to reach
+    -- Hardcover set up, the menu says what Hardcover is and how to connect.
+    if not bw:_isRemoteRecord(book) then
+        tile_specs[#tile_specs + 1] = {
+            id = "hardcover", text = _("Hardcover link"),
+            on = hc_linked,
+            icon = require("lib/bookshelf_menu_icons").HARDCOVER,
+            after = "select",   -- its place in an order saved before it existed
+            callback = function()
+                closeModal()
+                UIManager:nextTick(function() bw:_openHardcoverMenu(book) end)
+            end }
     end
     -- A record from a device library (Kindle #355, Kobo) is not a file the user
     -- put on the device: its path is the reader's own library entry, or a
     -- generated conversion of one. Delete would really remove the book from the
     -- Kindle, and Move would break the catalogue's idea of where it lives, so
     -- those actions go rather than being offered and failing.
-    if not (book.is_kindle or book.is_kobo) then
-        tile_specs[#tile_specs + 1] = { id = "move", text = move_btn.text, icon = "\xEE\xA5\x91", -- folder-move
+    local device_library = book.is_kindle or book.is_kobo
+    if not device_library then
+        tile_specs[#tile_specs + 1] = { id = "move", text = _("Move book files\xE2\x80\xA6"), icon = "\xEE\xA5\x91", -- folder-move
             enabled = move_btn.enabled, callback = move_btn.callback }
+    end
+    tile_specs[#tile_specs + 1] = { id = "history", text = remove_history.text, icon = "\xEE\xA7\x99", -- history
+        callback = remove_history.callback }
+    -- The two that cannot be undone, last and together.
+    if not device_library then
         tile_specs[#tile_specs + 1] = { id = "reset", text = reset_btn.text, icon = "\xEE\x9D\xAE", -- backup-restore
             callback = reset_btn.callback }
-        tile_specs[#tile_specs + 1] = { id = "delete", text = _("Delete"), icon = "\xEE\xA2\xBF", -- delete
+        tile_specs[#tile_specs + 1] = { id = "delete", text = _("Delete book files\xE2\x80\xA6"), icon = "\xEE\xA2\xBF", -- delete
             callback = delete_btn.callback }
     end
 
@@ -2532,18 +2561,21 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             local icon_face  = BFont:getFace("symbols", font_size + 10)
             local label_face = Font:getFace("cfont", math.max(10, font_size - 3))
             local pad_v = Space.px(12)
-            -- As many columns (4 at most) as leave every label two lines or
-            -- fewer: a small screen or a big zoom drops to 3, then 2.
+            -- As many columns (5 at most) as leave every label two lines or
+            -- fewer: a small screen or a big zoom drops to 4, 3, then 2.
             local function innerW(c)
                 return math.floor((w - (c - 1) * gap) / c) - 2 * tile_border - 2 * Space.px(6)
             end
+            -- A word joiner after each slash: "Favorite on/off" broke
+            -- after "on/" on a PW5; a card keeps such a word whole.
+            local function keepSlashWords(text) return (text:gsub("/", "/\xE2\x81\xA0")) end
             local function textH(text, tw)
-                local tb = TextBoxWidget:new{ text = text, face = label_face, width = tw }
+                local tb = TextBoxWidget:new{ text = keepSlashWords(text), face = label_face, width = tw }
                 local h = tb:getSize().h
                 tb:free()
                 return h
             end
-            local cols = 4
+            local cols = 5
             while cols > 2 do
                 local iw, two = innerW(cols), 2 * textH("Ag", innerW(cols))
                 local fits = true
@@ -2567,7 +2599,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                     or ((a.enabled == false) and Blitbuffer.COLOR_GRAY)
                     or (on and Blitbuffer.COLOR_WHITE) or Blitbuffer.COLOR_BLACK
                 local icon = TextWidget:new{ text = a.icon, face = icon_face, fgcolor = fg }
-                local label = TextBoxWidget:new{ text = a.text, face = label_face,
+                local label = TextBoxWidget:new{ text = keepSlashWords(a.text), face = label_face,
                     width = inner_w, alignment = "center", fgcolor = fg,
                     bgcolor = on and Blitbuffer.COLOR_BLACK or PopupKit.STRIP_BG }
                 local content = VerticalGroup:new{ align = "center",
@@ -2645,23 +2677,24 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             vg[#vg + 1] = infoRow(from and (d .. " \xC2\xB7 " .. from) or d, _("Edit"), pubdate_btn.callback)
         end
 
-        -- 5. Hardcover link (brand name -> heading not translated). Edition text
-        -- + inline Edit/Link button, below File & metadata. (Collections live on
-        -- the Tags tab, which has its own per-collection pills + Edit affordance
-        -- -- no need to duplicate the same membership here in a second style.)
-        if hc_available then
-            local label = _HC.linkLabel and _HC.linkLabel(book.filepath)
-            vg[#vg + 1] = heading("Hardcover")
-            -- No bottom border needed here: whatever follows (Plugin
-            -- actions' heading, or the unconditional closing rule() below
-            -- if this is the last section) already closes this row off.
-            vg[#vg + 1] = infoRow(
-                label or _("Not linked"),
-                label and _("Edit") or _("Link\xE2\x80\xA6"),
-                function()
-                    closeModal()
-                    UIManager:nextTick(function() bw:_openHardcoverMenu(book) end)
-                end)
+        -- 5. A linked book: one grey line under the actions naming the link
+        -- (the Hardcover row that sat here went to an action card; the line
+        -- keeps what it told). A tap on it opens the Hardcover menu.
+        if hc_linked_label then
+            local line = TextBoxWidget:new{
+                text = T(_("Hardcover linked to: %1"), hc_linked_label),
+                face = BFont:getFace("cfont", math.max(10, font_size - 3)),
+                fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = content_w - 2 * inset }
+            local tap = InputContainer:new{ dimen = Geom:new{ w = line:getSize().w, h = line:getSize().h }, line }
+            tap.ges_events = { TapHcLinked = { GestureRange:new{ ges = "tap",
+                range = function() return tap.dimen end } } }
+            function tap:onTapHcLinked()
+                closeModal()
+                UIManager:nextTick(function() bw:_openHardcoverMenu(book) end)
+                return true
+            end
+            vg[#vg + 1] = VerticalSpan:new{ width = Space.px(10) }
+            vg[#vg + 1] = padded(tap, 0, 0)
         end
 
         return vg, focus_tables
@@ -3325,7 +3358,7 @@ function BookshelfWidget:_applyCoverCandidate(book, candidate, modal, state)
                 if BIM and BIM.extractBookInfo then
                     local sw = Screen:getWidth()
                     local cw = math.max(1, math.floor(sw * 0.5))
-                    if BIM.deleteBookInfo then BIM:deleteBookInfo(book.filepath) end
+                    if BIM.deleteBookInfo then Repo.bimDelete(BIM, book.filepath) end
                     Repo.forgetBook(book.filepath)
                     BIM:extractBookInfo(book.filepath,
                         { max_cover_w = cw, max_cover_h = math.floor(cw * 1.5) })
@@ -4200,7 +4233,12 @@ function BookshelfWidget:_showBookDetail(book, opts)
             end)
             list = all
         end
-        return Tokens.reviewsHtml{ reviews = list }
+        -- A count with nothing under it: say why, not "no reviews".
+        local empty_text
+        if Hardcover.reviewsWithheld and Hardcover.reviewsWithheld(result) then
+            empty_text = _("Hardcover does not show other readers' reviews to this kind of sign-in. Add a Hardcover API key to see them: Hardcover enrichment > Hardcover API key. You stay signed in.")
+        end
+        return Tokens.reviewsHtml{ reviews = list, empty_text = empty_text }
     end
     local reviews_tab  -- forward ref: refreshReviews mutates it, its
                         -- widget_builder (below) reads it back each rebuild.

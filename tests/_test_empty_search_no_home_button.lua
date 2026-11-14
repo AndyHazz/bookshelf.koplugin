@@ -63,7 +63,9 @@ t.test("an empty shelf on a collection says how books get onto it", function()
     local text, button = run("collection", nil)
     source_id = nil
     assert(text:find("Long-press a book", 1, true), text)
-    assert(text:find("Add to shelf", 1, true), text)
+    assert(text:find("'Add to a shelf'", 1, true), text)
+    -- A long-press on the shelf opens Arrange itself now.
+    assert(not text:find("'Arrange'", 1, true), text)
     assert(not text:find("source or filter", 1, true), text)
     eq(button, false)
 end)

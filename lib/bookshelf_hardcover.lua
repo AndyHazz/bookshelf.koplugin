@@ -50,12 +50,125 @@ local function _ensureDir(path)
     return require("lib/bookshelf_fs").ensureDir(path)
 end
 
+-- Where the Hardcover client comes from (issue 603). Bookshelf has no client
+-- of its own: it borrows one from an installed sync plugin, and the first
+-- entry here whose client loads wins. KOReader only puts ENABLED plugins on
+-- package.path, so a require that works means the plugin is installed and on.
+--
+-- `live` marks a plugin that keeps ONE settings object for the whole session
+-- on its client (client.settings) and refreshes sign-in tokens in it. For
+-- such a plugin Bookshelf must only ever read and write through that object:
+-- a second handle on the same file, flushed later, puts stale tokens back.
+-- It also builds its user and dialog objects per instance, and keeps a
+-- book's link in the book's sidecar (under `sidecar_key`) once it has one.
+local SOURCES = {
+    {
+        id       = "hardcover",
+        label    = "Hardcover plugin",
+        api      = "hardcover/lib/hardcover_api",
+        user     = "hardcover/lib/user",
+        dialogs  = "hardcover/lib/ui/dialog_manager",
+        book     = "hardcover/lib/book",
+        settings = "hardcover/lib/hardcover_settings",
+    },
+    {
+        id       = "shelfsync",
+        label    = "ShelfSync",
+        api      = "shelfsync/lib/hardcover/api",
+        user     = "shelfsync/lib/common/user",
+        dialogs  = "shelfsync/lib/common/ui/dialog_manager",
+        book     = "shelfsync/lib/common/book",
+        live     = true,
+        sidecar_key = "hardcover",
+    },
+    -- Last: Bookshelf's own client, when the reader has given Bookshelf an
+    -- API key of its own (lib/bookshelf_hardcover_key). A sync plugin's
+    -- client is preferred while one loads, so a reader who has one sees no
+    -- change.
+    {
+        id  = "own",
+        label = "Bookshelf",
+        api = "lib/bookshelf_hardcover_client",
+        own = true,
+    },
+}
+
+local _source   -- nil = not looked for yet, false = none
+local function _src()
+    if _source == nil then
+        _source = false
+        for _, s in ipairs(SOURCES) do
+            local wanted = true
+            if s.own then
+                local ok_k, Key = pcall(require, "lib/bookshelf_hardcover_key")
+                -- Bookshelf's OWN key, not one sitting in a plugin's folder:
+                -- switching a sync plugin off has always switched Hardcover
+                -- off here, and its key file outliving that must not undo it.
+                wanted = ok_k and type(Key) == "table" and Key.hasOwn() or false
+            end
+            local ok, Api = pcall(require, s.api)
+            if wanted and ok and type(Api) == "table" and type(Api.query) == "function" then
+                _source = s
+                break
+            end
+        end
+    end
+    return _source or nil
+end
+
+-- The live settings object of a `live` source, or nil. Not memoised: the
+-- plugin replaces it when KOReader moves between the file manager and a book.
+local function _liveSettings()
+    local s = _src()
+    if not (s and s.live) then return nil end
+    local ok, Api = pcall(require, s.api)
+    local st = ok and type(Api) == "table" and Api.settings or nil
+    if type(st) == "table" and type(st.readSetting) == "function" then return st end
+    return nil
+end
+
+-- With Bookshelf's own client and no plugin's settings file to read, the one
+-- thing a plugin's settings held that is still needed is the account id (the
+-- ratings refresh asks for the reader's own rating with it). It is kept in
+-- Bookshelf's settings, behind the same three calls the plugin's file
+-- answers to. Links are NOT kept here: they are in hardcover_links already.
+local ACCOUNT_KEY = "hardcover_account"
+local _own_account
+local function _ownAccount()
+    if _own_account then return _own_account end
+    local data = BookshelfSettings.read(ACCOUNT_KEY, {})
+    if type(data) ~= "table" then data = {} end
+    local dirty = false
+    _own_account = {
+        readSetting = function(_s, k) return data[k] end,
+        saveSetting = function(_s, k, v)
+            if k == "books" then return end
+            data[k] = v
+            dirty = true
+        end,
+        flush = function()
+            if dirty then BookshelfSettings.save(ACCOUNT_KEY, data) end
+            dirty = false
+        end,
+    }
+    return _own_account
+end
+
 local function _openExternalSettings()
+    local s = _src()
+    if s and s.live then
+        -- The plugin's own handle or nothing; never a second one (see SOURCES).
+        local live = _liveSettings()
+        return live and type(live.settings) == "table" and live.settings or nil
+    end
     if _hc_settings then return _hc_settings end
     local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
     if ok_lfs and lfs and lfs.attributes
             and lfs.attributes(_settingsPath(), "mode") ~= "file" then
-        return nil
+        -- A plugin that is switched off still has its file, and its links go
+        -- on being read and written there for when it is back. With no file
+        -- at all, Bookshelf's own client keeps what it needs itself.
+        return (s and s.own) and _ownAccount() or nil
     end
     local LuaSettings = require("luasettings")
     _hc_settings = LuaSettings:open(_settingsPath())
@@ -465,25 +578,35 @@ local function _readEmbeddedIdentifiersFromEpub(filepath)
 end
 
 local function _loadPickerModules()
-    local ok_api, Api = pcall(require, "hardcover/lib/hardcover_api")
+    local s = _src()
+    if not s then
+        return nil, "Hardcover API module could not be loaded"
+    end
+    local ok_api, Api = pcall(require, s.api)
     if not ok_api or not Api then
         return nil, "Hardcover API module could not be loaded"
     end
-    local ok_user, User = pcall(require, "hardcover/lib/user")
+    if s.own then
+        -- Bookshelf's client names an edition's format itself, and the
+        -- picker is Bookshelf's (see _showPicker): no user or dialog module.
+        return { Api = Api, Book = Api, own = true }
+    end
+    local ok_user, User = pcall(require, s.user)
     if not ok_user or not User then
         return nil, "Hardcover user module could not be loaded"
     end
-    local ok_dm, DialogManager = pcall(require, "hardcover/lib/ui/dialog_manager")
-    if not ok_dm or not DialogManager then
-        return nil, "Hardcover dialog module could not be loaded"
-    end
-    local ok_book, Book = pcall(require, "hardcover/lib/book")
+    -- The plugin's own list is only the fallback now (see _showPicker), so
+    -- its dialog module failing to load is not a reason to refuse.
+    local ok_dm, DialogManager = pcall(require, s.dialogs)
+    if not ok_dm then DialogManager = nil end
+    local ok_book, Book = pcall(require, s.book)
     if not ok_book then Book = nil end
     return {
         Api = Api,
         User = User,
         DialogManager = DialogManager,
         Book = Book,
+        live = s.live,
     }
 end
 
@@ -510,8 +633,19 @@ local function _runWhenOnline(fn, on_error)
 end
 
 local function _openHardcoverSettingsObject()
+    local s = _src()
+    if s and s.live then
+        local live = _liveSettings()
+        if not live then return nil, "Could not open Hardcover settings" end
+        return live
+    end
+    if s and s.own then
+        local ok_own, own = pcall(_openExternalSettings)
+        if not ok_own or not own then return nil, "Could not open Hardcover settings" end
+        return own
+    end
     if _hc_settings_object then return _hc_settings_object end
-    local ok, HardcoverSettings = pcall(require, "hardcover/lib/hardcover_settings")
+    local ok, HardcoverSettings = pcall(require, s and s.settings or "hardcover/lib/hardcover_settings")
     if not ok or not HardcoverSettings or type(HardcoverSettings.new) ~= "function" then
         return nil, "Hardcover settings module could not be loaded"
     end
@@ -530,8 +664,21 @@ local function _openPickerContext()
     if not modules then return nil, nil, nil, mod_err end
     local settings, settings_err = _openHardcoverSettingsObject()
     if not settings then return nil, nil, nil, settings_err end
-    modules.User.settings = settings
-    local ok_user, user_id = pcall(modules.User.getId, modules.User)
+    -- Bookshelf's client asks nothing that needs the account id, so listing
+    -- books or editions costs no "who am I" request first.
+    if modules.own then return modules, settings, 0 end
+    local ok_user, user_id
+    if modules.live then
+        -- A per-instance user: writing settings onto the plugin's class
+        -- would leak into every user object it makes itself.
+        ok_user, user_id = pcall(function()
+            modules.user = modules.User:new{ settings = settings, api = modules.Api }
+            return modules.user:getId()
+        end)
+    else
+        modules.User.settings = settings
+        ok_user, user_id = pcall(modules.User.getId, modules.User)
+    end
     if not ok_user or not user_id then
         return nil, nil, nil, "Could not fetch Hardcover user id"
     end
@@ -600,7 +747,56 @@ local function _notifyLoadedHardcoverSettings(filepath, config, original)
     -- `original` is retained in the signature for callers; intentionally unused.
 end
 
+-- Link write for a `live` source, done the way that plugin does its own.
+-- It reads a book's sidecar row INSTEAD of its settings-table row whenever
+-- the sidecar has one, and on every write moves the table row into the
+-- sidecar. So for a book with a sidecar: start from both rows (the sidecar's
+-- fields win), apply the change, save to the sidecar, drop the table copy.
+-- A row with no book id is never created: it would shadow the table and
+-- unlink the book for that plugin (seen on the PW5: a details refresh wrote
+-- a row holding only pages and title).
+-- A book with no sidecar is NOT given one: KOReader takes a sidecar to mean
+-- the book was opened, and linking would turn every New book into Reading.
+local function _mirrorLive(filepath, config)
+    local s = _src()
+    local raw = _openExternalSettings()
+    local DocSettings = require("docsettings")
+    if not DocSettings:hasSidecarFile(filepath) then
+        if raw then _applyExternalBookSetting(raw, filepath, config) end
+        return
+    end
+    local doc = DocSettings:open(filepath)
+    local side = doc:readSetting(s.sidecar_key)
+    local books = raw and raw:readSetting("books")
+    local in_table = type(books) == "table" and type(books[filepath]) == "table"
+    local row = {}
+    if in_table then for k, v in pairs(books[filepath]) do row[k] = v end end
+    if type(side) == "table" then for k, v in pairs(side) do row[k] = v end end
+    for k, v in pairs(config or {}) do
+        if k == "_delete" then
+            for _, name in ipairs(v) do row[name] = nil end
+        else
+            row[k] = v
+        end
+    end
+    if type(side) ~= "table" and not row.book_id then
+        -- No row to keep in step, and nothing worth making one for. A clear
+        -- still has to reach the table copy.
+        if in_table then _applyExternalBookSetting(raw, filepath, config) end
+        return
+    end
+    doc:saveSetting(s.sidecar_key, row)
+    doc:flush()
+    if in_table then
+        books[filepath] = nil
+        raw:saveSetting("books", books)
+        raw:flush()
+    end
+end
+
 local function _mirrorExternalLink(filepath, config)
+    local s = _src()
+    if s and s.live then return _mirrorLive(filepath, config) end
     local ok_settings, settings = pcall(_openExternalSettings)
     if not ok_settings or not settings then return end
     local original = _applyExternalBookSetting(settings, filepath, config)
@@ -622,8 +818,26 @@ function Hardcover.linkedFiles()
                 out[#out + 1] = fp
             end
         end
-        table.sort(out)
     end)
+    -- Bookshelf's own links too, where the plugin's table does not have
+    -- them: a link kept in a book's sidecar (see _mirrorLive), or made with
+    -- Bookshelf's own client and no plugin's file. NOT with the Hardcover
+    -- plugin's client: its table is kept in step on every link, so a link
+    -- of ours missing from it is a stale path, and each one is a request.
+    local src = _src()
+    if not (src and (src.live or src.own)) then
+        table.sort(out)
+        return out
+    end
+    local seen = {}
+    for _, fp in ipairs(out) do seen[fp] = true end
+    for fp, cfg in pairs(_readLinks()) do
+        if type(fp) == "string" and type(cfg) == "table" and cfg.book_id
+                and not seen[fp] then
+            out[#out + 1] = fp
+        end
+    end
+    table.sort(out)
     return out
 end
 
@@ -647,6 +861,14 @@ function Hardcover.linkedPages()
             end
         end
     end)
+    local src = _src()
+    if not (src and (src.live or src.own)) then return out end   -- see linkedFiles
+    for fp, cfg in pairs(_readLinks()) do
+        local p = type(cfg) == "table" and tonumber(cfg.pages) or nil
+        if p and p > 0 and type(fp) == "string" and not out[fp] then
+            out[fp] = math.floor(p)
+        end
+    end
     return out
 end
 
@@ -658,6 +880,7 @@ function Hardcover.invalidate()
     _cache_bulk = {}
     _hc_settings = nil
     _hc_settings_object = nil
+    _own_account = nil
 end
 
 function Hardcover.getCachedAt()
@@ -694,10 +917,52 @@ end
 local _available
 function Hardcover.isAvailable()
     if _available == nil then
-        local ok, Api = pcall(require, "hardcover/lib/hardcover_api")
-        _available = (ok and Api ~= nil and type(Api.query) == "function") or false
+        _available = _src() ~= nil
     end
     return _available
+end
+
+-- whenOnline(fn): run fn now when connected, else offer to turn Wi-Fi on
+-- and run it once connected (KOReader's runWhenOnline); declined, it does
+-- not run. Every action that asks Hardcover goes through this first
+-- (maintainer: "offer to connect if not connected").
+function Hardcover.whenOnline(fn)
+    return _runWhenOnline(fn, function(err)
+        logger.warn("[bookshelf] Hardcover action failed:", tostring(err))
+    end)
+end
+
+-- connection() -> { source = id, label = "ShelfSync", method = "oauth" |
+-- "api_key" | nil } or nil when Hardcover is off. What the Hardcover menu
+-- says it is connected through: the plugin's name (a name, not translated)
+-- and how it is signed in. method nil: the plugin is there, not signed in.
+function Hardcover.connection()
+    local s = _src()
+    if not s then return nil end
+    local method = "api_key"
+    if s.live then
+        -- This plugin signs in either way, and says which.
+        local ok, how = pcall(function() return require(s.api):getAuthMethod() end)
+        method = ok and ((how == "oauth" and "oauth") or (how == "api_token" and "api_key")) or nil
+    end
+    return { source = s.id, label = s.label, method = method }
+end
+
+-- The API key was set, changed or cleared (Settings). Which client there is
+-- can change with it, and a different key can be a different account.
+function Hardcover.invalidateSource(key_changed)
+    _source = nil
+    _available = nil
+    _hc_settings = nil
+    _hc_settings_object = nil
+    _own_account = nil
+    if key_changed then BookshelfSettings.delete(ACCOUNT_KEY) end
+end
+
+-- Where the client comes from: "hardcover", "shelfsync", "own" or nil.
+function Hardcover.source()
+    local s = _src()
+    return s and s.id or nil
 end
 
 -- True when the user has any stored Hardcover data: a linked book, a cached
@@ -1276,8 +1541,113 @@ local function _findBookByIdentifiers(modules, identifiers, user_id)
 end
 
 local function _newDialogManager(modules, settings)
+    if modules.live then
+        return modules.DialogManager:new{
+            settings = settings,
+            api      = modules.Api,
+            user     = modules.user
+                or modules.User:new{ settings = settings, api = modules.Api },
+        }
+    end
     modules.User.settings = settings
     return modules.DialogManager:new{ settings = settings }
+end
+
+-- A picker hands back the LIST ROW that was tapped, and what a row carries
+-- is the dialog's business: one plugin's rows have no edition id and a
+-- title with the year appended (found on the PW5: Select edition linked the
+-- book with no edition). So each row is tagged with the record it was built
+-- from, and a pick is read through the tag. Rows are built in input order;
+-- the book id is checked so a reordering dialog falls back to the row.
+-- A fresh search inside the dialog makes untagged rows: those are used as is.
+local function _tagPickerRows(manager, records)
+    local rows = manager and manager.search_dialog and manager.search_dialog.menu
+        and manager.search_dialog.menu.item_table
+    if type(rows) ~= "table" or #rows ~= #records then return end
+    for i, row in ipairs(rows) do
+        local rec = records[i]
+        if type(row) == "table" and type(rec) == "table"
+                and tostring(row.book_id) == tostring(rec.book_id or rec.id) then
+            row._bookshelf_record = rec
+        end
+    end
+end
+
+local function _picked(selected)
+    return type(selected) == "table" and selected._bookshelf_record or selected
+end
+
+-- _showPicker(ctx, spec): the list a reader picks a Hardcover
+-- book or edition from.
+--   spec.title, spec.records, spec.active ({ book_id = } or { edition_id = })
+--   spec.searchable + spec.search_value: the list can be searched again
+--   spec.on_pick(record), spec.on_close()
+--   spec.load() -> records | nil, err: the lookup (it fills ctx with the
+--     client, settings and account id the list's own searches then use)
+--   spec.over: a page of the menu it was opened from (PageDialog:over)
+-- It is Bookshelf's own list (lib/bookshelf_hardcover_picker), on the
+-- library modal, whichever client the records came from: the maintainer,
+-- connected through a sync plugin, expected ours and got the plugin's. The
+-- plugin's dialog is the fallback when Bookshelf's picker is not there.
+local function _ownPicker()
+    local ok, P = pcall(require, "lib/bookshelf_hardcover_picker")
+    return ok and type(P) == "table" and type(P.show) == "function" and P or nil
+end
+
+local function _showPicker(ctx, spec)
+    local Picker = _ownPicker()
+    if Picker then
+        -- Up at once; the list runs spec.load when it is on screen.
+        return Picker.show{
+            title        = spec.title,
+            load         = spec.load,
+            empty_text   = spec.empty_text,
+            active       = spec.active,
+            search_value = spec.search_value,
+            search       = spec.searchable and function(text)
+                if not ctx.modules then return nil end
+                return Hardcover.searchCandidates(ctx.modules, ctx.user_id or 0, text, nil)
+            end or nil,
+            over         = spec.over,
+            on_pick      = spec.on_pick,
+            on_close     = spec.on_close,
+        }
+    end
+    -- The plugin's own dialog: the lookup first, as it always was.
+    local records, err = spec.load()
+    if not records then return false, err end
+    spec.records = records
+    if not ctx.modules.DialogManager then
+        return false, "Hardcover dialog module could not be loaded"
+    end
+    local modules = ctx.modules
+    local manager = _newDialogManager(modules, ctx.settings)
+    manager:buildSearchDialog(
+        spec.title,
+        spec.records,
+        spec.active,
+        function(selected) spec.on_pick(_picked(selected)) end,
+        spec.searchable and function(search)
+            manager:updateSearchResults(search)
+            return true
+        end or nil,
+        spec.search_value
+    )
+    _tagPickerRows(manager, spec.records)
+    -- buildSearchDialog doesn't wire a close_callback for the search variant,
+    -- so cancelling the picker returned nowhere. SearchDialog:onClose fires
+    -- close_callback on BOTH cancel and selection, so wiring it here lets the
+    -- caller (the book menu) reopen on either path. On selection the link is
+    -- set synchronously before this reopen runs (only the metadata refresh is
+    -- async), so the reopened menu reflects the new link.
+    if spec.on_close and manager.search_dialog then
+        local prev = manager.search_dialog.close_callback
+        manager.search_dialog.close_callback = function()
+            if prev then prev() end
+            spec.on_close()
+        end
+    end
+    return true
 end
 
 function Hardcover.linkFromEmbeddedIdentifiers(book, opts)
@@ -1482,28 +1852,33 @@ end
 function Hardcover.showBookPicker(book, opts)
     opts = opts or {}
     if not (book and book.filepath) then return false, "Missing local book" end
-    local modules, settings, user_id, ctx_err = _openPickerContext()
-    if not modules then return false, ctx_err end
     local title = book.title or _filenameTitle(book.filepath)
     local author = _authorString(book)
-    local books, err
-    local embedded = _findBookByIdentifiers(modules, Hardcover.getEmbeddedIdentifiers(book), user_id)
-    if embedded then
-        books = { embedded }
-    else
+    local ctx = {}
+    -- The lookup, run by the list once it is on screen (see _showPicker).
+    local function load()
+        local modules, settings, user_id, ctx_err = _openPickerContext()
+        if not modules then return nil, ctx_err end
+        ctx.modules, ctx.settings, ctx.user_id = modules, settings, user_id
+        local embedded = _findBookByIdentifiers(modules, Hardcover.getEmbeddedIdentifiers(book), user_id)
+        if embedded then return { embedded } end
         -- The shared search, retry and dedupe included: this is where the
         -- title-only fallback was born (f41c4f3), and issue 310 is what
         -- letting it drift out of step with the bulk path cost.
-        books, err = Hardcover.searchCandidates(modules, user_id, title, author)
+        local books, err = Hardcover.searchCandidates(modules, user_id, title, author)
+        if not books then return nil, err or "No response from Hardcover" end
+        return books
     end
-    if not books then return false, err or "No response from Hardcover" end
-
-    local manager = _newDialogManager(modules, settings)
-    manager:buildSearchDialog(
-        "Select Hardcover book",
-        books,
-        { book_id = (Hardcover.getLink(book.filepath) or {}).book_id },
-        function(selected)
+    return _showPicker(ctx, {
+        title        = "Select Hardcover book",
+        load         = load,
+        active       = { book_id = (Hardcover.getLink(book.filepath) or {}).book_id },
+        searchable   = true,
+        search_value = title,
+        over         = opts.over,
+        on_close     = opts.on_close,
+        on_pick      = function(selected)
+            if opts.on_start then opts.on_start(selected) end
             local ok, link_err = Hardcover.linkBook(book.filepath, selected)
             if not ok then
                 if opts.on_error then opts.on_error(link_err) end
@@ -1515,26 +1890,7 @@ function Hardcover.showBookPicker(book, opts)
                 end
             end)
         end,
-        function(search)
-            manager:updateSearchResults(search)
-            return true
-        end,
-        title
-    )
-    -- buildSearchDialog doesn't wire a close_callback for the search variant,
-    -- so cancelling the picker returned nowhere. SearchDialog:onClose fires
-    -- close_callback on BOTH cancel and selection, so wiring it here lets the
-    -- caller (the book menu) reopen on either path. On selection the link is
-    -- set synchronously before this reopen runs (only the metadata refresh is
-    -- async), so the reopened menu reflects the new link.
-    if opts.on_close and manager.search_dialog then
-        local prev = manager.search_dialog.close_callback
-        manager.search_dialog.close_callback = function()
-            if prev then prev() end
-            opts.on_close()
-        end
-    end
-    return true
+    })
 end
 
 function Hardcover.showEditionPicker(book, book_id, opts)
@@ -1542,18 +1898,25 @@ function Hardcover.showEditionPicker(book, book_id, opts)
     if not (book and book.filepath and book_id) then
         return false, "Missing Hardcover book id"
     end
-    local modules, settings, user_id, ctx_err = _openPickerContext()
-    if not modules then return false, ctx_err end
-    local editions = modules.Api:findEditions(book_id, user_id)
-    if not editions then return false, "Could not fetch Hardcover editions" end
-
+    local ctx = {}
+    local function load()
+        local modules, settings, user_id, ctx_err = _openPickerContext()
+        if not modules then return nil, ctx_err end
+        ctx.modules, ctx.settings, ctx.user_id = modules, settings, user_id
+        local editions = modules.Api:findEditions(book_id, user_id)
+        if not editions then return nil, "Could not fetch Hardcover editions" end
+        return editions
+    end
     local link = Hardcover.getLink(book.filepath) or {}
-    local manager = _newDialogManager(modules, settings)
-    manager:buildSearchDialog(
-        "Select Hardcover edition",
-        editions,
-        { edition_id = link.edition_id },
-        function(selected)
+    return _showPicker(ctx, {
+        title      = "Select Hardcover edition",
+        load       = load,
+        empty_text = "No editions on Hardcover.",
+        active     = { edition_id = link.edition_id },
+        over       = opts.over,
+        on_close   = opts.on_close,
+        on_pick    = function(selected)
+            if opts.on_start then opts.on_start(selected) end
             local ok, link_err = Hardcover.linkBook(book.filepath, selected)
             if not ok then
                 if opts.on_error then opts.on_error(link_err) end
@@ -1564,25 +1927,37 @@ function Hardcover.showEditionPicker(book, book_id, opts)
                     opts.on_edition_selected(selected, ok_refresh, refresh_err)
                 end
             end)
-        end
-    )
-    -- See showBookPicker: wire close_callback so cancel/selection both return.
-    if opts.on_close and manager.search_dialog then
-        local prev = manager.search_dialog.close_callback
-        manager.search_dialog.close_callback = function()
-            if prev then prev() end
-            opts.on_close()
-        end
-    end
-    return true
+        end,
+    })
 end
 
 local function _loadApi()
-    local ok, Api = pcall(require, "hardcover/lib/hardcover_api")
+    local s = _src()
+    local ok, Api = pcall(require, s and s.api or "hardcover/lib/hardcover_api")
     if not ok or not Api or type(Api.query) ~= "function" then
         return nil, "Hardcover plugin/API module could not be loaded"
     end
     return Api
+end
+
+-- The client a REVIEWS request goes through. A sync plugin's OAuth sign-in
+-- gets none of other readers' reviews from Hardcover (found on the PW5; see
+-- reviewsWithheld). When there is an API key to hand as well, that one
+-- request goes through Bookshelf's own client with it.
+local function _reviewsApi()
+    local s = _src()
+    if s and s.live then
+        local ok, method = pcall(function() return require(s.api):getAuthMethod() end)
+        if ok and method == "oauth" then
+            local ok_k, Key = pcall(require, "lib/bookshelf_hardcover_key")
+            local ok_c, Client = pcall(require, "lib/bookshelf_hardcover_client")
+            if ok_k and ok_c and type(Key) == "table" and Key.available()
+                    and type(Client) == "table" then
+                return Client
+            end
+        end
+    end
+    return _loadApi()
 end
 
 local function _errString(err)
@@ -1595,6 +1970,8 @@ local function _errString(err)
             return tostring(first)
         end
         if err.error then return tostring(err.error) end
+        if err.request_error then return tostring(err.request_error) end
+        if err.parse_error then return tostring(err.parse_error) end
     end
     return tostring(err)
 end
@@ -1930,6 +2307,8 @@ function Hardcover.refreshBook(book, opts)
         end
         if next(upd) then
             pcall(function()
+                local s = _src()
+                if s and s.live then return _mirrorLive(book.filepath, upd) end
                 local settings = _openHardcoverSettingsObject()
                 if settings then
                     local original = _applyExternalBookSetting(settings,
@@ -2014,7 +2393,7 @@ function Hardcover.fetchReviews(book_id, opts)
         return false, "No cached reviews"
     end
 
-    local Api, api_err = _loadApi()
+    local Api, api_err = _reviewsApi()
     if not Api then return false, api_err end
 
     local limit = tonumber(opts.limit) or 10
@@ -2082,6 +2461,27 @@ function Hardcover.fetchReviews(book_id, opts)
     if not payload then return false, "Hardcover reviews could not be parsed" end
     _cachePut("review", key, payload)
     return true, payload
+end
+
+-- True when Hardcover has reviews for the book and gave us none of them.
+-- Under an OAuth sign-in (a `live` source's) Hardcover returns only the
+-- reader's OWN rows for a book unless the app was granted read:social, so the
+-- count says 120 and the list is empty; an API token gets them all. The popup
+-- says so in place of "no reviews". Any doubt reads as false.
+function Hardcover.reviewsWithheld(result)
+    if type(result) ~= "table" then return false end
+    if (tonumber(result.reviews_count) or 0) <= 0 then return false end
+    if type(result.reviews) == "table" and #result.reviews > 0 then return false end
+    if type(result.spoiler_reviews) == "table" and #result.spoiler_reviews > 0 then
+        return false
+    end
+    local s = _src()
+    if not (s and s.live) then return false end
+    local ok, method = pcall(function()
+        local Api = require(s.api)
+        return Api:getAuthMethod()
+    end)
+    return ok and method == "oauth" or false
 end
 
 function Hardcover.fetchReviewsOnline(book_id, opts, callback)

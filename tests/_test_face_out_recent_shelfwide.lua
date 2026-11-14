@@ -109,7 +109,8 @@ t.test("both plan callers hand it one, from the WHOLE list", function()
     assert(call and call:find("_draft_items_cache", 1, true),
         "the render pass is computing the set from the page it renders")
     -- and pagination plans the whole list, so it hands that over
-    local pages = w:match("\nfunction BookshelfWidget:_spinePageFirsts%(build, dims%)\n(.-)\nend\n")
+    -- (_spineFirstsOf: the plan _spinePageFirsts makes, and a what-if list's.)
+    local pages = w:match("\nfunction BookshelfWidget:_spineFirstsOf%(items, dims, c%)\n(.-)\nend\n")
     assert(pages and pages:find("self:_spinePlanBase(d.content_w, d.shelf_h, items)", 1, true),
         "pagination no longer hands the whole list it plans")
 end)

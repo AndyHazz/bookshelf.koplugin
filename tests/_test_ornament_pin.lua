@@ -70,19 +70,76 @@ t.test("a pinned piece looks as it did dealt, and its menu adjusts the piece", f
     local m = w:match("\nfunction BookshelfWidget:_spineModuleMenu%(entry%)\n(.-)\nend\n")
     -- One way in for a pinned piece: the piece's own ornament menu, in
     -- place of Width and the module's own settings.
-    assert(m and m:find('bar[#bar + 1] = { text = _("Adjust ornament"), callback = adjustPiece }', 1, true),
-        "Adjust ornament isn't the piece's menu")
-    assert(m:find("if pinned_piece then\n            bar[#bar + 1] = { text = _(\"Adjust ornament\")", 1, true)
+    -- Maintainer: "Rename the adjust ornament button ... edit ornament and
+    -- put its button in the strip, along with unpin."
+    -- Since: "Edit" with the ornament's cup, the same width as the book
+    -- menu's "Edit" with a book (maintainer).
+    assert(m and m:find('{ icon = CUI.ICON_ORNAMENT, label = _("Edit"), callback = adjustPiece }', 1, true),
+        "Edit (ornament) isn't in the piece's strip")
+    assert(not m:find('_("Adjust ornament")', 1, true), "still called Adjust ornament")
+    assert(m:find("if pinned_piece then\n            bar[#bar + 1] = { icon = ", 1, true)
            and m:find("if not pinned_piece then\n            blocks[#blocks + 1] = { type = \"stepper\", label = _(\"Width\")", 1, true),
         "a pinned piece still has Width or the module's own Settings")
 end)
 
--- Its long-press opens a different menu from the piece it was: the title
--- says why, so it doesn't read as the ornament menu gone missing.
-t.test("a pinned piece's menu is titled as a pinned ornament", function()
+-- Maintainer: "When I use the adjust ornament button, then close that
+-- adjust ornament menu by tapping outside, it should return the arrange
+-- ornament menu."
+t.test("leaving Adjust ornament by a tap outside, or Back, returns to the piece's menu", function()
     local m = w:match("\nfunction BookshelfWidget:_spineModuleMenu%(entry%)\n(.-)\nend\n")
-    assert(m and m:find('title = pinned_piece and _("Pinned ornament")', 1, true),
+    local adj = m:match("local function adjustPiece%(%)(.-)\n    end\n")
+    assert(adj and adj:find("on_back = function() UIManager:nextTick(function()", 1, true)
+        and adj:find("if now then bw:_spineModuleMenu(now) end", 1, true),
+        "Adjust ornament has no way back to the piece's menu")
+    local om = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
+    local tap = om:match("function dialog:onTapOutside%(_arg, ges%)(.-)\n    end\n")
+    assert(tap and tap:find("back()", 1, true), "a tap outside does not go back")
+    assert(om:find("function dialog:onClose() back(); return true end", 1, true), "Back does not go back")
+end)
+
+t.test("a pinned piece's menu can add another ornament beside it", function()
+    local m = w:match("\nfunction BookshelfWidget:_spineModuleMenu%(entry%)\n(.-)\nend\n")
+    assert(m:find('bar[#bar + 1] = { icon = CUI_ORN, text = _("Add ornament") .. "\\xE2\\x80\\xA6", callback = addPiece }', 1, true),
+        "no Add ornament in the piece's menu")
+    local add = m:match("local function addPiece%(%)(.-)\n    end\n")
+    assert(add and add:find("SM.addPieceAfter(l, id, pe)", 1, true), "it does not add after this piece")
+end)
+
+-- Maintainer: "arrange ornament menu should have a swap ornament button to
+-- pick another".
+t.test("a pinned piece's menu can swap it for another ornament, in the same spot", function()
+    local m = w:match("\nfunction BookshelfWidget:_spineModuleMenu%(entry%)\n(.-)\nend\n")
+    assert(m:find('bar[#bar + 1] = { icon = "\\xEE\\xAF\\xA0", text = _("Swap ornament") .. "\\xE2\\x80\\xA6", callback = swapPiece }', 1, true),
+        "no Swap ornament in the piece's menu")
+    local swap = m:match("local function swapPiece%(%)(.-)\n    end\n")
+    assert(swap and swap:find("l[i].ornament = pe.name", 1, true) and swap:find("l[i].tap = pe.tap", 1, true),
+        "it does not change this piece's ornament in place")
+    assert(not swap:find("after", 1, true), "a swap moved the piece")
+end)
+
+t.test("arranging a piece: a hold on another piece or a book swaps them; a tap still switches", function()
+    local m = w:match("\nfunction BookshelfWidget:_spineModuleMenu%(entry%)\n(.-)\nend\n")
+    local hold = m:match("local function onHoldOther%(ges%)(.-)\n    end\n")
+    assert(hold and hold:find("bw:_shelfSwap({ piece = id }, { piece = piece.id })", 1, true), "no piece swap")
+    assert(hold:find("bw:_shelfSwap({ piece = id }, { book = fp })", 1, true), "no piece-with-book swap")
+    assert(m:find('ev.ges == "hold" and onHoldOther(ev)', 1, true), "a hold still switches menus")
+    assert(m:find('_("Long-press a book or another ornament to swap their places.")', 1, true), "the hint")
+end)
+
+-- Its long-press opens a different menu from the piece it was: the title
+-- names the menu as a book's Arrange menu is named (maintainer), and the
+-- strip under it says what pinning did.
+t.test("a pinned piece's menu is titled as an Arrange menu", function()
+    local m = w:match("\nfunction BookshelfWidget:_spineModuleMenu%(entry%)\n(.-)\nend\n")
+    assert(m and m:find('template(_("Arrange: %1"), pieceName() or (def and def.title) or entry.module)', 1, true),
            "titled like any Ornament module")
+    -- The piece by the name its file has ("Arrange: Cactus"), as the ornament
+    -- browser shows it; the module's own title only where there is none.
+    local name = m:match("local function pieceName%(%)(.-)\n    end\n")
+    assert(name, "a pinned piece is only ever called Ornament")
+    assert(name:find("displayName({ file = file })", 1, true), "not the browser's name for it")
+    assert(name:find('match("([^/]+)$")', 1, true), "the pack's folder in the title")
+    assert(m:find('_("Ornament module, positioned manually")', 1, true), "nothing says why this menu, not the ornament's")
 end)
 
 t.test("a pinned piece keeps its row: the dealt end piece gives way", function()
@@ -91,7 +148,7 @@ t.test("a pinned piece keeps its row: the dealt end piece gives way", function()
 end)
 
 t.test("a pinned piece's ornament menu leaves out the deal's controls", function()
-    assert(w:find('show(pe, bw, nil, nil, { pinned = true })', 1, true), "not opened as a pinned piece's")
+    assert(w:find('show(pe, bw, nil, nil, { pinned = true,', 1, true), "not opened as a pinned piece's")
     local mm = menu:match("\nfunction M%.show%(entry, bw, piece, widget, opts%)\n(.-)\nend\n")
     assert(mm, "show takes no opts")
     -- Place (the d-pad's left and right, and its count) and Swap / Shuffle /

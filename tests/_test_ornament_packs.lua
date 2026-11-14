@@ -68,7 +68,7 @@ local function setup()
     local O = fresh()
     local d = scratch()
     O._data_dir = d; O._lfs = lfs_shim
-    O.ensureTemplate()                       -- template.svg + cactus.svg, loose
+    O.ensureTemplate()                       -- Plant.svg + cactus.svg, loose
     os.execute("mkdir -p '" .. O.dir() .. "/Autumn' '" .. O.dir() .. "/Cats'")
     svg(O.dir() .. "/Autumn/leaf.svg"); svg(O.dir() .. "/Autumn/acorn.svg")
     svg(O.dir() .. "/Cats/leaf.svg")          -- same file name, other pack
@@ -79,7 +79,7 @@ t.test("a subfolder is a pack; its ornaments join the pool by relative path", fu
     local O, d = setup()
     local all, packs = O.listAll()
     eq(table.concat(packs, ","), "Autumn,Cats")
-    eq(names(O.list()), "Autumn/acorn.svg,Autumn/leaf.svg,Cats/leaf.svg,cactus.svg,template.svg")
+    eq(names(O.list()), "Autumn/acorn.svg,Autumn/leaf.svg,Cats/leaf.svg,Plant.svg,cactus.svg")
     local by = {}
     for _i, e in ipairs(all) do by[e.name] = e end
     eq(by["Autumn/leaf.svg"].pack, "Autumn"); eq(by["Autumn/leaf.svg"].file, "leaf.svg")
@@ -102,7 +102,7 @@ end)
 t.test("a pack switched off takes all its ornaments with it, and only its own", function()
     local O, d = setup()
     O.setPackOff("Autumn", true)
-    eq(names(O.list()), "Cats/leaf.svg,cactus.svg,template.svg",
+    eq(names(O.list()), "Cats/leaf.svg,Plant.svg,cactus.svg",
        "Cats/leaf.svg shares a file name and must stay")
     O.setPackOff("Autumn", false)
     eq(#O.list(), 5)
@@ -117,7 +117,7 @@ t.test("delete removes the file and forgets its state", function()
     assert(O.delete(victim))
     local f = io.open(victim.path, "r"); assert(not f, "the file is still there")
     eq(mem[O.OFF_KEY], nil)
-    eq(names(O.list()), "Autumn/leaf.svg,Cats/leaf.svg,cactus.svg,template.svg")
+    eq(names(O.list()), "Autumn/leaf.svg,Cats/leaf.svg,Plant.svg,cactus.svg")
     os.execute("rm -rf '" .. d .. "'")
 end)
 
@@ -125,7 +125,7 @@ t.test("the filtered list is the same table while nothing changes", function()
     local O, d = setup()
     local a = O.list()
     assert(O.list() == a)
-    O.setOff("template.svg", true)
+    O.setOff("Plant.svg", true)
     assert(O.list() ~= a, "a change was served from the cache")
     os.execute("rm -rf '" .. d .. "'")
 end)
@@ -463,7 +463,7 @@ t.test("commitPack moves a pack's records from the reader's file into the pack's
     -- What the pack already ships, and what the reader set.
     local pf = assert(io.open(O.dir() .. "/Autumn/ornaments.json", "w")); pf:write("leaf.svg:lift=0.5,scale=0.9"); pf:close()
     O._reader = { ["Autumn/leaf.svg"] = { scale = 1.4 }, ["Autumn/acorn.svg"] = { pad = 0.1 },
-                  ["Cats/leaf.svg"] = { scale = 2 }, ["template.svg"] = { scale = 0.5 } }
+                  ["Cats/leaf.svg"] = { scale = 2 }, ["Plant.svg"] = { scale = 0.5 } }
     O._reader_dirty = true
     eq(O.commitPack("Autumn"), 2)
     local pj = O._decode(readFile(O.dir() .. "/Autumn/ornaments.json"))
@@ -475,7 +475,7 @@ t.test("commitPack moves a pack's records from the reader's file into the pack's
     local rt = O.readerTable()
     eq(rt["Autumn/leaf.svg"], nil, "the record stayed in the reader's file, where it would go on winning")
     eq(rt["Cats/leaf.svg"].scale, 2, "another pack's record was moved")
-    eq(rt["template.svg"].scale, 0.5, "a loose piece's record was moved")
+    eq(rt["Plant.svg"].scale, 0.5, "a loose piece's record was moved")
     eq(O.commitPack("Autumn"), 0, "a second commit found more to move")
 end)
 

@@ -216,7 +216,9 @@ function PageDialog:over(tail)
             local d = dialog.frame.dimen
             if not (d and d.x) then return nil end
             local size = dialog.frame:getSize()
-            return { x = d.x, y = d.y, w = size.w, h = size.h }
+            -- centre: this dialog is short and mid-screen; a taller page
+            -- of it is centred on the screen (LibraryModal.overY).
+            return { x = d.x, y = d.y, w = size.w, h = size.h, centre = true, }
         end,
         crumbs = table.concat(crumbs, " \xE2\x80\xBA "),
         on_exit = function() dialog:_dismiss() end,

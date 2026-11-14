@@ -114,7 +114,8 @@ local function planCall(fname)
     return b, b:sub(1, at - 1)
 end
 
-for _i, fname in ipairs({ "_buildSpineRows", "_spinePageFirsts" }) do
+-- (_spineFirstsOf is the plan behind _spinePageFirsts.)
+for _i, fname in ipairs({ "_buildSpineRows", "_spineFirstsOf" }) do
     t.test(fname .. " builds its options from _spinePlanBase", function()
         local b = planCall(fname)
         assert(b:find("self:_spinePlanBase(", 1, true),
@@ -143,7 +144,7 @@ t.test("the render adds only its row count, where it resumes, and its page", fun
 end)
 
 t.test("pagination adds an unbounded plan, how it is cut, and no balancing", function()
-    local b = planCall("_spinePageFirsts")
+    local b = planCall("_spineFirstsOf")
     assert(b:find("opts.n_rows        = math.huge", 1, true))
     assert(b:find("opts.rows_per_page = self:_nShelves()", 1, true))
     assert(b:find("opts.balance       = false", 1, true))

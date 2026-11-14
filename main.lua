@@ -875,23 +875,18 @@ function Bookshelf:buildMenuItems(menu_items)
     }
 
     -- Hardcover enrichment, promoted from Settings to the top level (below
-    -- Manage collections). Only shown while the Hardcover plugin is live
-    -- (installed and enabled); uninstalling/disabling it hides the menu and
-    -- reverts all Hardcover data to native. Defined conditionally rather than
-    -- greyed out -- the order list keeps its slot and KOMenu skips a missing key.
-    do
-        local ok_hc, HC = pcall(require, "lib/bookshelf_hardcover")
-        if ok_hc and HC and HC.isAvailable and HC.isAvailable() then
-            menu_items.bookshelf_hardcover = {
-                text                = MenuIcons.label(MenuIcons.HARDCOVER,
-                                          _("Hardcover enrichment")),
-                sub_item_table_func = function()
-                    S._bw = _live_widget
-                    return S:_hardcoverSubItems()
-                end,
-            }
-        end
-    end
+    -- Manage collections). Always there: Bookshelf can reach Hardcover
+    -- itself with an API key, so a reader with no sync plugin finds the
+    -- key here, and the menu's first line says whether it is connected.
+    -- The actions that need Hardcover grey themselves while it is not.
+    menu_items.bookshelf_hardcover = {
+        text                = MenuIcons.label(MenuIcons.HARDCOVER,
+                                  _("Hardcover enrichment")),
+        sub_item_table_func = function()
+            S._bw = _live_widget
+            return S:_hardcoverSubItems()
+        end,
+    }
 
     menu_items.bookshelf_settings = {
         text                = MenuIcons.label(MenuIcons.SETTINGS, _("Settings")),
@@ -2685,10 +2680,7 @@ function Bookshelf:scanPageCounts(opts)
     local function fastFraction(f) return FAST_SHARE * f end
     local function renderFraction(f) return FAST_SHARE + (1 - FAST_SHARE) * f end
     local function lookupTitle() return _("Looking up page numbers\xe2\x80\xa6") end
-    -- Before it, a book whose pages turn: book-open-page-variant,
-    -- book-open-variant and book-open-o, one per update. Private Use Area
-    -- code points, which is what the status line's icon path renders safely.
-    local SCAN_ICONS = { "\xee\xb3\x99", "\xee\x9e\xbd", "\xee\x8a\x8b" }
+    -- Before it, a book whose pages turn (Progress.BOOK_ICONS).
 
     local function classify()
         for _i, fp in ipairs(fps) do
@@ -2749,7 +2741,7 @@ function Bookshelf:scanPageCounts(opts)
     local ok_run, err_run = xpcall(function()
         local job = Progress.begin{
             title  = lookupTitle(),
-            icons  = SCAN_ICONS,
+            icons  = Progress.BOOK_ICONS,
             shelf = function() return _live_widget end,
         }
         classify()
@@ -3047,14 +3039,22 @@ end
 -- role filter only applies to fresh fetches). Cancellable via the progress
 -- message; same armed-dismiss guard as the settings module's paced scans
 -- (the launching tap can bleed onto the fresh message).
-function Bookshelf:refreshHardcoverDetails()
+function Bookshelf:refreshHardcoverDetails(online)
+    -- Connected first: offers Wi-Fi when off, and comes back here once it
+    -- is up; declined, nothing runs.
+    if not online then
+        local ok_hc0, HC = pcall(require, "lib/bookshelf_hardcover")
+        if ok_hc0 and HC and HC.whenOnline then
+            return HC.whenOnline(function() self:refreshHardcoverDetails(true) end)
+        end
+    end
     local InfoMessage = require("ui/widget/infomessage")
     local T = require("ffi/util").template
     local ok_hc, Hardcover = pcall(require, "lib/bookshelf_hardcover")
     if not ok_hc or not Hardcover
             or not (Hardcover.isAvailable and Hardcover.isAvailable()) then
         UIManager:show(InfoMessage:new{
-            text = _("Hardcover plugin is not available"), timeout = 3 })
+            text = _("Not connected to Hardcover"), timeout = 3 })
         return
     end
     local files = Hardcover.linkedFiles and Hardcover.linkedFiles() or {}

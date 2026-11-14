@@ -19,6 +19,7 @@ package.loaded["ui/uimanager"] = {
         if w and w._on_close then w:_on_close() end
     end,
     setDirty = function() end,
+    nextTick = function(_self, fn) fn() end,
 }
 local function widgetStub()
     return { new = function(_self, o) return o end }
@@ -180,6 +181,51 @@ t.test("on_close runs once, however the dialog closes", function()
     CM.show{ book = { filepath = "/b/one.epub" }, on_close = function() n = n + 1 end }
     modal.config.footer_rows[1][1].on_tap()          -- Cancel
     eq(n, 1)
+end)
+
+-- Pick mode: the shelf editor's Source > Your own collection. A tap chooses
+-- the collection for the shelf; + New collection makes one and chooses it
+-- (maintainer: the card opens this list, which can make and choose).
+t.test("pick mode: a tap chooses that collection and closes", function()
+    reset()
+    local got, calls = nil, 0
+    CM.show{ on_pick = function(name) got = name; calls = calls + 1 end, selected = "Alpha" }
+    eq(cell("Alpha").selected, true, "the shelf's collection isn't marked")
+    eq(cell("Zoology").selected, false)
+    modal.config.on_cell_tap("Zoology")
+    eq(closed[#closed], modal, "the list stayed open")
+    eq(got, "Zoology"); eq(calls, 1)
+    assert(not shown[#shown].title or not tostring(shown[#shown].title):find("Zoology", 1, true),
+        "a tap opened the Edit menu instead of choosing")
+end)
+
+t.test("pick mode: closing without a choice says so, once", function()
+    reset()
+    local got, calls = "x", 0
+    CM.show{ on_pick = function(name) got = name; calls = calls + 1 end }
+    eq(#modal.config.footer_rows, 1); eq(#modal.config.footer_rows[1], 1, "more than a Close")
+    modal.config.footer_rows[1][1].on_tap()
+    eq(got, nil); eq(calls, 1)
+end)
+
+t.test("pick mode: a new collection is made and chosen", function()
+    reset()
+    local got
+    CM.show{ on_pick = function(name) got = name end }
+    modal.config.header_actions[1].on_tap()
+    local dlg = shown[#shown]
+    dlg._typed = "Beach reads"
+    dlg.buttons[1][2].callback()
+    assert(RC.coll["Beach reads"], "not made")
+    eq(got, "Beach reads")
+    eq(closed[#closed], modal, "the list stayed open")
+end)
+
+t.test("pick mode: long-press still edits a collection", function()
+    reset()
+    CM.show{ on_pick = function() end }
+    assert(modal.config.cell_long_tap, "no way to rename or delete from here")
+    eq(modal.config.select_on_tap, true)
 end)
 
 t.done()

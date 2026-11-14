@@ -2820,7 +2820,7 @@ function BookshelfWidget:_emptyShelfText()
         -- themselves, not from the shelf editor: say where. Only when a
         -- collection is behind it: a pinned tag is kind "collection" too.
         placeholder_text = string.format(
-            _("%s is empty \xC2\xB7 Long-press a book on any shelf and tap 'Add to shelf' to put it here. Long-press it here and tap 'Arrange' to change its place."),
+            _("%s is empty \xC2\xB7 Long-press a book on any shelf and tap 'Add to a shelf' to put it here. Long-press it here to change its place."),
             _tab and _tab.label or self:_chipLabel())
     elseif _is_home_source then
         -- "Home (folders)" (kind "all") + "Home (flattened)" (kind
@@ -6848,7 +6848,8 @@ function BookshelfWidget:_shelfCallbacks()
                 return true  -- suppress: no per-book menu in select mode
             end
             if not Gestures.on("book_hold") then return true end
-            bw:_showBookDetail(b, { active = "edit" })
+            -- Arrange on a hand-ordered shelf, else the book menu.
+            bw:_holdBook(b)
         end,
         on_series_tap     = function(s) bw:_expandSeries(s) end,
         on_series_hold    = function(s) if Gestures.on("group_hold") then bw:_openGroupMenu(s, "series") end end,
@@ -7443,6 +7444,48 @@ function BookshelfWidget:_spineModulePageMove(id, dir)
     return math.max(0, start - 1 - others - mine), start - mine
 end
 
+-- _spineModuleNextPage(id) -> after, cursor: the place that puts a module
+-- FIRST on the page after the one on screen, and the cursor that shows it
+-- there, by the page breaks the shelf has WITHOUT the module where it is now
+-- (the pages before its new place are then exactly those, so the break in
+-- front of it holds). _spineModulePageMove's sum for "next" kept the module
+-- among the same books and started the view at it, off the shelf's own
+-- breaks: turned away from and back to, it stood at the end of the page it
+-- had left. false when there is no page after; nil when the shelf's list is
+-- not to hand (the caller's estimate stands).
+function BookshelfWidget:_spineModuleNextPage(id)
+    local c = self._spine_fetch_cache
+    local items = c and c.items
+    if type(items) ~= "table" or not self._spineFirstsOf then return nil end
+    local without, mypos = {}, nil
+    for i = 1, #items do
+        local it = items[i]
+        if type(it) == "table" and it.shelf_module and it.shelf_module.id == id then
+            mypos = i
+        else
+            without[#without + 1] = it
+        end
+    end
+    if not mypos then return nil end
+    local firsts = self:_spineFirstsOf(without)
+    if type(firsts) ~= "table" or #firsts == 0 then return nil end
+    -- The page on screen, counted without the module.
+    local cursor = self._cursor or 1
+    local here = cursor - ((mypos < cursor) and 1 or 0)
+    local start
+    for i = 1, #firsts do
+        if firsts[i] > here then start = firsts[i]; break end
+    end
+    if not start then return false end
+    -- `after` counts books; the positions count the other modules too.
+    local after = 0
+    for i = 1, start - 1 do
+        local it = without[i]
+        if not (type(it) == "table" and it.shelf_module) then after = after + 1 end
+    end
+    return after, start
+end
+
 -- _spineShowFrom(cursor): turn the spine shelf to start at `cursor` (after a
 -- page move, so the module doesn't vanish from view).
 -- _spineFollowModule(id) -> true when the module had left the page on screen
@@ -7457,6 +7500,25 @@ function BookshelfWidget:_spineFollowModule(id)
     for pos, m in pairs(at) do if m.id == id then mypos = pos end end
     if not mypos then return false end
     local nxt = self._spine_next_item
+    -- Inside the page it cannot have left it, and the page map (a plan of
+    -- the whole shelf) is not built for a nudge.
+    local last = nxt and (cursor + nxt - 2) or (cursor + (self._spine_shown or 1) - 1)
+    if mypos > cursor and mypos < last then return false end
+    -- At the page's first or last place, or off it: the page that holds it
+    -- BY THE SHELF AS IT NOW STANDS. Where this page ended before the move
+    -- (_spine_next_item) says nothing once the piece has left it: a book
+    -- flows back into its place, or does not, and the break moves. The list
+    -- was fetched again by the change's own redraw, so the map is the new
+    -- shelf's.
+    local ok_m, map = pcall(self._spinePageFirsts, self, true)
+    if ok_m and type(map) == "table" and #map > 0 then
+        local start = 1
+        for i = 1, #map do if map[i] <= mypos then start = map[i] end end
+        if start == cursor then return false end
+        self:_spineShowFrom(start)
+        return true
+    end
+    -- No map to be had: from the page on screen, as before.
     if nxt and mypos >= cursor + nxt - 1 then
         self:_spineShowFrom(cursor + nxt - 1)
         return true
@@ -7540,14 +7602,61 @@ function BookshelfWidget:_spineModuleMenu(entry)
         end)
     end
     local function pageMove(dir)
-        local to, show_from = bw:_spineModulePageMove(id, dir)
+        local to, show_from
+        if dir > 0 then
+            -- The real next page (a plan of the shelf, paid on the press);
+            -- _spineModulePageMove's estimate only lights the button.
+            to, show_from = bw:_spineModuleNextPage(id)
+            if to == false then return end
+        end
+        if not to then to, show_from = bw:_spineModulePageMove(id, dir) end
         if not to then return end
         change(function(l, i) l[i].after = to end, function() bw:_spineShowFrom(show_from) end)
+    end
+    -- Where it stands among everything on the shelf, and how many things
+    -- there are: for the Start and End buttons.
+    local function place()
+        local mods = bw:_activeShelfModules() or {}
+        local _b, at = SM.spineWindow(mods, 1)
+        local mypos
+        for pos, m in pairs(at) do if m.id == id then mypos = pos end end
+        local c = bw._spine_fetch_cache
+        local total = (c and type(c.items) == "table" and #c.items) or bw._total_items or 0
+        return mypos, total, math.max(0, total - #mods)
+    end
+    -- To the shelf's very start (-1) or end (1): before or after every book
+    -- and every other piece (the list's order breaks a tie between pieces
+    -- after the same book). The view goes with it.
+    local function toEdge(dir)
+        local _pos, _total, n_books = place()
+        change(function(l, i)
+            local m = table.remove(l, i)
+            if dir < 0 then
+                m.after = 0
+                table.insert(l, 1, m)
+            else
+                m.after = n_books
+                l[#l + 1] = m
+            end
+        end, function() bw:_spineFollowModule(id) end)
     end
     -- A pinned piece's size is the piece's own (its Size in the ornament
     -- menu), not a module width: Adjust ornament opens that menu, in place
     -- of Width and the module's own settings.
     local pinned_piece = entry.module == "ornament" and entry.ornament
+    -- pieceName() -> a pinned piece by the name its file has ("Cactus"), as
+    -- the ornament browser shows it, for the menu's title; nil for a module
+    -- that is not one piece, or a piece with no name to show.
+    local function pieceName()
+        local m = current()
+        local rel = m and m.module == "ornament" and m.ornament
+        local file = type(rel) == "string" and rel:match("([^/]+)$")
+        if not file then return nil end
+        local ok, name = pcall(function()
+            return require("lib/bookshelf_ornaments").displayName({ file = file })
+        end)
+        return ok and type(name) == "string" and name ~= "" and name or nil
+    end
     local has_colors = #require("lib/bookshelf_module_card").rows(def) > 0
     local function close() UIManager:close(d) end
     local function adjustPiece()
@@ -7555,10 +7664,47 @@ function BookshelfWidget:_spineModuleMenu(entry)
         local Orn = require("lib/bookshelf_ornaments")
         for _i, pe in ipairs(Orn.listAll() or {}) do
             if pe.name == entry.ornament then
-                require("lib/bookshelf_ornament_menu").show(pe, bw, nil, nil, { pinned = true })
+                require("lib/bookshelf_ornament_menu").show(pe, bw, nil, nil, { pinned = true,
+                    -- Back to this menu, on the piece as it is now; not if
+                    -- it was unpinned meanwhile.
+                    on_back = function() UIManager:nextTick(function()
+                        local now = current()
+                        if now then bw:_spineModuleMenu(now) end
+                    end) end })
                 return
             end
         end
+    end
+    -- Add ornament: another piece, pinned straight to the right of this one
+    -- (maintainer: the same button a book's Arrange menu has).
+    local CUI_ORN = require("lib/bookshelf_curated_ui").ICON_ORNAMENT
+    local function addPiece()
+        require("lib/bookshelf_ornament_browser").show(nil, {
+            title = _("Choose an ornament"),
+            pick = function(pe)
+                if not (pe and pe.name) then return end
+                change(function(l) SM.addPieceAfter(l, id, pe) end)
+            end,
+        })
+    end
+    -- Edit shelf: the shelf's editor, from the strip (as a book's Arrange menu).
+    local function editShelf()
+        close()
+        require("lib/bookshelf_chip_editor"):editTab(bw.chip, { bw = bw, on_change = function(info) bw:_afterChipEdit(info) end })
+    end
+    -- Swap ornament: another ornament in this one's spot (maintainer); the
+    -- menu's title follows, as it names the piece.
+    local function swapPiece()
+        require("lib/bookshelf_ornament_browser").show(nil, {
+            title = _("Choose an ornament"),
+            pick = function(pe)
+                if not (pe and pe.name) then return end
+                change(function(l, i)
+                    l[i].ornament = pe.name
+                    l[i].tap = pe.tap
+                end)
+            end,
+        })
     end
     local function remove()
         close()
@@ -7571,8 +7717,14 @@ function BookshelfWidget:_spineModuleMenu(entry)
         local m = current() or entry
         -- The bar: what the module has to set, and the way to take it off.
         local bar = {}
+        -- A pinned piece: Edit ornament is in the strip; Remove ornament
+        -- stands where a book's Remove from collection does, and Add ornament
+        -- is last in both (maintainer).
+        local CUI = require("lib/bookshelf_curated_ui")
         if pinned_piece then
-            bar[#bar + 1] = { text = _("Adjust ornament"), callback = adjustPiece }
+            bar[#bar + 1] = { icon = "\xEE\xAF\xA0", text = _("Swap ornament") .. "\xE2\x80\xA6", callback = swapPiece } -- swap-horizontal
+            bar[#bar + 1] = { icon = "\xEE\xA9\xB6", text = _("Remove ornament"), callback = remove } -- minus-circle-outline
+            bar[#bar + 1] = { icon = CUI_ORN, text = _("Add ornament") .. "\xE2\x80\xA6", callback = addPiece }
         else
             if def and type(def.show_settings) == "function" then
                 bar[#bar + 1] = { text = _("Settings"), callback = function()
@@ -7594,20 +7746,39 @@ function BookshelfWidget:_spineModuleMenu(entry)
                 end }
             end
         end
-        -- Unpin puts a pinned piece back among the others, dealt in turn.
-        bar[#bar + 1] = { text = pinned_piece and _("Unpin") or _("Remove"), callback = remove }
+        if not pinned_piece then
+            bar[#bar + 1] = { text = _("Remove"), callback = remove }
+        end
         local strip = {}
         -- Why you are here, for a piece just pinned or long-pressed later:
         -- what pinning did (maintainer: Pin here took you to a menu with no
         -- clear idea why).
+        -- The same strip as a book's Arrange menu: the shelf's collection,
+        -- then Edit shelf and "Edit" with the ornaments' cup at the right
+        -- (the book's has a book there): one strip, less paint shift going
+        -- between them (maintainer).
         if pinned_piece then
+            local _cl, ctab = nil, nil
+            if bw._curatedList then _cl, ctab = bw:_curatedList() end
             strip[#strip + 1] = { type = "summary",
-                text = _("Pinned to this spot: it stays here among the books, instead of taking its turn with the other ornaments.") }
+                text = ctab and require("ffi/util").template(_("This shelf uses the %1 collection."), ctab.source.id)
+                    or _("Ornament module, positioned manually"),
+                actions = {
+                    { label = _("Edit shelf"), callback = editShelf },
+                    { icon = CUI.ICON_ORNAMENT, label = _("Edit"), callback = adjustPiece },
+                } }
         end
-        strip[#strip + 1] = { type = "chips", items = bar }
+        -- Laid out as a book's Arrange menu is (lib/bookshelf_widget_curated):
+        -- how to move it first, then what else it can do.
+        local hand_ordered = bw._curatedList and bw:_curatedList() ~= nil
+        -- The same six a book's Arrange menu has (CuratedUI.moveChips).
+        local mypos, total = place()
         local blocks = {
-            { type = "heading", text = _("Move it") },
-            { type = "chips", items = {
+            -- One row the menu's whole width, as the book's: the shelf's
+            -- start and end at its ends, a page and a place between them.
+            { type = "chips", fill = true, items = {
+                { icon = CUI.ICON_FIRST, text = _("Start"), enabled = mypos ~= nil and mypos > 1,
+                  callback = function() toEdge(-1) end },
                 { icon = Session.PAGE_PREV, text = _("Page"), enabled = bw:_spineModulePageMove(id, -1) ~= nil,
                   callback = function() pageMove(-1) end },
                 { icon = Session.CHEV_LEFT, text = _("Left"),
@@ -7616,20 +7787,28 @@ function BookshelfWidget:_spineModuleMenu(entry)
                 { icon = Session.CHEV_RIGHT, text = _("Right"), callback = function() nudge(1) end },
                 { icon = Session.PAGE_NEXT, text = _("Page"), enabled = bw:_spineModulePageMove(id, 1) ~= nil,
                   callback = function() pageMove(1) end },
+                { icon = CUI.ICON_LAST, text = _("End"), enabled = mypos ~= nil and total > 0 and mypos < total,
+                  callback = function() toEdge(1) end },
             } },
-            { type = "hint", text = _("Or swipe it on the shelf, a book at a time.") },
+            { type = "hint", text = hand_ordered
+                and _("Long-press a book or another ornament to swap their places.")
+                or _("Long-press another ornament to swap their places.") },
         }
         if not pinned_piece then
             blocks[#blocks + 1] = { type = "stepper", label = _("Width"), value = tostring(width(m)),
                 on_dec = function() change(function(l, i) l[i].w = math.max(min_w, width(l[i]) - 1) end) end,
                 on_inc = function() change(function(l, i) l[i].w = math.min(6, width(l[i]) + 1) end) end }
         end
+        blocks[#blocks + 1] = { type = "chips", items = bar }
         return { strip = strip, blocks = blocks }
     end
     d = require("lib/bookshelf_page_dialog").show{
-        -- A pinned piece's long-press opens this, not the ornament menu it
-        -- opened before pinning: the title says why.
-        title = pinned_piece and _("Pinned ornament") or (def and def.title) or entry.module,
+        -- Named as a book's Arrange menu is, then the piece: "Arrange:
+        -- Teapot". (A pinned piece's long-press opens this, not the ornament
+        -- menu it opened before pinning; the strip says why.)
+        title = function()
+            return require("ffi/util").template(_("Arrange: %1"), pieceName() or (def and def.title) or entry.module)
+        end,
         page = page,
         -- Clear of the module by a gap: the module's rect grown by the gap
         -- above and below (maintainer), the page under it or, with no room,
@@ -7662,12 +7841,67 @@ function BookshelfWidget:_spineModuleMenu(entry)
         if ges.direction == "west" then nudge(-1) return true end
         return false
     end
+    -- A tap (or a hold) on another thing on the shelf goes to that thing's
+    -- menu: another piece's, or, on a hand-ordered shelf, a book's Arrange
+    -- menu, which comes back here for a tap on a piece. One way of working
+    -- for both (maintainer). A tap anywhere else closes the menu, as before.
+    local function onTapOther(ges)
+        if not (ges and ges.pos) then return false end
+        local frame = d.frame and d.frame.dimen
+        if frame and ges.pos:intersectWith(frame) then return false end
+        local piece = bw._shelfPieceAt and bw:_shelfPieceAt(ges.pos)
+        if piece then
+            if piece.id == id then return false end
+            UIManager:close(d)
+            bw:_spineModuleMenu(piece)
+            return true
+        end
+        if not (bw._curatedList and bw:_curatedList() and bw._curatedBookAt) then return false end
+        local fp = bw:_curatedBookAt(ges.pos)
+        if not fp then return false end
+        for _i, item in ipairs(bw._page_items or {}) do
+            if type(item) == "table" and item.filepath == fp then
+                UIManager:close(d)
+                bw:_curatedMoveMenu(item)
+                return true
+            end
+        end
+        return false
+    end
+    -- A hold on another piece, or (on a hand-ordered shelf) a book: the two
+    -- trade places, this piece staying the one arranged (maintainer: "the
+    -- same with ornaments, between ornaments and between ornaments and
+    -- books").
+    local function onHoldOther(ges)
+        if not (ges and ges.pos) then return false end
+        local frame = d.frame and d.frame.dimen
+        if frame and ges.pos:intersectWith(frame) then return false end
+        local swapped
+        local piece = bw._shelfPieceAt and bw:_shelfPieceAt(ges.pos)
+        if piece then
+            if piece.id == id then return false end
+            swapped = bw:_shelfSwap({ piece = id }, { piece = piece.id })
+        else
+            local fp = bw._curatedList and bw:_curatedList() and bw._curatedBookAt and bw:_curatedBookAt(ges.pos)
+            if not fp then return false end
+            swapped = bw:_shelfSwap({ piece = id }, { book = fp })
+        end
+        if swapped then
+            if bw._curatedList and bw:_curatedList() then bw:_curatedRedraw()
+            else bw:_shelfModuleOwner(bw.chip).refresh() end
+            redraw()
+        end
+        return true
+    end
     local handle = d.handleEvent
     function d:handleEvent(event)
         local ev = event.handler == "onGesture" and event.args and event.args[1]
         if ev and ev.ges == "swipe" and onSwipeModule(ev) then return true end
+        if ev and ev.ges == "hold" and onHoldOther(ev) then return true end
+        if ev and ev.ges == "tap" and onTapOther(ev) then return true end
         return handle(self, event)
     end
+    return d
 end
 
 -- _addSpineModule(): the add picker, then the new module after the item at
@@ -8390,11 +8624,15 @@ function BookshelfWidget:_spineCachedFetch(n)
     -- Chip edits invalidate explicitly; the TTL bounds everything else.
     local key = tostring(self.chip) .. "|" .. tip_sig
     -- The shelf's modules stand in the list (ShelfModules.insertItems): a
-    -- move, a resize, an addition is a different list.
+    -- move, a resize, an addition is a different list; so is a pinned piece
+    -- swapped for another ornament (Swap ornament keeps its id: the old
+    -- piece stayed drawn, rig).
     local mods = self._activeShelfModules and self:_activeShelfModules()
     if mods then
         local sig = {}
-        for i, m in ipairs(mods) do sig[i] = tostring(m.id) .. ":" .. tostring(m.after) .. ":" .. tostring(m.w) end
+        for i, m in ipairs(mods) do
+            sig[i] = tostring(m.id) .. ":" .. tostring(m.after) .. ":" .. tostring(m.w) .. ":" .. tostring(m.ornament or "")
+        end
         key = key .. "|m:" .. table.concat(sig, ",")
     end
     -- The lists of the shelves switched away from are kept beside the one
@@ -8466,7 +8704,11 @@ function BookshelfWidget:_spineCachedFetch(n)
         -- moves it to the front and shifts every book before its old place
         -- along one) keeps the page on its first book (maintainer: the shelf
         -- must not shift under the reader).
-        self:_anchorSpineCursor(c.items, items)
+        -- Not when the reader moved a book by hand and the page was chosen
+        -- for it (lib/bookshelf_widget_curated sets the flag for its redraw).
+        if not self._spine_keep_cursor then
+            self:_anchorSpineCursor(c.items, items)
+        end
         if st then
             page_orn = { [self:_ornKey(self._cursor or 1, self:_spineSkip())] = st }
             keep = c
@@ -8587,8 +8829,11 @@ function BookshelfWidget:_spineItemsSig(items)
         -- A shelf module among the books by its id: by its table, the name
         -- held for one session only (a start reusing a page's ornament deal,
         -- _ornSaved, never matched).
+        -- A pinned piece by its ornament too: Swap ornament keeps the id, and
+        -- the page with the old piece was reused (rig).
         local id = type(it) == "table" and (it.filepath or it.path or it.name or it.text
-            or (type(it.shelf_module) == "table" and ("module:" .. tostring(it.shelf_module.id)))) or it
+            or (type(it.shelf_module) == "table" and ("module:" .. tostring(it.shelf_module.id)
+                .. ":" .. tostring(it.shelf_module.ornament or "")))) or it
         local n = type(it) == "table" and it.books and #it.books or 0
         parts[i] = tostring(id) .. "#" .. n
         if type(it) == "table" and (it._series_box or it._series_display_books) then
@@ -8672,6 +8917,25 @@ function BookshelfWidget:_spinePageFirsts(build, dims)
         c = self._spine_fetch_cache
     end
     if not items or #items == 0 then return nil end
+    local firsts = self:_spineFirstsOf(items, d, c)
+    if firsts then
+        if c then
+            c.page_firsts = firsts
+            c.firsts_shelves = self:_nShelves()
+        end
+        return firsts
+    end
+    return nil
+end
+
+-- _spineFirstsOf(items [, dims [, c]]) -> { first item of page 1, 2, ... } for
+-- a list planned as the shelf plans its own, or nil. c: the fetch cache whose
+-- ornament page states the plan may record (the shelf's own list only; a
+-- what-if list, as _spineModuleNextPage's, passes none).
+function BookshelfWidget:_spineFirstsOf(items, dims, c)
+    local d = dims or self._shelf_dims
+    if not d or not d.content_w or not d.shelf_h then return nil end
+    if type(items) ~= "table" or #items == 0 then return nil end
     local ok, firsts = pcall(function()
         local SpineShelf  = require("lib/bookshelf_spine_shelf")
         local SpineLayout = require("lib/bookshelf_spine_layout")
@@ -8707,13 +8971,7 @@ function BookshelfWidget:_spinePageFirsts(build, dims)
         end
         return out
     end)
-    if ok and firsts and #firsts > 0 then
-        if c then
-            c.page_firsts = firsts
-            c.firsts_shelves = self:_nShelves()
-        end
-        return firsts
-    end
+    if ok and firsts and #firsts > 0 then return firsts end
     return nil
 end
 
@@ -15302,7 +15560,7 @@ function BookshelfWidget:onBSKbHold()
             -- menu while bulk-selecting — same as touch).
             if self._selection and self._selection:isActive() then return true end
             self:_clearDpadFocus()
-            self:_showBookDetail(item, { active = "edit" })
+            self:_holdBook(item)
         else
             -- Stack / folder. Selection-mode shows the Pin / Add /
             -- Remove dialog rather than the chip-pin menu — both end
@@ -19693,29 +19951,34 @@ function BookshelfWidget:_openHardcoverMenu(book)
     local bw = self
     local link = Hardcover.getLink(book.filepath)
     local dialog
+    -- What the summary says while an action runs ("Linking..."): it replaces
+    -- the link line until the work is done.
+    local busy_text
 
-    -- Most actions here apply immediately and keep you in this menu (reopened,
-    -- refreshed -- e.g. a successful link now shows the override toggles), so
-    -- you can chain link + toggles. The title's X goes back to the book menu.
+    -- Everything happens in this one menu (maintainer: "it closes the modal
+    -- and there's a pause before anything happens"). Auto link and Clear
+    -- link work in place; Manual link and Select edition open their list as a
+    -- page of it, with a breadcrumb and a back chevron (as the shelf editor's
+    -- pickers); the X goes back to the book menu.
     local function returnToBookMenu()
         -- Back to the book-detail popup on its Edit tab (the long-press surface).
         UIManager:nextTick(function() bw:_showBookDetail(book, { active = "edit" }) end)
     end
-    local function returnToHardcoverMenu()
-        UIManager:nextTick(function() bw:_openHardcoverMenu(book) end)
-    end
 
-    -- closeThen: close this menu, run the action, then reopen THIS menu
-    -- refreshed. Actions that open their own sub-dialog (the pickers) pass
-    -- chains=true and reopen from that sub-dialog's completion callback.
-    local function closeThen(fn, chains)
-        return function()
-            UIManager:close(dialog)
-            UIManager:nextTick(function()
-                if fn then fn() end
-                if not chains then returnToHardcoverMenu() end
-            end)
+    -- busy(text): say what is happening, and paint it before the work starts
+    -- (the work runs on this thread, so nothing would paint until after).
+    local function busy(text)
+        busy_text = text
+        if dialog then
+            dialog:refresh()
+            UIManager:forceRePaint()
         end
+    end
+    -- idle(): the work is done; the page reads the link afresh.
+    local function idle()
+        busy_text = nil
+        link = Hardcover.getLink(book.filepath)
+        if dialog and UIManager:isWidgetShown(dialog) then dialog:refresh() end
     end
 
     local function refreshAfterAction(reason)
@@ -19728,6 +19991,7 @@ function BookshelfWidget:_openHardcoverMenu(book)
     local function refreshLinkedMetadata(success_text)
         Hardcover.refreshBookOnline(book, { force = true }, function(ok, err)
             refreshAfterAction("hardcover-refresh-one")
+            idle()
             if ok then
                 bw:_hardcoverToast(success_text or _("Hardcover metadata refreshed"))
             else
@@ -19735,6 +19999,12 @@ function BookshelfWidget:_openHardcoverMenu(book)
             end
         end)
     end
+
+    local LINKING = _("Linking to Hardcover\xE2\x80\xA6")
+    local HC_ICONS = require("lib/bookshelf_menu_icons")
+    -- Auto link, Manual link and Select edition ask Hardcover: each goes
+    -- through Hardcover.whenOnline, which offers to connect when offline.
+    -- Clear link and the On | Off switches are local.
 
     -- Pick the auto-link mode up front from whether the book carries an
     -- embedded ISBN / Hardcover id (reads the EPUB OPF once; cached on the book
@@ -19744,10 +20014,13 @@ function BookshelfWidget:_openHardcoverMenu(book)
         and Hardcover.getEmbeddedIdentifiers(book) ~= nil or false
     local embedded_button = {
         text = has_embedded_id and _("Auto link") or _("Auto link (best guess)"),
-        callback = closeThen(function()
+        icon = HC_ICONS.HARDCOVER,
+        callback = function() Hardcover.whenOnline(function()
+            busy(LINKING)
             if has_embedded_id then
                 local ok, result = Hardcover.linkFromEmbeddedIdentifiers(book)
                 if not ok then
+                    idle()
                     bw:_hardcoverToast(tostring(result or _("No embedded Hardcover identifier found")), 5)
                     return
                 end
@@ -19757,6 +20030,7 @@ function BookshelfWidget:_openHardcoverMenu(book)
                 -- the most confident match (the auto-link-all "Best guess").
                 local ok, result = Hardcover.bestGuessLink(book)
                 if not ok then
+                    idle()
                     local msg = (result == "no_confident_match" or result == "no_match")
                         and _("No confident Hardcover match -- try Manual link")
                         or tostring(result or _("Hardcover search failed"))
@@ -19765,82 +20039,81 @@ function BookshelfWidget:_openHardcoverMenu(book)
                 end
                 refreshLinkedMetadata(_("Hardcover book linked (best guess)"))
             end
-        end),
+        end) end,
     }
-    -- (embedded_button is terminal: closeThen reopens the book menu for it.)
+
+    -- The two lists: a page of this menu (dialog:over), opened at once with
+    -- "Searching" while the lookup runs. A pick closes the page, says Linking
+    -- here (on_start), and the page reads the new link when it is done.
+    local function pickerOpts(crumb, on_done_text, fail_text)
+        return {
+            over = dialog and dialog:over({ crumb }),
+            on_start = function() busy(LINKING) end,
+            on_close = idle,
+            on_error = function(msg)
+                idle()
+                bw:_hardcoverToast(tostring(msg or _("Hardcover link failed")), 5)
+            end,
+            on_done = function(_selected, ok_refresh, refresh_err)
+                refreshAfterAction("hardcover-select-book")
+                idle()
+                if ok_refresh == false then
+                    bw:_hardcoverToast(T(fail_text, tostring(refresh_err)), 5)
+                else
+                    bw:_hardcoverToast(on_done_text)
+                end
+            end,
+        }
+    end
 
     local select_book_button = {
         text = _("Manual link") .. "\xE2\x80\xA6",
-        callback = closeThen(function()
-            -- on_close fires when the picker closes either way (cancel or
-            -- selection), so the return to the book menu is handled there
-            -- uniformly -- the per-result callbacks only show toasts / refresh.
-            local ok, err = Hardcover.showBookPicker(book, {
-                on_close = returnToHardcoverMenu,
-                on_error = function(msg)
-                    bw:_hardcoverToast(tostring(msg or _("Hardcover link failed")), 5)
-                end,
-                on_book_selected = function(_selected, ok_refresh, refresh_err)
-                    refreshAfterAction("hardcover-select-book")
-                    if ok_refresh == false then
-                        bw:_hardcoverToast(T(_("Book linked, but metadata refresh failed: %1"),
-                                             tostring(refresh_err)), 5)
-                    else
-                        bw:_hardcoverToast(_("Hardcover book linked"))
-                    end
-                end,
-            })
-            -- Picker failed to even open: no dialog, so on_close never fires --
-            -- reopen the Hardcover menu now.
+        icon = "\xEE\xA9\x88",   -- magnify
+        callback = function() Hardcover.whenOnline(function()
+            local o = pickerOpts(_("Manual link"), _("Hardcover book linked"),
+                _("Book linked, but metadata refresh failed: %1"))
+            o.on_book_selected = o.on_done
+            local ok, err = Hardcover.showBookPicker(book, o)
             if not ok then
                 bw:_hardcoverToast(tostring(err or _("Hardcover search failed")), 5)
-                returnToHardcoverMenu()
             end
-        end, true),
+        end) end,
     }
 
     local select_edition_button = {
         text = _("Select edition") .. "\xE2\x80\xA6",
-        callback = closeThen(function()
+        icon = "\xEE\x9E\xBA",   -- book-multiple
+        callback = function()
             local current = Hardcover.getLink(book.filepath)
             if not current or not current.book_id then
                 bw:_hardcoverToast(_("Link a Hardcover book first"))
-                returnToHardcoverMenu()
                 return
             end
-            local ok, err = Hardcover.showEditionPicker(book, current.book_id, {
-                on_close = returnToHardcoverMenu,
-                on_error = function(msg)
-                    bw:_hardcoverToast(tostring(msg or _("Hardcover link failed")), 5)
-                end,
-                on_edition_selected = function(_selected, ok_refresh, refresh_err)
-                    refreshAfterAction("hardcover-select-edition")
-                    if ok_refresh == false then
-                        bw:_hardcoverToast(T(_("Edition linked, but metadata refresh failed: %1"),
-                                             tostring(refresh_err)), 5)
-                    else
-                        bw:_hardcoverToast(_("Hardcover edition linked"))
-                    end
-                end,
-            })
-            if not ok then
-                bw:_hardcoverToast(tostring(err or _("Hardcover edition search failed")), 5)
-                returnToHardcoverMenu()
-            end
-        end, true),
+            Hardcover.whenOnline(function()
+                local o = pickerOpts(_("Select edition"), _("Hardcover edition linked"),
+                    _("Edition linked, but metadata refresh failed: %1"))
+                o.on_edition_selected = o.on_done
+                local ok, err = Hardcover.showEditionPicker(book, current.book_id, o)
+                if not ok then
+                    bw:_hardcoverToast(tostring(err or _("Hardcover edition search failed")), 5)
+                end
+            end)
+        end,
     }
 
     local clear_button = {
         text = _("Clear link"),
-        callback = closeThen(function()
+        icon = HC_ICONS.HARDCOVER_OFF,
+        callback = function()
             local ok, err = Hardcover.clearLink(book.filepath)
             refreshAfterAction("hardcover-clear-link")
+            idle()
             if ok then
                 bw:_hardcoverToast(_("Hardcover link cleared"))
             else
                 bw:_hardcoverToast(tostring(err or _("Could not clear Hardcover link")), 5)
             end
-        end),
+        end,
     }
 
     -- Per-book overrides (only once linked): a saved on/off each, On | Off
@@ -19866,7 +20139,31 @@ function BookshelfWidget:_openHardcoverMenu(book)
     -- Reviews and Refresh metadata are intentionally NOT here: Reviews was
     -- promoted to the book long-press menu, and Refresh duplicated that
     -- menu's own "Refresh metadata" button.
+    -- Not connected (no sync plugin, no API key): what Hardcover is and how
+    -- to connect, and the key, in place of the link actions (maintainer:
+    -- "show a help message about what it is and how to connect"). A key
+    -- given from here turns this into the usual menu.
+    local function notConnectedPage()
+        return {
+            strip = { { type = "summary", text = _("Not connected to Hardcover.") } },
+            blocks = {
+                { type = "hint", text = _("Hardcover (hardcover.app) is a free site for tracking what you read. A book linked to it gets Hardcover's ratings, reviews, description and genres.\n\nTo connect, install a Hardcover sync plugin and sign in there, then restart KOReader. Or give Bookshelf a Hardcover API key: get one at hardcover.app/account/api.") },
+                { type = "chips", items = { {
+                    text = _("Hardcover API key") .. "\xE2\x80\xA6",
+                    icon = "\xEE\xA8\x8A",   -- key-variant
+                    callback = function()
+                        require("lib/bookshelf_hardcover_key_ui").open{ on_change = function()
+                            link = Hardcover.getLink(book.filepath)
+                            if dialog then dialog:refresh() end
+                        end }
+                    end,
+                } } },
+            },
+        }
+    end
+
     local function page()
+        if Hardcover.isAvailable and not Hardcover.isAvailable() then return notConnectedPage() end
         local linked = link and link.book_id
         local blocks = {}
         if linked then
@@ -19890,19 +20187,22 @@ function BookshelfWidget:_openHardcoverMenu(book)
             chips[#chips + 1] = clear_button
         end
         local items = {}
-        for i, b in ipairs(chips) do items[i] = { text = b.text, callback = b.callback } end
+        for i, b in ipairs(chips) do items[i] = { text = b.text, icon = b.icon, callback = b.callback } end
         blocks[#blocks + 1] = { type = "chips", items = items }
         return {
-            strip = { { type = "summary", text = link
+            strip = { { type = "summary", text = busy_text or (link
                 and T(_("Linked to %1."), Hardcover.linkLabel(book.filepath) or tostring(link.book_id))
-                or _("Not linked to Hardcover.") } },
+                or _("Not linked to Hardcover.")) } },
             blocks = blocks,
         }
     end
     -- Every action here applies at once, so there is no Cancel | Apply: the
     -- X goes back to the book popup.
     dialog = require("lib/bookshelf_page_dialog").show{
-        title    = _("Hardcover"),
+        -- The chain link before the name, outside the translated string
+        -- (lib/bookshelf_menu_icons); the lists opened from here carry it
+        -- in their breadcrumb.
+        title    = HC_ICONS.HARDCOVER .. " " .. _("Hardcover"),
         page     = page,
         on_close = returnToBookMenu,
     }

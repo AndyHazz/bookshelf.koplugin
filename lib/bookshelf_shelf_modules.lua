@@ -83,6 +83,74 @@ end
 -- startWidth(def) -> the width in slots a module is added at: its own start_w
 -- when it says (a frameless figure, one book wide), else 2; never below its
 -- min_w. The grid editor's add (HeroModules._sizeFor) reads the same fields.
+-- addPieceAfter(mods, id, entry) -> the new module, or nil: an ornament
+-- (entry.name: its file) pinned straight to the right of piece `id`, at
+-- the same place among the books (the list's order breaks a tie between
+-- pieces after the same book). Its id is the first free "sm_N".
+function M.addPieceAfter(mods, id, entry)
+    if type(mods) ~= "table" or not (entry and entry.name) then return nil end
+    local at
+    local used = {}
+    for i, m in ipairs(mods) do
+        used[m.id] = true
+        if m.id == id then at = i end
+    end
+    if not at then return nil end
+    local k = 1
+    while used["sm_" .. k] do k = k + 1 end
+    local made = { id = "sm_" .. k, type = "module", module = "ornament",
+                   ornament = entry.name, tap = entry.tap, after = mods[at].after, w = 1 }
+    table.insert(mods, at + 1, made)
+    return made
+end
+
+-- sequence(books, mods) -> the shelf as one row: { {book = fp} | {piece = m} }
+-- in shelf order (a piece after `after` books; ties keep the list's order).
+function M.sequence(books, mods)
+    local by = {}
+    for _i, m in ipairs(M.ordered(mods)) do
+        local a = math.min(after(m), #books)
+        by[a] = by[a] or {}
+        table.insert(by[a], m)
+    end
+    local out = {}
+    for i = 0, #books do
+        if i > 0 then out[#out + 1] = { book = books[i] } end
+        for _j, m in ipairs(by[i] or {}) do out[#out + 1] = { piece = m } end
+    end
+    return out
+end
+
+-- swapPlaces(books, mods, a, b) -> books, mods | nil: two things on the
+-- shelf ({ book = fp } or { piece = id }) trade places, books and pieces
+-- alike (maintainer: long-press swaps, "between ornaments and between
+-- ornaments and books"). New lists come back: the books in their new order,
+-- the pieces copied with their new place among the books, in shelf order.
+-- nil when the two are the same thing, or one is not on the shelf.
+function M.swapPlaces(books, mods, a, b)
+    local seq = M.sequence(books, mods)
+    local function find(x)
+        for i, e in ipairs(seq) do
+            if (x.book and e.book == x.book) or (x.piece and e.piece and e.piece.id == x.piece) then return i end
+        end
+    end
+    local i, j = find(a), find(b)
+    if not (i and j) or i == j then return nil end
+    seq[i], seq[j] = seq[j], seq[i]
+    local nb, nm = {}, {}
+    for _k, e in ipairs(seq) do
+        if e.book then
+            nb[#nb + 1] = e.book
+        else
+            local m = {}
+            for key, v in pairs(e.piece) do m[key] = v end
+            m.after = #nb
+            nm[#nm + 1] = m
+        end
+    end
+    return nb, nm
+end
+
 function M.startWidth(def)
     local w = 2
     if def and type(def.start_w) == "number" then w = math.max(1, math.floor(def.start_w)) end
@@ -193,10 +261,11 @@ function M.insertItems(items, mods)
     for i = 0, #items do
         while mi <= #order and (after(order[mi]) <= i or i == #items) do
             local m = order[mi]
-            -- The id keys the spine plan's cache: a move or a resize is a
-            -- different list.
+            -- The id keys the spine plan's cache and the kept pages: a move,
+            -- a resize, or a piece swapped for another ornament (same id:
+            -- the old picture was drawn again, rig) is a different list.
             out[#out + 1] = { shelf_module = m,
-                id = "module:" .. tostring(m.id) .. ":" .. tostring(m.w) }
+                id = "module:" .. tostring(m.id) .. ":" .. tostring(m.w) .. ":" .. tostring(m.ornament or "") }
             mi = mi + 1
         end
         if i < #items then out[#out + 1] = items[i + 1] end

@@ -18,6 +18,13 @@ local UI = {}
 UI.ICON_ADD    = "\u{ECDA}"   -- book-plus
 UI.ICON_REMOVE = "\u{ECD8}"   -- book-minus
 UI.ICON_SHELF  = "\u{E7BA}"   -- book-multiple
+UI.ICON_FACE   = "\u{E7B9}"   -- book: cover forward
+-- The shelf's very start and end, for a book's and a pinned piece's menus;
+-- the double chevrons beside them are a page (module_grid_session).
+UI.ICON_FIRST  = "\u{ECFF}"   -- page-first
+UI.ICON_LAST   = "\u{ED00}"   -- page-last
+-- The ornaments' own icon everywhere else (bookshelf_ornaments.COLLECTION_ICON).
+UI.ICON_ORNAMENT = "\u{F0F4}"   -- coffee
 UI.ICON_NEW    = "\u{EB11}"   -- playlist-plus
 
 local function Curated() return require("lib/bookshelf_curated") end
@@ -80,12 +87,15 @@ function UI.freeName()
     return label
 end
 
--- newShelf(label, after_id) -> the new shelf's record, saved: a shelf on a
--- collection of that name (made if there is none; an existing one is shown
--- as it is), after the shelf `after_id` (else last). It opens as spines,
--- where the order reads as a shelf and ornaments stand among the books.
--- nil when the name cannot be a collection's.
-function UI.newShelf(label, after_id)
+-- newShelf(label, after_id, view_mode) -> the new shelf's record, saved: a
+-- shelf on a collection of that name (made if there is none; an existing one
+-- is shown as it is), after the shelf `after_id` (else last). view_mode: the
+-- look of the shelf the book was added from ("covers" | "list" | "spines"),
+-- which the new one takes; else spines, where the order reads as a shelf
+-- and ornaments stand among the books. As spines, each book faces out or
+-- stands spine out as the reader chooses (Arrange). nil when the name
+-- cannot be a collection's.
+function UI.newShelf(label, after_id, view_mode)
     local TM = TabModel()
     local tabs = TM.load()
     label = type(label) == "string" and label:gsub("^%s+", ""):gsub("%s+$", "") or ""
@@ -98,15 +108,31 @@ function UI.newShelf(label, after_id)
     local ok, Editor = pcall(require, "lib/bookshelf_chip_editor")
     tab.sort_priority = (ok and Editor and Editor.sourceSortDefaults and Editor.sourceSortDefaults("collection"))
         or { { key = "collection_order", reverse = false }, { key = "last_opened", reverse = true } }
-    tab.view_mode = "spines"
+    tab.view_mode = (view_mode == "covers" or view_mode == "list") and view_mode or "spines"
+    tab.spine_face_out = { chosen = true }
+    -- No dealt ornaments: a hand-ordered shelf is arranged by pinning
+    -- pieces where they belong (maintainer).
+    tab.ornament_frequency = 0
     TM.insertAfter(tabs, after_id, tab)
     TM.save(tabs)
     return tab
 end
 
+-- doneText(label, n, removed) -> what the reader is told once a tap in the
+-- chooser has put `n` books on the shelf `label` (or taken them off).
+function UI.doneText(label, n, removed)
+    if removed then
+        if n == 1 then return T(_("Taken off %1"), label) end
+        return T(_("%1 books taken off %2"), n, label)
+    end
+    if n == 1 then return T(_("Added to %1"), label) end
+    return T(_("%1 books added to %2"), n, label)
+end
+
 -- _page(paths, on_change, on_new) -> the chooser's page: one card a shelf,
--- on when every book is on it; then a way to make a shelf. on_change() after
--- a tap changed a list; on_new() asks for a new shelf.
+-- on when every book is on it; then a way to make a shelf. on_change(label,
+-- n, removed) after a tap changed a list: which shelf, how many books, and
+-- whether they came off; on_new() asks for a new shelf.
 function UI._page(paths, on_change, on_new)
     local blocks = {}
     local shelves = UI.shelves()
@@ -126,7 +152,8 @@ function UI._page(paths, on_change, on_new)
         blocks[#blocks + 1] = { type = "option", text = s.label, icon = UI.ICON_SHELF, desc = desc,
             on = st == "all",
             callback = function()
-                if UI.toggle(s.list, paths) > 0 then on_change() end
+                local n = UI.toggle(s.list, paths)
+                if n > 0 then on_change(s.label, n, st == "all") end
             end }
     end
     if #shelves == 0 then
@@ -140,18 +167,27 @@ function UI._page(paths, on_change, on_new)
     return { blocks = blocks }
 end
 
--- pick{ paths, after_id, on_done }: the chooser, for one book or many. It
--- stays open while shelves are ticked; on_done(changed) as it closes.
+-- pick{ paths, after_id, view_mode, on_done }: the chooser, for one book or
+-- many. A tap on a shelf does it, closes the chooser and says what was done
+-- (it stayed open with the card lit, which read as the tap doing nothing:
+-- maintainer); on_done(changed) as it closes. view_mode: the look on screen,
+-- for a shelf made here (newShelf).
 function UI.pick(opts)
     local paths = opts.paths or {}
     if #paths == 0 then return end
     local UIManager = require("ui/uimanager")
     local changed = false
     local dialog
-    local function onChange()
+    local function finish(label, n, removed)
         changed = true
-        if dialog then dialog:refresh() end
+        -- Its own dismiss: that is what runs on_close (on_done).
+        if dialog then dialog:_dismiss() end
+        pcall(function()
+            UIManager:show(require("ui/widget/notification"):new{
+                text = UI.doneText(label, n, removed == true) })
+        end)
     end
+    local onChange = finish
     local function askName()
         local InputDialog = require("ui/widget/inputdialog")
         local Screen = require("device").screen
@@ -159,19 +195,16 @@ function UI.pick(opts)
         local function make()
             local name = input:getInputText()
             UIManager:close(input)
-            local tab = UI.newShelf(name, opts.after_id)
+            local tab = UI.newShelf(name, opts.after_id, opts.view_mode)
             if not tab then
                 UIManager:show(require("ui/widget/infomessage"):new{
                     text = _("That name cannot be used for a shelf of your own."), timeout = 3 })
                 return
             end
-            if tab then
-                -- An existing collection of that name may hold some already.
-                Curated().addMany(tab.source.id, paths)
-            end
-            changed = true
+            -- An existing collection of that name may hold some already.
+            Curated().addMany(tab.source.id, paths)
             opts.made_shelf = true
-            if dialog then dialog:refresh() end
+            finish(tab.label, #paths, false)
         end
         input = InputDialog:new{
             title = _("Shelf name"),
@@ -297,25 +330,32 @@ end
 -- is at the right: "Right" has to move the book towards the right of the
 -- SCREEN, a place back. Start and End stay the shelf's start and end.
 
--- moveChips(mirrored) -> the four buttons in the order to hand the row:
--- { key, step = place change | nil, edge = -1 | 1 | nil, icon }. icon is
--- "first" | "prev" | "next" | "last": the glyph pointing the way the book
--- goes on screen. The row is mirrored as it is laid out, so right to left
--- the list comes back to front, for Left to stand on the left.
+-- moveChips(mirrored) -> the six buttons in the order to hand the row:
+-- { key, step = place change | nil, edge = -1 | 1 | nil, page = -1 | 1 | nil,
+-- icon }: one job each. Start and End are the shelf's; the two Page buttons
+-- put it first on the page before or after (a pinned ornament's menu has the
+-- same six: maintainer). icon is "first" | "page_prev" | "prev" | "next" |
+-- "page_next" | "last": the glyph pointing the way the book goes on screen.
+-- The row is mirrored as it is laid out, so right to left the list comes
+-- back to front, for Left to stand on the left.
 function UI.moveChips(mirrored)
     if mirrored then
         return {
-            { key = "start", edge = -1, icon = "last" },
-            { key = "right", step = -1, icon = "next" },
-            { key = "left",  step = 1,  icon = "prev" },
-            { key = "end",   edge = 1,  icon = "first" },
+            { key = "start",     edge = -1, icon = "last" },
+            { key = "page_prev", page = -1, icon = "page_next" },
+            { key = "right",     step = -1, icon = "next" },
+            { key = "left",      step = 1,  icon = "prev" },
+            { key = "page_next", page = 1,  icon = "page_prev" },
+            { key = "end",       edge = 1,  icon = "first" },
         }
     end
     return {
-        { key = "start", edge = -1, icon = "first" },
-        { key = "left",  step = -1, icon = "prev" },
-        { key = "right", step = 1,  icon = "next" },
-        { key = "end",   edge = 1,  icon = "last" },
+        { key = "start",     edge = -1, icon = "first" },
+        { key = "page_prev", page = -1, icon = "page_prev" },
+        { key = "left",      step = -1, icon = "prev" },
+        { key = "right",     step = 1,  icon = "next" },
+        { key = "page_next", page = 1,  icon = "page_next" },
+        { key = "end",       edge = 1,  icon = "last" },
     }
 end
 

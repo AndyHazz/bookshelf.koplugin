@@ -72,7 +72,7 @@ local function setup()
     local O = fresh()
     local d = scratch()
     O._data_dir = d; O._lfs = lfs_shim
-    O.ensureTemplate()                       -- template.svg + cactus.svg, loose
+    O.ensureTemplate()                       -- Plant.svg + cactus.svg, loose
     os.execute("mkdir -p '" .. O.dir() .. "/Autumn' '" .. O.dir() .. "/Cats'")
     svg(O.dir() .. "/Autumn/leaf.svg"); svg(O.dir() .. "/Autumn/acorn.svg")
     svg(O.dir() .. "/Cats/leaf.svg")          -- same file name, other pack

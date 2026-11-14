@@ -209,6 +209,37 @@ function SortEngine.pageCountOf(item)
     return m or nil
 end
 
+-- timeLeftOf(item) -> the minutes the Time left sort orders by (issue 602),
+-- or nil: what %book_time_left shows, from KOReader's reading statistics. A
+-- book never opened, one finished, and one the statistics know nothing of
+-- have no estimate. The repository installs the resolver (this module must
+-- not require it) and is asked once per record; clearTimeLeftMemo() drops
+-- the answers when reading has moved them.
+local _left_memo = setmetatable({}, { __mode = "k" })
+local _left_resolver = nil
+
+function SortEngine.setTimeLeftResolver(fn) _left_resolver = fn end
+function SortEngine.clearTimeLeftMemo() _left_memo = setmetatable({}, { __mode = "k" }) end
+
+function SortEngine.timeLeftOf(item)
+    if type(item) ~= "table" or not _left_resolver then return nil end
+    local m = _left_memo[item]
+    if m == nil then
+        -- A folder view's file entry ({ name, fp, attr }) has no filepath. A
+        -- folder, and a group of books, have no time of their own.
+        local fp = item.filepath
+        if not fp and type(item.fp) == "string"
+                and not (item.attr and item.attr.mode == "directory") then
+            fp = item.fp
+        end
+        local ok, n
+        if fp then ok, n = pcall(_left_resolver, fp) end
+        m = (ok and tonumber(n)) or false
+        _left_memo[item] = m
+    end
+    return m or nil
+end
+
 local function cmp(a, b)
     local am, bm = isMissing(a), isMissing(b)
     if am and bm then return 0              end
@@ -742,6 +773,12 @@ SortEngine.KEYS = {
                         comparator = function(a, b)
                             return cmp(SortEngine.publishedOf(a), SortEngine.publishedOf(b))
                         end },
+    -- Issue 602: the minutes %book_time_left shows. Only a book being read
+    -- has an estimate; the rest tie at the end, so the next level orders them.
+    time_left       = { label = tr("Time left"), short = tr("Time left"),
+                        comparator = function(a, b)
+                            return cmp(SortEngine.timeLeftOf(a), SortEngine.timeLeftOf(b))
+                        end },
     -- Book record: a.collection_order (the `order` KOReader stores per item in
     -- a collection; the repository's collection source copies it onto the
     -- record). Meaningful only on a collection source -- everywhere else every
@@ -768,7 +805,7 @@ SortEngine.ORDER = {
     "title", "filename", "author_surname", "author_name",
     "series_name", "series_index", "series_combined", "series_or_title",
     "last_opened", "date_added", "added_or_opened",
-    "percent_read", "rating",
+    "percent_read", "time_left", "rating",
     "read_status", "read_status_active", "favorites_first",
     "size", "page_count", "book_count", "published",
 }

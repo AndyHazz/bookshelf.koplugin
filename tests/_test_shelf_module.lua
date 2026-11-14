@@ -160,10 +160,14 @@ t.test("a module's own shelf is offered only sources the module can show", funct
     for _i, s in ipairs({ "stack(", '"shelves"', "open_opds_picker" }) do
         assert(not card:find(s, 1, true), s .. " offered to a module's shelf")
     end
-    for _i, s in ipairs({ '"single_series"', '"author"', '"genre"', "open_tag_picker", '"format"',
+    for _i, s in ipairs({ '"single_series"', '"author"', '"genre"', '"format"',
             "open_rating_picker", '"language"', '"folder_flat"' }) do
         assert(card:find(s, 1, true), s .. " missing for a module's shelf")
     end
+    -- A collection: on the "Your own collection" card, which every source page
+    -- shows (it was a second way to the same list under Just one).
+    local own = body:match('text = _%("Your own collection"%)(.-)\n        }%)\n')
+    assert(own and own:find("open_collection_picker", 1, true), "a collection missing for a module's shelf")
     assert(body:find('chip("recent"', 1, true), "Recently read missing")
 end)
 

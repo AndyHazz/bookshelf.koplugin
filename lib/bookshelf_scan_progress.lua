@@ -31,6 +31,11 @@ local function now()
     return ok and gettime() or os.time()
 end
 
+-- A book whose pages turn: book-open-page-variant, book-open-variant and
+-- book-open-o, one per frame. Private Use Area code points, which is what
+-- the status line's icon path renders safely. For begin{ icons = }.
+M.BOOK_ICONS = { "\xee\xb3\x99", "\xee\x9e\xbd", "\xee\x8a\x8b" }
+
 function M.active() return _job ~= nil end
 function M.job() return _job end
 
@@ -155,6 +160,36 @@ function M.reading()
         end
     end
     return false
+end
+
+-- liveShelf(fallback) -> the shelf showing now, for a job's `shelf` getter.
+-- The one a pass started from may have been replaced (a book opened and
+-- closed); the host's current one is found the way KOReader keeps it.
+function M.liveShelf(fallback)
+    for _i, mod in ipairs({ "apps/filemanager/filemanager", "apps/reader/readerui" }) do
+        local ok, C = pcall(require, mod)
+        local inst = ok and type(C) == "table" and C.instance
+        local w = inst and inst.bookshelf and inst.bookshelf._widget
+        if w and UIManager:isWidgetShown(w) then return w end
+    end
+    return fallback
+end
+
+-- holdAwake(on): a pass that runs for minutes must not have the device
+-- suspend in the middle of it (as Extract page counts holds it, main.lua).
+-- The flag's earlier value comes back afterwards. Idempotent both ways.
+local _held_prev
+function M.holdAwake(on)
+    local ok_ps, PluginShare = pcall(require, "pluginshare")
+    if on and _held_prev == nil then
+        _held_prev = (ok_ps and PluginShare.pause_auto_suspend) and true or false
+        if ok_ps then PluginShare.pause_auto_suspend = true end
+        pcall(function() UIManager:preventStandby() end)
+    elseif not on and _held_prev ~= nil then
+        if ok_ps then PluginShare.pause_auto_suspend = _held_prev end
+        _held_prev = nil
+        pcall(function() UIManager:allowStandby() end)
+    end
 end
 
 -- For tests.

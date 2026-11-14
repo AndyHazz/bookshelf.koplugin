@@ -211,7 +211,59 @@ function R.hint(ctx, b)
     return Kit.hintText(b.text or "", nil, ctx.w, nil, { face = ctx.small, bg = ctx.bg })
 end
 
+-- fillPlan(n, width, gap, need) -> { widths, icons_only }: n cells of one
+-- width across `width` with `gap` between them, what the division leaves
+-- over on the last; icons_only when the widest cell's icon and label (need,
+-- its padding in) is more than a cell holds.
+local function fillPlan(n, width, gap, need)
+    local w = math.floor((width - (n - 1) * gap) / math.max(1, n))
+    local widths = {}
+    for i = 1, n do widths[i] = w end
+    if n > 0 then widths[n] = width - (n - 1) * gap - (n - 1) * w end
+    return { widths = widths, icons_only = (need or 0) > w }
+end
+Page._fillPlan = fillPlan   -- for tests
+
+-- A chips block with fill: one row the page's whole width, its cells equal
+-- and their contents centered: a set of moves that belong together (an
+-- Arrange menu's six). Where the labels do not fit beside their icons (a
+-- small screen), every cell shows its icon alone.
+local function fillChips(ctx, b)
+    local items = b.items or {}
+    local face = ctx.chip_face
+    local h = ctx:text("Hg", { face = face }):getSize().h + 2 * Space.px(10)
+    local pad = Space.px(6)
+    local icon_face = Font:getFace("symbols", math.max(10, ctx.fs - 2))
+    local function content(it, icons_only, max_w)
+        local ink = ctx:ink(it.on, it.enabled ~= false)
+        local icon = it.icon and ctx:text(it.icon, { face = icon_face, fgcolor = ink })
+        if icon and icons_only then return icon end
+        local label = ctx:text(it.text, { bold = it.on, fgcolor = ink, face = face, max_width = max_w })
+        if not icon then return label end
+        return HorizontalGroup:new{ align = "center", icon, HorizontalSpan:new{ width = Space.px(6) }, label }
+    end
+    local need = 0
+    for _i, it in ipairs(items) do
+        need = math.max(need, content(it, false):getSize().w + 2 * pad)
+    end
+    local plan = fillPlan(#items, ctx.w, ctx.gap, need)
+    local line, focus = HorizontalGroup:new{ align = "top" }, {}
+    ctx.layout[#ctx.layout + 1] = focus
+    for i, it in ipairs(items) do
+        if i > 1 then line[#line + 1] = HorizontalSpan:new{ width = ctx.gap } end
+        local cw = plan.widths[i]
+        local card = Kit.card{ width = cw, height = h, on = it.on, padding_left = pad, padding_right = pad,
+            CenterContainer:new{ dimen = Geom:new{ w = cw - 2 * pad, h = h },
+                content(it, plan.icons_only, cw - 2 * pad) } }
+        local cell = Kit.tapCell(card, cw, h, it.callback, it.enabled ~= false, nil, it.on ~= nil)
+        cell.focus_radius = Kit.RADIUS
+        line[#line + 1], focus[#focus + 1] = cell, cell
+    end
+    return line
+end
+
 function R.chips(ctx, b)
+    if b.fill then return fillChips(ctx, b) end
     local vg = VerticalGroup:new{ align = "left" }
     local line, line_w, focus = nil, 0, nil
     local face = ctx.chip_face

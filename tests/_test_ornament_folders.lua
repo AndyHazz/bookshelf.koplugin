@@ -81,7 +81,7 @@ t.test("a fresh install gets the new folder with the seeds; the old one is not c
     local d = scratch()
     O._data_dir = d; O._lfs = lfs_shim
     O.ensureTemplate()
-    assert(lfs_shim.attributes(O.dir() .. "/template.svg", "mode") == "file", "no template in the new folder")
+    assert(lfs_shim.attributes(O.dir() .. "/Plant.svg", "mode") == "file", "no template in the new folder")
     eq(lfs_shim.attributes(O.legacyDir(), "mode"), nil, "the old folder was created")
 end)
 
@@ -94,7 +94,7 @@ t.test("an existing old folder keeps working, and gets no second template", func
     svg(d .. "/icons/bookshelf.ornaments/Autumn/leaf.svg")
     O.ensureTemplate()
     eq(lfs_shim.attributes(O.dir(), "mode"), "directory", "the new folder should exist, for the path the browser shows")
-    eq(lfs_shim.attributes(O.dir() .. "/template.svg", "mode"), nil, "a second template was seeded")
+    eq(lfs_shim.attributes(O.dir() .. "/Plant.svg", "mode"), nil, "a second template was seeded")
     local all, packs = O.listAll()
     eq(names(all), "cat.svg,Autumn/leaf.svg")
     eq(table.concat(packs, ","), "Autumn")

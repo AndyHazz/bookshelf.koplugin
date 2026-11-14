@@ -478,6 +478,19 @@ function LibraryModal.rowsForShare(share)
     return math.max(2, math.floor(Screen:getHeight() * share / unit))
 end
 
+-- overY(over, h, screen_h) -> the top of a page of a menu h tall. At the
+-- menu's top, as the shelf editor's pages (they fit inside it). With
+-- over.centre (a page dialog: short, mid-screen) a page taller than the
+-- menu is centred on the screen instead, as far as it still covers the
+-- menu, and never above the screen's top (maintainer, PW5: the Hardcover
+-- list ran from the menu's top to the foot of the screen).
+function LibraryModal.overY(over, h, screen_h)
+    if not over.centre or h <= (over.h or 0) then return over.y end
+    local y = math.floor((screen_h - h) / 2)
+    y = math.min(over.y, math.max(over.y + over.h - h, y))
+    return math.max(0, y)
+end
+
 function LibraryModal:_buildFrame()
     local Screen = Device.screen
     -- Modal width: 85% of screen. Less wide than the 90% it was — visible
@@ -521,7 +534,9 @@ function LibraryModal:_buildFrame()
         -- Where the menu underneath is, not centred.
         local holder = WidgetContainer:new{
             dimen = Geom:new{ w = Screen:getWidth(), h = Screen:getHeight() }, self.frame }
-        function holder:paintTo(bb) frame:paintTo(bb, over.x, over.y) end
+        function holder:paintTo(bb)
+            frame:paintTo(bb, over.x, LibraryModal.overY(over, frame:getSize().h, Screen:getHeight()))
+        end
         self[1] = holder
     else
         self[1] = CenterContainer:new{
@@ -1384,7 +1399,8 @@ function LibraryModal:_repaintIfResized(old)
     local Screen = Device.screen
     local at = self._over_rect
     self._shown_rect = { x = at and at.x or math.floor((Screen:getWidth() - size.w) / 2),
-                         y = at and at.y or math.floor((Screen:getHeight() - size.h) / 2),
+                         y = at and LibraryModal.overY(at, size.h, Screen:getHeight())
+                             or math.floor((Screen:getHeight() - size.h) / 2),
                          w = size.w, h = size.h }
     if not old or (size.w == old.w and size.h == old.h) then return end
     self.frame.dimen = nil

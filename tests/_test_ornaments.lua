@@ -100,17 +100,17 @@ t.test("ensureTemplate creates the folder with the template, once", function()
     O._data_dir = d
     O._lfs = lfs_shim
     O.ensureTemplate()
-    assert(exists(O.dir() .. "/template.svg"), "template should be written")
+    assert(exists(O.dir() .. "/Plant.svg"), "template should be written")
     assert(exists(O.dir() .. "/cactus.svg"), "cactus should be written")
     -- The folder lives beside the wallpapers (v5.3), not in icons/.
     eq(O.dir(), d .. "/settings/bookshelf/ornaments")
     -- A user deletes the plant: a later session must not bring it back.
-    os.remove(O.dir() .. "/template.svg")
+    os.remove(O.dir() .. "/Plant.svg")
     local O2 = fresh()
     O2._data_dir = d
     O2._lfs = lfs_shim
     O2.ensureTemplate()
-    assert(not exists(O2.dir() .. "/template.svg"),
+    assert(not exists(O2.dir() .. "/Plant.svg"),
         "an existing folder must never be re-seeded")
     os.execute("rm -rf '" .. d .. "'")
 end)
@@ -140,7 +140,7 @@ t.test("an icons folder a reader already has is left alone", function()
     local mine = io.open(d .. "/icons/my-own-icon.svg", "w")
     mine:write("<svg/>"); mine:close()
     O.ensureTemplate()
-    assert(exists(O.dir() .. "/template.svg"), "the ornaments folder was not seeded")
+    assert(exists(O.dir() .. "/Plant.svg"), "the ornaments folder was not seeded")
     assert(exists(d .. "/icons/my-own-icon.svg"), "a reader's own icon was disturbed")
     assert(lfs_shim.attributes(d .. "/icons/bookshelf.ornaments", "mode") == nil,
         "an ornaments folder was made in icons/")
@@ -158,9 +158,10 @@ t.test("list finds SVGs and reads their headers", function()
     local f2 = io.open(O.dir() .. "/notes.txt", "w"); f2:write("x"); f2:close()
     local list = O.list()
     eq(#list, 3, "cat + the two seeded svgs, the txt ignored")
-    eq(list[1].name, "cactus.svg")
-    eq(list[2].name, "cat.SVG"); eq(list[2].aspect, 1.5); eq(list[2].overhang, 0.2)
-    eq(list[3].name, "template.svg")
+    -- By byte: the capital P sorts first.
+    eq(list[1].name, "Plant.svg")
+    eq(list[2].name, "cactus.svg")
+    eq(list[3].name, "cat.SVG"); eq(list[3].aspect, 1.5); eq(list[3].overhang, 0.2)
     os.execute("rm -rf '" .. d .. "'")
 end)
 
@@ -547,10 +548,11 @@ t.test("png: list picks PNGs up beside the SVGs, with no overhang", function()
     f:write(png_header(200, 400)); f:close()
     local list = O.list()
     eq(#list, 3, "plant.png + the two seeded svgs")
-    eq(list[1].name, "cactus.svg")
-    eq(list[2].name, "plant.png")
-    eq(list[2].aspect, 0.5)
-    eq(list[2].overhang, 0, "a PNG stands on the plank, it does not hang over it")
+    eq(list[1].name, "Plant.svg")
+    eq(list[2].name, "cactus.svg")
+    eq(list[3].name, "plant.png")
+    eq(list[3].aspect, 0.5)
+    eq(list[3].overhang, 0, "a PNG stands on the plank, it does not hang over it")
     os.execute("rm -rf '" .. d .. "'")
 end)
 
@@ -572,7 +574,7 @@ t.test("png: a picture too big to decode is left out, not handed to the decoder"
     f:write(png_header(2000, 2000)); f:close()
     local names = {}
     for _i, e in ipairs(O.list()) do names[#names + 1] = e.name end
-    eq(table.concat(names, ","), "cactus.svg,fine.png,template.svg")
+    eq(table.concat(names, ","), "Plant.svg,cactus.svg,fine.png")
     eq(rendered, 0, "the huge picture was decoded")
     eq(O.pngSize(png_header(4416, 4416)), 4416)
     assert(4416 * 4416 > O.MAX_PNG_PX and 2000 * 2000 <= O.MAX_PNG_PX, "the cap is not between the two")
@@ -649,7 +651,7 @@ end)
 
 -- ── the seeded files must be valid SVG ───────────────────────────────────
 --
--- template.svg shipped in v5.0.0 NOT well-formed: "--" is illegal inside an
+-- Plant.svg shipped in v5.0.0 NOT well-formed: "--" is illegal inside an
 -- XML comment, and its own comment block used it as a dash three times.
 -- KOReader's renderer (nanosvg) is lenient enough to draw it anyway, so the
 -- shelf looked right and nothing failed -- but this is the file a reader is
@@ -936,7 +938,7 @@ t.test("seeds: an outdated seed file is rewritten, a current one is left alone",
     local d = scratch()
     O._data_dir = d; O._lfs = lfs_shim
     O.ensureTemplate()
-    local path = O.dir() .. "/template.svg"
+    local path = O.dir() .. "/Plant.svg"
     local f = io.open(path, "w"); f:write("<!-- bookshelf:overhang=0 -->\n<svg viewBox=\"0 0 60 100\"></svg>"); f:close()
     local O2 = fresh(); O2._data_dir = d; O2._lfs = lfs_shim
     O2.ensureTemplate()
@@ -948,6 +950,36 @@ t.test("seeds: an outdated seed file is rewritten, a current one is left alone",
     local O3 = fresh(); O3._data_dir = d; O3._lfs = lfs_shim
     O3.ensureTemplate()
     eq(lfs_shim.attributes(path, "modification"), before - 100, "a current seed was rewritten for nothing")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
+-- The plant was template.svg until 6.5 (maintainer: "template" read oddly as
+-- its name in the Arrange menu's title). A fresh install gets Plant.svg; an
+-- older install keeps its template.svg, and that still takes the artwork's
+-- refreshes, with no second plant beside it.
+t.test("seeds: a fresh folder gets Plant.svg, not template.svg", function()
+    local O = fresh()
+    local d = scratch()
+    O._data_dir = d; O._lfs = lfs_shim
+    O.ensureTemplate()
+    assert(exists(O.dir() .. "/Plant.svg"), "no Plant.svg")
+    assert(not exists(O.dir() .. "/template.svg"), "the old name was seeded too")
+    eq(O.displayName({ file = "Plant.svg" }), "Plant")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
+t.test("seeds: an older install's template.svg is still refreshed, and no Plant.svg joins it", function()
+    local O = fresh()
+    local d = scratch()
+    O._data_dir = d; O._lfs = lfs_shim
+    O.ensureTemplate()
+    os.remove(O.dir() .. "/Plant.svg")
+    local old = O.dir() .. "/template.svg"
+    local f = io.open(old, "w"); f:write("<!-- bookshelf:overhang=0 -->\n<svg viewBox=\"0 0 60 100\"></svg>"); f:close()
+    local O2 = fresh(); O2._data_dir = d; O2._lfs = lfs_shim
+    O2.ensureTemplate()
+    eq(io.open(old):read("a"), O2.TEMPLATE_SVG, "the old plant missed the refresh")
+    assert(not exists(O2.dir() .. "/Plant.svg"), "a second plant was seeded")
     os.execute("rm -rf '" .. d .. "'")
 end)
 

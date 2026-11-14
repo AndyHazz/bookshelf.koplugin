@@ -667,7 +667,10 @@ function Tokens.reviewsHtml(payload)
     -- rows below still use the HTML star glyphs (Tokens.starString).
     local reviews = type(payload.reviews) == "table" and payload.reviews or {}
     if #reviews == 0 then
-        out[#out + 1] = "<p>No non-spoiler reviews found.</p>"
+        -- empty_text: the caller's own reason for the empty list.
+        local why = type(payload.empty_text) == "string" and payload.empty_text ~= ""
+            and _escHtml(payload.empty_text) or "No non-spoiler reviews found."
+        out[#out + 1] = "<p>" .. why .. "</p>"
         return table.concat(out, "\n")
     end
 
@@ -749,6 +752,11 @@ function Tokens.autoLinkReportHtml(data)
         summary[#summary + 1] = string.format("Errors %d", data.errors)
     end
     out[#out + 1] = '<p class="rating">' .. table.concat(summary, DOT) .. "</p>"
+    -- data.why: the reason a pass ended by itself (no connection, the day's
+    -- Hardcover budget spent), in the caller's words.
+    if type(data.why) == "string" and data.why ~= "" then
+        out[#out + 1] = "<p>" .. _escHtml(data.why) .. "</p>"
+    end
 
     -- Linked: one line per book, local name -> matched Hardcover title/author.
     out[#out + 1] = "<hr/>"

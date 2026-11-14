@@ -35,14 +35,18 @@ function BookshelfWidget:_curatedList()
     return list, tab
 end
 
--- _curatedArrangeable() -> true, reversed | false, why ("sort" | "filter").
+-- _curatedArrangeable() -> true, reversed | false, why ("sort" | "unordered"
+-- | "boxes").
+-- A filter does not stop it: a book the filter hides keeps its slot in the
+-- collection when the order is written (writeOrder), as a file gone from the
+-- device does, and the moves are among the books on screen (maintainer,
+-- PW5: a Home shelf on a collection, hiding On hold books, gave the book
+-- menu on a long-press, not Arrange).
 function BookshelfWidget:_curatedArrangeable()
     local list, tab = self:_curatedList()
     if not list then return false, "kind" end
     local first = type(tab.sort_priority) == "table" and tab.sort_priority[1]
     if not (first and first.key == "collection_order") then return false, "sort" end
-    local ok, Filter = pcall(require, "lib/bookshelf_filter")
-    if ok and Filter and tab.filter and Filter.isActive(tab.filter) then return false, "filter" end
     -- A collection with no order of its own (KOReader sorts it, by title
     -- say): placing a book would write the order on screen as the
     -- collection's and switch that sorting off. Only when asked
@@ -253,16 +257,216 @@ function BookshelfWidget:_curatedMoveTo(fp, target)
     return true
 end
 
+-- _curatedSwap(fp, other) -> true when the two books traded places (a
+-- long-press on another book while arranging). No place changes hands but
+-- theirs, so the pinned pieces stay where they stand.
+function BookshelfWidget:_curatedSwap(fp, other)
+    local list, tab = self:_curatedList()
+    local ok, reversed = self:_curatedArrangeable()
+    if not (list and ok) or fp == other then return false end
+    local books, at = shelfOrder(tab, fp)
+    local to
+    for i, f in ipairs(books) do if f == other then to = i; break end end
+    if not (at and to) then return false end
+    books[at], books[to] = books[to], books[at]
+    writeOrder(list, books, reversed)
+    reanchor(self, books)
+    return true
+end
+
+-- _shelfSwap(a, b) -> true when two things on the shelf traded places: a
+-- book and a pinned piece, or two pieces ({ book = fp } / { piece = id }).
+-- Long-press while arranging (maintainer: "the same with ornaments, between
+-- ornaments and between ornaments and books"). A book only moves on a shelf
+-- that can be arranged; two pieces trade places on any shelf showing them.
+function BookshelfWidget:_shelfSwap(a, b)
+    if not piecesShown(self) then return false end
+    local SM = require("lib/bookshelf_shelf_modules")
+    local list, tab = self:_curatedList()
+    local books, reversed
+    if a.book or b.book then
+        local ok
+        ok, reversed = self:_curatedArrangeable()
+        if not (list and ok) then return false end
+        books = shelfOrder(tab)
+    elseif list then
+        books = shelfOrder(tab)
+    else
+        -- Pieces alone: their places count books, and the books stay.
+        books = {}
+        local n = 0
+        for _i, m in ipairs((tab or TabModel().getById(self.chip) or {}).shelf_modules or {}) do
+            n = math.max(n, math.floor(tonumber(m.after) or 0))
+        end
+        for i = 1, n do books[i] = "\0" .. i end
+    end
+    local swapped
+    withMods(self, function(mods, t)
+        local nb, nm = SM.swapPlaces(books, mods or {}, a, b)
+        if not nb then return false end
+        t.shelf_modules = #nm > 0 and nm or nil
+        swapped = nb
+        return true
+    end)
+    if not swapped then return false end
+    if a.book or b.book then writeOrder(list, swapped, reversed) end
+    if list then reanchor(self, swapped) end
+    return true
+end
+
+-- _curatedCanPage(fp, dir) -> is there a page before (-1) / after (1) the
+-- one the book is on? An estimate from the page on screen, cheap enough to
+-- light a button with; _curatedToPage works the place out.
+function BookshelfWidget:_curatedCanPage(fp, dir)
+    local at, n = self:_curatedPlace(fp)
+    if not at then return false end
+    local cursor = self._cursor or 1
+    if self._isSpineMode and self:_isSpineMode() then
+        if dir < 0 then return cursor > 1 end
+        local c = self._spine_fetch_cache
+        local total = (c and type(c.items) == "table" and #c.items) or self._total_items or n
+        return cursor + (self._spine_shown or 0) <= total
+    end
+    -- Covers with pieces among them page by slots, not books.
+    if self._activeShelfModules and self:_activeShelfModules() then return false end
+    local view = math.max(1, self:_viewSize())
+    local page = math.floor((at - 1) / view)
+    if dir < 0 then return page >= 1 end
+    return (page + 1) * view + 1 <= n
+end
+
+-- _curatedToPage(fp, dir) -> true when the book went FIRST on the page after
+-- (1) or before (-1) the one it is on. On a spine shelf the pages are what
+-- the shelf plans: the next page's start is taken from the shelf WITHOUT the
+-- book where it is now (the pages before its new place are then exactly
+-- those, so the break in front of it holds); the previous page's from the
+-- shelf as it stands. Covers and lists page by a fixed count.
+function BookshelfWidget:_curatedToPage(fp, dir)
+    local list, tab = self:_curatedList()
+    local ok, reversed = self:_curatedArrangeable()
+    if not (list and ok) then return false end
+    local books, at = shelfOrder(tab, fp)
+    if not at then return false end
+    local to, lead_from, without
+    if self._isSpineMode and self:_isSpineMode() then
+        local c = self._spine_fetch_cache
+        local items = c and c.items
+        if type(items) ~= "table" then return false end
+        local mypos
+        without = {}
+        for i = 1, #items do
+            local it = items[i]
+            if type(it) == "table" and it.filepath == fp then mypos = i
+            else without[#without + 1] = it end
+        end
+        if not mypos then return false end
+        local start
+        if dir > 0 then
+            local firsts = self._spineFirstsOf and self:_spineFirstsOf(without)
+            if type(firsts) ~= "table" then return false end
+            local cursor = self._cursor or 1
+            local here = cursor - ((mypos < cursor) and 1 or 0)
+            for i = 1, #firsts do
+                if firsts[i] > here then start = firsts[i]; break end
+            end
+        else
+            local ok_f, firsts = pcall(self._spinePageFirsts, self, true)
+            if not ok_f or type(firsts) ~= "table" then return false end
+            local page_start = 1
+            for i = 1, #firsts do if firsts[i] <= mypos then page_start = firsts[i] end end
+            for i = 1, #firsts do if firsts[i] < page_start then start = firsts[i] end end
+            -- A place before the book's own: the same with or without it.
+        end
+        if not start then return false end
+        local before = 0
+        for i = 1, start - 1 do
+            local it = without[i]
+            if not (type(it) == "table" and it.shelf_module) then before = before + 1 end
+        end
+        to, lead_from = before + 1, start
+    else
+        if self._activeShelfModules and self:_activeShelfModules() then return false end
+        local view = math.max(1, self:_viewSize())
+        local page = math.floor((at - 1) / view)
+        if dir > 0 then
+            to = (page + 1) * view + 1
+            if to > #books then return false end
+        else
+            if page < 1 then return false end
+            to = (page - 1) * view + 1
+        end
+    end
+    if to == at then return false end
+    local UI = CuratedUI()
+    local shown = piecesShown(self)
+    withMods(self, function(mods)
+        if not (shown and mods) then return false end
+        UI.shiftForRemove(mods, at)
+        UI.shiftForInsert(mods, to)
+        -- A piece standing at the page's start, between the book and the
+        -- books before it: the book goes in front, to lead the page.
+        if lead_from and without then
+            local at_or_after = {}
+            for i = lead_from, #without do
+                local it = without[i]
+                if type(it) == "table" and it.shelf_module then at_or_after[it.shelf_module.id] = true end
+            end
+            for _i, m in ipairs(mods) do
+                if at_or_after[m.id] and (tonumber(m.after) or 0) == to - 1 then m.after = to end
+            end
+        end
+        return true
+    end)
+    table.insert(books, to, table.remove(books, at))
+    writeOrder(list, books, reversed)
+    reanchor(self, books)
+    return true
+end
+
 -- _curatedBookAt(pos) -> the path of the book drawn under a point on this
 -- page, or nil.
 function BookshelfWidget:_curatedBookAt(pos)
     if not (pos and self._shelfSlotRect) then return nil end
+    -- In list view a book's slot is its cover thumbnail at the row's left;
+    -- the row is the book (PW5: a tap on a title missed, and the tap went
+    -- through to the list). The row is the cover's height, and the gap to
+    -- the next row's cover belongs half to each.
+    local list = self._viewMode and self:_viewMode() == "list"
+    local slack = 0
+    if list then
+        local ok, Device = pcall(require, "device")
+        slack = ok and Device.screen and Device.screen.scaleBySize
+            and Device.screen:scaleBySize(8) or 8
+    end
     for _i, item in ipairs(self._page_items or {}) do
         local fp = type(item) == "table" and item.filepath
         if fp then
             local r = self:_shelfSlotRect(fp)
-            if r and r.x and pos:intersectWith(r) then return fp end
+            if r and r.x then
+                if list then
+                    if pos.y >= r.y - slack and pos.y < r.y + r.h + slack then return fp end
+                elseif pos:intersectWith(r) then
+                    return fp
+                end
+            end
         end
+    end
+    return nil
+end
+
+-- _shelfPieceAt(pos) -> the shelf module (a pinned ornament, say) drawn
+-- under a point on this page, as the shelf's record has it, or nil. A spine
+-- shelf notes each piece's cell as it draws it (_spine_module_cells, which
+-- can outlive a piece: only one still on the shelf's record counts).
+function BookshelfWidget:_shelfPieceAt(pos)
+    local cells = self._spine_module_cells
+    if not (pos and type(cells) == "table") then return nil end
+    local ok, SM = pcall(require, "lib/bookshelf_shelf_modules")
+    local mods = ok and SM and SM.list(TabModel().getById(self.chip)) or nil
+    for _i, m in ipairs(mods or {}) do
+        local cell = cells[m.id]
+        local r = cell and cell.dimen
+        if r and r.x and pos:intersectWith(r) then return m end
     end
     return nil
 end
@@ -291,7 +495,62 @@ function BookshelfWidget:_curatedTakeOff(fp)
     end
     local gone = Curated().remove(list, fp)
     if gone and at then reanchor(self, (shelfOrder(tab))) end
+    -- Its turn (spine out) goes with it: added again, it faces out.
+    if gone then
+        withMods(self, function(_mods, t)
+            local v = t.spine_face_out
+            if type(v) == "table" and type(v.spine) == "table" and v.spine[fp] then
+                v.spine[fp] = nil
+                return true
+            end
+            return false
+        end)
+    end
     return gone
+end
+
+-- Face out or spine out, book by book: a spine shelf whose Face out is
+-- "Choose for each book" (spine_face_out = { chosen = true, spine = { [path]
+-- = true } }, read by SpineShelf.faceOutSpec). Every book faces out until it
+-- is turned.
+local function faceChoice(tab)
+    local v = tab and tab.spine_face_out
+    if type(v) == "table" and v.chosen == true and not v.all then return v end
+    return nil
+end
+
+-- _curatedFaceChoice() -> is the choice on offer on this shelf, now?
+function BookshelfWidget:_curatedFaceChoice()
+    local list, tab = self:_curatedList()
+    if not list then return false end
+    if not (self._isSpineMode and self:_isSpineMode()) then return false end
+    return faceChoice(tab) ~= nil
+end
+
+-- _curatedFacesOut(fp) -> does this book stand cover forward?
+function BookshelfWidget:_curatedFacesOut(fp)
+    local _list, tab = self:_curatedList()
+    local v = faceChoice(tab)
+    if not v then return false end
+    return not (type(v.spine) == "table" and v.spine[fp])
+end
+
+-- _curatedSetFaceOut(fp, on) -> true when the book was turned (and saved).
+function BookshelfWidget:_curatedSetFaceOut(fp, on)
+    if not fp or not self:_curatedList() then return false end
+    local changed = false
+    withMods(self, function(_mods, t)
+        local v = faceChoice(t)
+        if not v then return false end
+        local spine = type(v.spine) == "table" and v.spine or {}
+        local is_out = not spine[fp]
+        if is_out == (on and true or false) then return false end
+        spine[fp] = (not on) and true or nil
+        v.spine = spine
+        changed = true
+        return true
+    end)
+    return changed
 end
 
 -- _curatedStandPiece(fp, entry) -> the new module: an ornament pinned to the
@@ -336,8 +595,19 @@ function BookshelfWidget:_curatedShow(fp)
         local cursor = self._cursor or 1
         if self._isSpineMode and self:_isSpineMode() then
             local shown = self._spine_shown or 0
-            if pos < cursor or pos >= cursor + shown then
+            -- At the page's first or last place, or off it: a move there can
+            -- shift where the pages break (books differ in width), so the
+            -- page comes from the map of the shelf AS IT NOW STANDS, the
+            -- list fetched again first (the map is kept with the list, and
+            -- read from the old one it put a book stepped right off page 1
+            -- second on page 2). Inside the page the start cannot move, and
+            -- the map, which plans the whole shelf, is not built.
+            if pos <= cursor or pos >= cursor + shown - 1 then
                 local from = pos
+                self._spine_keep_cursor = true
+                if self._expireSpineFetch then self:_expireSpineFetch() end
+                if self._spineCachedFetch then pcall(self._spineCachedFetch, self, 400) end
+                self._spine_keep_cursor = nil
                 local ok, firsts = pcall(self._spinePageFirsts, self, true)
                 if ok and type(firsts) == "table" then
                     for i = 1, #firsts do if firsts[i] <= pos then from = firsts[i] end end
@@ -385,12 +655,23 @@ function BookshelfWidget:_curatedRedraw()
     -- A spine shelf keeps its own list for 30 seconds, keyed on the shelf
     -- and its pieces: a book moved past a book changes neither.
     if self._expireSpineFetch then self:_expireSpineFetch() end
+    -- And composed pages for page turns, under a key that knows nothing of
+    -- which books are turned spine out: a turn was drawn from the picture
+    -- before it.
+    if self._pageCacheClear then self:_pageCacheClear() end
+    -- The page was chosen for the book just moved (_curatedShow). A list
+    -- that comes back in another order is otherwise taken for one that
+    -- reordered itself, and the cursor put back on the old page's first
+    -- book (_anchorSpineCursor): one place off, after a step over a page's
+    -- end.
+    self._spine_keep_cursor = true
     if self._swapShelvesInPlace then
         self:_swapShelvesInPlace()
     else
         self:_rebuild()
         UIManager:setDirty(self, "ui")
     end
+    self._spine_keep_cursor = nil
 end
 
 -- _curatedUseShelfOrder(): sort this shelf by its collection's order.
@@ -408,11 +689,40 @@ function BookshelfWidget:_curatedUseShelfOrder()
     pcall(function() require("lib/bookshelf_book_repository").invalidateBookCache("shelf order") end)
 end
 
+-- _curatedArrangeShelf() -> the arrange menu, opened on the first book of
+-- the page on screen (the shelf editor's Arrange button); nil when the page
+-- shows no book of the collection.
+function BookshelfWidget:_curatedArrangeShelf()
+    local list = self:_curatedList()
+    if not list then return nil end
+    for _i, item in ipairs(self._page_items or {}) do
+        if type(item) == "table" and item.filepath and Curated().has(list, item.filepath) then
+            return self:_curatedMoveMenu(item)
+        end
+    end
+    return nil
+end
+
+-- _holdBook(book): a long-press on a book on the shelf. On a hand-ordered
+-- shelf that can be arranged (or only waits for "Place by hand"), Arrange,
+-- which has a way to the book menu; anywhere else the book menu
+-- (maintainer: the Arrange card in the book menu goes, a long-press on the
+-- shelf opens Arrange).
+function BookshelfWidget:_holdBook(book)
+    local fp = book and book.filepath
+    local list = fp and self:_curatedList()
+    if list and Curated().has(list, fp) then
+        local ok, why = self:_curatedArrangeable()
+        if ok or why == "unordered" then return self:_curatedMoveMenu(book) end
+    end
+    return self:_showBookDetail(book, { active = "edit" })
+end
+
 -- _curatedMoveMenu(book): arranging a hand-ordered shelf, on the shelf.
 -- Modeled on a pinned piece's menu (_spineModuleMenu): it opens clear of the
 -- shelf and STAYS OPEN while books move. One book is picked up (lifted on
 -- the shelf, named in the title). With it up:
---   the buttons            Start / Left / Right / End
+--   the buttons            Start / Page / Left / Right / Page / End
 --   a swipe on it          one place
 --   a tap on another book  it goes to that book's place
 --   a hold on another book that one is picked up instead
@@ -430,6 +740,12 @@ function BookshelfWidget:_curatedMoveMenu(book)
     pcall(function() mirrored = require("ui/bidi").mirroredUILayout() and true or false end)
     local d
     local title = book.title or _("Book")
+    -- The book picked up now (a hold on another book picks that one up).
+    local cur_book = book
+    local function book_now() return cur_book end
+    -- "Arrange: The Traveler": the menu named, then the book picked up. The
+    -- title bar cuts a long one at its end.
+    local function titleText() return require("ffi/util").template(_("Arrange: %1"), title) end
     local function close() if d then UIManager:close(d) end end
     local function after(moved)
         if not moved then return end
@@ -450,9 +766,36 @@ function BookshelfWidget:_curatedMoveMenu(book)
             pcall(function()
                 local T = require("ffi/util").template
                 UIManager:show(require("ui/widget/notification"):new{
-                    text = T(_("Taken off %1"), (tab and tab.label) or _("the shelf")) })
+                    text = T(_("Removed from the %1 collection"),
+                        (tab and tab.source and tab.source.id) or (tab and tab.label) or "") })
             end)
         end
+    end
+    -- The strip at the top: which collection the shelf is, and the two ways
+    -- out of arranging (maintainer): the shelf's editor, and the book's menu
+    -- for the book picked up (what a long-press opened before it opened
+    -- this).
+    local function strip()
+        local T = require("ffi/util").template
+        local _l, tab = bw:_curatedList()
+        local name = (tab and tab.source and tab.source.id) or ""
+        return { { type = "summary", text = T(_("This shelf uses the %1 collection."), name),
+            -- Edit shelf, then "Edit" with a book at the right, as a pinned
+            -- piece's Arrange menu has "Edit" with its cup: the same two
+            -- buttons in both, the icon the one that changes (maintainer).
+            actions = {
+                { label = _("Edit shelf"), callback = function()
+                    close()
+                    local _l2, t2 = bw:_curatedList()
+                    if t2 then
+                        require("lib/bookshelf_chip_editor"):editTab(t2.id, { bw = bw, on_change = function(info) bw:_afterChipEdit(info) end })
+                    end
+                end },
+                { icon = "\xEE\x9E\xBD", label = _("Edit"), callback = function()   -- book-open-variant
+                    close()
+                    bw:_showBookDetail(book_now(), { active = "edit" })
+                end },
+            } } }
     end
     local function standPiece()
         require("lib/bookshelf_ornament_browser").show(nil, {
@@ -469,26 +812,32 @@ function BookshelfWidget:_curatedMoveMenu(book)
         local ok, why = bw:_curatedArrangeable()
         local blocks = {}
         if ok then
-            local at, n = bw:_curatedPlace(fp)
-            blocks[#blocks + 1] = { type = "heading",
-                text = (at and n) and string.format(_("Move it \xC2\xB7 %d of %d"), at, n) or _("Move it") }
             -- Left and Right are the screen's, in either reading direction.
-            local ICON = { first = Session.PAGE_PREV, prev = Session.CHEV_LEFT,
-                           next = Session.CHEV_RIGHT, last = Session.PAGE_NEXT }
-            local TEXT = { start = _("Start"), left = _("Left"), right = _("Right"), ["end"] = _("End") }
+            -- The same six a pinned ornament's menu has (_spineModuleMenu).
+            local ICON = { first = UI.ICON_FIRST, page_prev = Session.PAGE_PREV, prev = Session.CHEV_LEFT,
+                           next = Session.CHEV_RIGHT, page_next = Session.PAGE_NEXT, last = UI.ICON_LAST }
+            local TEXT = { start = _("Start"), page_prev = _("Page"), left = _("Left"),
+                           right = _("Right"), page_next = _("Page"), ["end"] = _("End") }
+            -- One row the menu's whole width, as the ornament's: the shelf's
+            -- start and end at its ends, a page and a place between them
+            -- (fill: equal cells, icons alone where the labels do not fit).
             local chips = {}
             for _i, c in ipairs(UI.moveChips(mirrored)) do
                 chips[#chips + 1] = { icon = ICON[c.icon], text = TEXT[c.key],
                     enabled = (c.step and bw:_curatedCanStep(fp, c.step))
-                        or (c.edge and not bw:_curatedAtEdge(fp, c.edge)) or false,
+                        or (c.edge and not bw:_curatedAtEdge(fp, c.edge))
+                        or (c.page and bw:_curatedCanPage(fp, c.page)) or false,
                     callback = function()
-                        if c.step then step(c.step) else edge(c.edge) end
+                        if c.step then step(c.step)
+                        elseif c.page then after(bw:_curatedToPage(fp, c.page))
+                        else edge(c.edge) end
                     end }
             end
-            blocks[#blocks + 1] = { type = "chips", items = chips }
+            blocks[#blocks + 1] = { type = "chips", fill = true, items = chips }
             if Device:isTouchDevice() then
+                -- A tap on another book picks that one up (no need to say).
                 blocks[#blocks + 1] = { type = "hint",
-                    text = _("Or tap another book to put this one in its place. Long-press another book to pick that one up. Swipe the shelf to turn the page.") }
+                    text = _("Long-press another book or ornament to swap their places.") }
             end
             local extras = {}
             -- Only where a piece would show: a spine shelf, with Modules > On
@@ -498,17 +847,30 @@ function BookshelfWidget:_curatedMoveMenu(book)
                 local Store = require("lib/bookshelf_settings_store")
                 if Store.microOnShelf then on_shelf = Store.microOnShelf() and true or false end
             end)
+            -- Add ornament last (after the book's own actions, maintainer).
+            local add_ornament
             if on_shelf and bw._isSpineMode and bw:_isSpineMode() then
-                extras[#extras + 1] = { icon = "\u{E949}", text = _("Ornament beside it") .. "\xE2\x80\xA6",
+                add_ornament = { icon = UI.ICON_ORNAMENT, text = _("Add ornament") .. "\xE2\x80\xA6",
                     callback = standPiece }
             end
-            extras[#extras + 1] = { icon = UI.ICON_REMOVE, text = _("Take off shelf"), callback = takeOff }
+            -- Cover forward or spine out, this book (a spine shelf whose
+            -- Face out is "Choose for each book"). Lit while it faces out.
+            if bw:_curatedFaceChoice() then
+                local out = bw:_curatedFacesOut(fp)
+                table.insert(extras, 1, { icon = UI.ICON_FACE, text = _("Face out"), on = out,
+                    callback = function()
+                        if bw:_curatedSetFaceOut(fp, not out) then
+                            bw:_curatedShow(fp)
+                            if d then d:refresh() end
+                        end
+                    end })
+            end
+            extras[#extras + 1] = { icon = UI.ICON_REMOVE, text = _("Remove from collection"), callback = takeOff }
+            extras[#extras + 1] = add_ornament
             blocks[#blocks + 1] = { type = "chips", items = extras }
         else
             local text
-            if why == "filter" then
-                text = _("This shelf has a filter, so some of its books are out of sight. Clear the filter in the shelf editor to move books by hand.")
-            elseif why == "boxes" then
+            if why == "boxes" then
                 text = _("This shelf boxes each series together, so its books cannot be placed one by one. Turn series boxes off in the shelf editor to move books by hand.")
             elseif why == "unordered" then
                 text = _("This collection is not in an order of your own yet: KOReader may be sorting it. Placing books by hand starts from the order on screen, and turns KOReader's own sorting of this collection off.")
@@ -532,15 +894,16 @@ function BookshelfWidget:_curatedMoveMenu(book)
                     if d then d:refresh() end
                 end }
             end
-            items[#items + 1] = { icon = UI.ICON_REMOVE, text = _("Take off shelf"), callback = takeOff }
+            items[#items + 1] = { icon = UI.ICON_REMOVE, text = _("Remove from collection"), callback = takeOff }
             blocks[#blocks + 1] = { type = "chips", items = items }
+            return { strip = strip(), blocks = blocks }
         end
-        return { blocks = blocks }
+        return { strip = strip(), blocks = blocks }
     end
     bw._tap_selected_fp = fp
     bw:_curatedRedraw()
     d = require("lib/bookshelf_page_dialog").show{
-        title = function() return title end,
+        title = titleText,
         page = page,
         on_close = function()
             if bw._tap_selected_fp == fp then
@@ -569,33 +932,67 @@ function BookshelfWidget:_curatedMoveMenu(book)
         step(by)
         return true
     end
-    -- A tap on another book on the shelf: this one goes to its place. A tap
-    -- on this book, or anywhere else off the menu, is the menu's own (it
-    -- closes).
-    local function onTapBook(ges)
-        if not (ges and ges.pos) or not bw:_curatedArrangeable() then return false end
-        local frame = d.frame and d.frame.dimen
-        if frame and ges.pos:intersectWith(frame) then return false end
-        local target = bw:_curatedBookAt(ges.pos)
-        if not target or target == fp then return false end
-        after(bw:_curatedMoveTo(fp, target))
-        return true
-    end
-    -- A hold on another book: that one is picked up instead, so a whole
-    -- shelf can be arranged without leaving the menu.
-    local function onHoldBook(ges)
-        if not (ges and ges.pos) then return false end
-        local frame = d.frame and d.frame.dimen
-        if frame and ges.pos:intersectWith(frame) then return false end
-        local other = bw:_curatedBookAt(ges.pos)
-        if not other or other == fp or not Curated().has(list, other) then return false end
+    -- pickUp(other): that book is picked up instead, so a whole shelf can be
+    -- arranged without leaving the menu.
+    local function pickUp(other)
         for _i, item in ipairs(bw._page_items or {}) do
-            if type(item) == "table" and item.filepath == other then title = item.title or title end
+            if type(item) == "table" and item.filepath == other then
+                title = item.title or title
+                cur_book = item
+            end
         end
+        if cur_book.filepath ~= other then cur_book = { filepath = other, title = title } end
         fp = other
         bw._tap_selected_fp = fp
         bw:_curatedRedraw()
         d:refresh()
+    end
+    -- A tap on another book on the shelf: that one is picked up (maintainer:
+    -- "tapping another book should switch to arranging the tapped book"). A
+    -- tap on this book, or anywhere else off the menu, is the menu's own (it
+    -- closes).
+    local function onTapBook(ges)
+        if not (ges and ges.pos) then return false end
+        local frame = d.frame and d.frame.dimen
+        if frame and ges.pos:intersectWith(frame) then return false end
+        local target = bw:_curatedBookAt(ges.pos)
+        if not target or target == fp or not Curated().has(list, target) then return false end
+        pickUp(target)
+        return true
+    end
+    -- A tap (or a hold) on a pinned piece: this menu gives way to the
+    -- piece's own, which moves, adjusts and unpins it; a tap on a book from
+    -- there comes back here (maintainer). The book is put down first.
+    local function onTapPiece(ges)
+        if not (ges and ges.pos and bw._shelfPieceAt and bw._spineModuleMenu) then return false end
+        local frame = d.frame and d.frame.dimen
+        if frame and ges.pos:intersectWith(frame) then return false end
+        local piece = bw:_shelfPieceAt(ges.pos)
+        if not piece then return false end
+        d:_dismiss()
+        bw:_spineModuleMenu(piece)
+        return true
+    end
+    -- A hold on a pinned piece: the book and the piece trade places
+    -- (maintainer), the book staying picked up.
+    local function onHoldPiece(ges)
+        if not (ges and ges.pos and bw._shelfPieceAt) or not bw:_curatedArrangeable() then return false end
+        local frame = d.frame and d.frame.dimen
+        if frame and ges.pos:intersectWith(frame) then return false end
+        local piece = bw:_shelfPieceAt(ges.pos)
+        if not piece then return false end
+        after(bw:_shelfSwap({ book = fp }, { piece = piece.id }))
+        return true
+    end
+    -- A hold on another book: the two trade places (maintainer: "Long press
+    -- another book to swap position").
+    local function onHoldBook(ges)
+        if not (ges and ges.pos) or not bw:_curatedArrangeable() then return false end
+        local frame = d.frame and d.frame.dimen
+        if frame and ges.pos:intersectWith(frame) then return false end
+        local other = bw:_curatedBookAt(ges.pos)
+        if not other or other == fp or not Curated().has(list, other) then return false end
+        after(bw:_curatedSwap(fp, other))
         return true
     end
     -- A swipe on the shelf, off the picked-up book: the page turns and the
@@ -622,7 +1019,9 @@ function BookshelfWidget:_curatedMoveMenu(book)
     function d:handleEvent(event)
         local ev = event.handler == "onGesture" and event.args and event.args[1]
         if ev and ev.ges == "swipe" and (onSwipeBook(ev) or onSwipeShelf(ev)) then return true end
+        if ev and ev.ges == "tap" and onTapPiece(ev) then return true end
         if ev and ev.ges == "tap" and onTapBook(ev) then return true end
+        if ev and ev.ges == "hold" and onHoldPiece(ev) then return true end
         if ev and ev.ges == "hold" and onHoldBook(ev) then return true end
         return handle(self, event)
     end

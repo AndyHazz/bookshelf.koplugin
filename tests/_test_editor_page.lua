@@ -38,6 +38,33 @@ t.test("half blocks page by the pair, the first pair with its heading", function
     }), "h+a+b | c+d | e | f")
 end)
 
+-- An Arrange menu's six moves (maintainer): one row the menu's whole width,
+-- equal cells, icons alone on a small screen.
+t.test("a filled row: equal cells across the width, the remainder on the last", function()
+    local p = Page._fillPlan(6, 610, 10, 80)       -- (610 - 50) / 6 = 93.3
+    eq(#p.widths, 6)
+    eq(p.widths[1], 93); eq(p.widths[5], 93); eq(p.widths[6], 95)
+    local sum = 5 * 10
+    for _i, w in ipairs(p.widths) do sum = sum + w end
+    eq(sum, 610, "the row stops short of the menu's edge, or runs past it")
+    eq(p.icons_only, false)
+end)
+
+t.test("a filled row drops to icons where the widest label does not fit its cell", function()
+    eq(Page._fillPlan(6, 400, 10, 80).icons_only, true)    -- 58 px cells
+    eq(Page._fillPlan(6, 530, 10, 80).icons_only, false)   -- 80 px cells: just fits
+    eq(Page._fillPlan(2, 400, 10, 80).icons_only, false)
+end)
+
+t.test("a chips block with fill takes the filled row", function()
+    local src = io.open("lib/bookshelf_editor_page.lua"):read("*a")
+    local chips = src:match("\nfunction R%.chips%(ctx, b%)\n(.-)\nend\n")
+    assert(chips and chips:find("if b.fill then return fillChips(ctx, b) end", 1, true))
+    local fill = src:match("\nlocal function fillChips%(ctx, b%)\n(.-)\nend\n")
+    assert(fill and fill:find("fillPlan(#items, ctx.w, ctx.gap, need)", 1, true), "not the page's whole width")
+    assert(fill:find("if icon and icons_only then return icon end", 1, true), "labels cut short instead of dropped")
+end)
+
 t.test("a hint not under a heading stands alone", function()
     eq(shape({ { type = "row", name = "a" }, { type = "hint", name = "h" } }), "a | h")
 end)

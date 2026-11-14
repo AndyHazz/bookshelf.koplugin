@@ -78,4 +78,14 @@ t.test("the last visible action can't be hidden", function()
     t.eq(Arr.canHide(list, {}, "a"), true)
 end)
 
+t.test("the cards try five columns first, and fewer when a label would take three lines", function()
+    -- Maintainer: nine cards in four columns left one alone on a third row,
+    -- below the fold on a PW5.
+    local src = io.open("lib/bookshelf_widget_book_popup.lua"):read("*a")
+    local grid = src:match("%-%- 3%. Actions:(.-)local tile_w = ")
+    assert(grid, "the Actions grid moved")
+    assert(grid:find("local cols = 5\n", 1, true), "the grid starts from some other column count")
+    assert(grid:find("while cols > 2 do", 1, true), "no fallback for long labels or a big zoom")
+end)
+
 t.done()

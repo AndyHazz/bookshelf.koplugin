@@ -237,4 +237,61 @@ t.test("a collection that has gone says so in the picker", function()
         "a deleted or renamed collection still reads as chosen, and the shelf silently faces nothing out")
 end)
 
+-- ── Choose for each book (hand-ordered shelves) ───────────────────────────
+
+t.test("chosen: every book faces out but the ones turned spine out", function()
+    local spec = SpineShelf.faceOutSpec({ chosen = true, spine = { ["/b/spine"] = true } })
+    eq(spec.chosen, true)
+    eq(SpineShelf.facesOut(spec, {}, { filepath = "/b/cover" }, false, nil), true)
+    eq(SpineShelf.facesOut(spec, {}, { filepath = "/b/spine" }, false, nil), false)
+end)
+
+t.test("chosen: the reader's choice stands alone, no other reason overrides it", function()
+    -- A favourite turned spine out stays spine out: a toggle that a reason
+    -- quietly overrules reads as broken.
+    local spec = SpineShelf.faceOutSpec({ chosen = true, favorites = true, reading = true, recent = 5,
+        spine = { ["/b/fav"] = true } })
+    eq(spec.favorites, nil); eq(spec.reading, nil); eq(spec.recent, nil)
+    eq(SpineShelf.facesOut(spec, {}, { filepath = "/b/fav", status = "reading" }, true,
+        { ["/b/fav"] = true }), false)
+end)
+
+t.test("chosen: with nothing turned yet, and it is not 'nothing faces out'", function()
+    local spec = SpineShelf.faceOutSpec({ chosen = true })
+    eq(type(spec.spine), "table")
+    eq(SpineShelf.faceOutEmpty(spec), false)
+    eq(SpineShelf.facesOut(spec, {}, { filepath = "/b/any" }, false, nil), true)
+    -- A thing with no file (a folder, a group) never faces out, as before.
+    eq(SpineShelf.facesOut(spec, {}, {}, false, nil), false)
+end)
+
+t.test("chosen: all books still wins when both are somehow stored", function()
+    eq(SpineShelf.faceOutSpec({ all = true, chosen = true }).all, true)
+end)
+
+t.test("the kept plan is dropped when a book is turned, though the choice is the same table", function()
+    -- Maintainer, on the PW5: Face out turned a book once, then seemed dead.
+    -- The plan cache's key wrote the turned books as the table's address,
+    -- which a turn made in place does not change: the first turn created the
+    -- table (a new address, a new plan), every later one reused the old plan.
+    local body = src:match("\nlocal function _optsKey%(opts%)\n(.-)\nend\n")
+    assert(body, "_optsKey moved")
+    local key = load("local opts = ...\n" .. body, "optskey", "t", setmetatable({
+        SpineShelf = { has_wallpaper = false }, _nightMode = function() return false end,
+    }, { __index = _G }))
+    local choice = { chosen = true, spine = {} }
+    local opts = { face_out = choice, content_w = 1000 }
+    local k0 = key(opts)
+    choice.spine["/b/one"] = true
+    local k1 = key(opts)
+    assert(k0 ~= k1, "a book turned spine out is drawn from the plan before it")
+    choice.spine["/b/one"] = nil
+    eq(key(opts), k0, "turned back: the same shelf, the same key")
+    choice.spine["/b/one"], choice.spine["/b/two"] = true, true
+    local k2 = key(opts)
+    assert(k2 ~= k1)
+    -- Stable whatever order pairs() walks them in.
+    eq(key({ face_out = { chosen = true, spine = { ["/b/two"] = true, ["/b/one"] = true } }, content_w = 1000 }), k2)
+end)
+
 t.done()

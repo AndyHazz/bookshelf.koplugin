@@ -111,4 +111,61 @@ t.test("a module is added at its own start_w on a spine shelf, else 2", function
     assert(not add:find("entry.w = math.max(0, before), 2", 1, true))
 end)
 
+-- Maintainer: "The arrange ornament menu should have the same button to add
+-- another ornament that we see on the arrange book menu."
+t.test("addPieceAfter: a new piece just right of the given one, with a free id", function()
+    local l = { { id = "sm_1", module = "ornament", ornament = "a.png", after = 2 },
+                { id = "sm_3", module = "ornament", ornament = "b.png", after = 2 },
+                { id = "sm_2", module = "ornament", ornament = "c.png", after = 5 } }
+    local made = SM.addPieceAfter(l, "sm_1", { name = "cup.png", tap = "zoom" })
+    assert(made and made.id == "sm_4", made and made.id)
+    assert(l[2] == made, "not straight after the piece it was added from")
+    assert(made.after == 2 and made.module == "ornament" and made.ornament == "cup.png"
+        and made.tap == "zoom" and made.w == 1 and made.type == "module")
+    assert(#l == 4)
+    assert(SM.addPieceAfter(l, "nope", { name = "x.png" }) == nil, "added after a piece that is not there")
+    assert(SM.addPieceAfter(l, "sm_1", {}) == nil, "added a piece with no file")
+    assert(#l == 4)
+end)
+
+-- Maintainer: long-press swaps two books; "Can we do the same with
+-- ornaments, between ornaments and between ornaments and books?" The shelf
+-- as one row of things: any two trade places, and the book order and each
+-- piece's place among the books come out of the row.
+local function row(books, mods)
+    local out = {}
+    for _i, x in ipairs(SM.sequence(books, mods)) do out[#out + 1] = x.book or x.piece.id end
+    return table.concat(out, " ")
+end
+
+t.test("swapPlaces: a book and a piece", function()
+    local books = { "A", "B", "C", "D" }
+    local mods = { { id = "p", after = 1 }, { id = "q", after = 3 } }
+    local before = row(books, mods)
+    assert(before == "A p B C q D", before)
+    local nb, nm = SM.swapPlaces(books, mods, { piece = "p" }, { book = "C" })
+    assert(nb and row(nb, nm) == "A C B p q D", nb and row(nb, nm))
+    assert(nm[1].id == "p" and nm[1].after == 3 and nm[2].id == "q" and nm[2].after == 3,
+        "the pieces' places among the books")
+end)
+
+t.test("swapPlaces: two pieces, and two books with the pieces staying", function()
+    local books = { "A", "B", "C" }
+    local mods = { { id = "p", after = 0 }, { id = "q", after = 2 } }
+    local nb, nm = SM.swapPlaces(books, mods, { piece = "p" }, { piece = "q" })
+    assert(row(nb, nm) == "q A B p C", row(nb, nm))
+    nb, nm = SM.swapPlaces(books, mods, { book = "A" }, { book = "C" })
+    assert(row(nb, nm) == "p C B q A", row(nb, nm))
+    -- Nothing to swap: the same thing twice, or one that is not there.
+    assert(SM.swapPlaces(books, mods, { book = "A" }, { book = "A" }) == nil)
+    assert(SM.swapPlaces(books, mods, { book = "A" }, { piece = "zz" }) == nil)
+end)
+
+t.test("swapPlaces leaves the lists it was given alone", function()
+    local books = { "A", "B" }
+    local mods = { { id = "p", after = 1 } }
+    SM.swapPlaces(books, mods, { piece = "p" }, { book = "A" })
+    assert(books[1] == "A" and mods[1].after == 1, "changed in place")
+end)
+
 t.done()

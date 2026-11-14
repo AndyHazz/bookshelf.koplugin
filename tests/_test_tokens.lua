@@ -530,6 +530,14 @@ test("reviewsHtml marks a spoiler review in its byline", function()
     assert(not plain:find("Spoiler", 1, true), plain)
 end)
 
+test("reviewsHtml: an empty list can say why, escaped", function()
+    local html = Tokens.reviewsHtml{ reviews = {}, empty_text = "Sign in <again>" }
+    assert(html:find("<p>Sign in &lt;again&gt;</p>", 1, true), html)
+    assert(not html:find("No non-spoiler", 1, true), html)
+    local plain = Tokens.reviewsHtml{ reviews = {} }
+    assert(plain:find("No non-spoiler reviews found.", 1, true), plain)
+end)
+
 test("reviewsHtml says 1 like, not 1 likes", function()
     local one = Tokens.reviewsHtml{ reviews = { { user_name = "R", text = "<p>x</p>", likes_count = 1 } } }
     assert(one:find("1 like", 1, true) and not one:find("1 likes", 1, true), one)
@@ -615,6 +623,15 @@ test("autoLinkReportHtml: lists linked books and counts no-id (exact mode)", fun
     assert(html:find("Not matched %(1%)"), "not-matched section missing")
     assert(html:find("No identifier %(184%)"), "no-id count missing")
     assert(html:find("Obscure Title", 1, true), "not-matched name missing")
+end)
+
+test("autoLinkReportHtml: a pass that ended by itself says why, escaped", function()
+    local html = Tokens.autoLinkReportHtml{ cancelled = true, linked = {}, nomatch = {},
+        why = "Hardcover's daily limit <reached>" }
+    assert(html:find("<p>Hardcover&#39;s daily limit &lt;reached&gt;</p>", 1, true)
+        or html:find("<p>Hardcover's daily limit &lt;reached&gt;</p>", 1, true), html)
+    local plain = Tokens.autoLinkReportHtml{ cancelled = true, linked = {}, nomatch = {} }
+    assert(not plain:find("daily limit", 1, true))
 end)
 
 test("autoLinkReportHtml: best-guess shows score and no no-id section", function()

@@ -10,7 +10,10 @@ local H = dofile("tests/_helpers.lua")
 local t, eq = H.runner(), H.eq
 
 package.loaded["lib/bookshelf_i18n"] = { gettext = function(s) return s end }
-package.loaded["ffi/util"] = { template = function(s, a) return (s:gsub("%%1", tostring(a))) end }
+package.loaded["ffi/util"] = { template = function(s, ...)
+    local a = { ... }
+    return (s:gsub("%%(%d)", function(i) return tostring(a[tonumber(i)]) end))
+end }
 
 -- Collections in memory, with lib/bookshelf_curated's contract.
 local lists
@@ -133,8 +136,32 @@ t.test("a new shelf is a saved shelf on a new collection, beside the one on scre
     eq(tab.pending, nil, "left pending: start-up would remove it")
     eq(tab.sort_priority[1].key, "collection_order")
     eq(tab.view_mode, "spines")
+    -- Maintainer: "New collection shelves should have ornaments set to none
+    -- by default, as the primary way to arrange is by placing pinned
+    -- ornament modules."
+    eq(tab.ornament_frequency, 0, "dealt ornaments on a new collection shelf")
     eq(tabs[3], tab, "not placed after the shelf on screen")
     eq(saves, 1)
+end)
+
+t.test("a new shelf looks like the shelf the book was added from", function()
+    -- Maintainer: a first shelf made from a covers shelf opened as one lone
+    -- spine.
+    reset()
+    eq(UI.newShelf("From covers", "custom_1", "covers").view_mode, "covers")
+    eq(UI.newShelf("From a list", "custom_1", "list").view_mode, "list")
+    eq(UI.newShelf("From spines", "custom_1", "spines").view_mode, "spines")
+    -- Auto is a rule about drill levels, not a look to copy; nor is nonsense.
+    eq(UI.newShelf("From auto", "custom_1", "auto").view_mode, "spines")
+    eq(UI.newShelf("From junk", "custom_1", 7).view_mode, "spines")
+end)
+
+t.test("a new shelf lets the reader choose face out or spine out for each book", function()
+    -- Whatever view it opens in: switched to spines later, it is ready.
+    reset()
+    local tab = UI.newShelf("Chosen", "custom_1", "covers")
+    eq(type(tab.spine_face_out), "table")
+    eq(tab.spine_face_out.chosen, true)
 end)
 
 t.test("a new shelf named for a collection that exists shows that collection", function()
@@ -185,6 +212,53 @@ t.test("a tap on a shelf in the chooser changes the collection and reports it", 
     model.blocks[1].callback()
     eq(Curated.has("Best of 2026", "/b/q"), true)
     eq(changed, 1)
+end)
+
+t.test("the tap says which shelf, how many books and which way they went", function()
+    reset()
+    local got
+    local function note(label, n, removed) got = { label, n, removed } end
+    UI._page({ "/b/q", "/b/r" }, note, function() end).blocks[1].callback()
+    eq(got[1], "Best of 2026"); eq(got[2], 2); eq(got[3], false)
+    -- All on it now: the same tap takes them off.
+    UI._page({ "/b/q", "/b/r" }, note, function() end).blocks[1].callback()
+    eq(got[2], 2); eq(got[3], true)
+    eq(Curated.has("Best of 2026", "/b/q"), false)
+end)
+
+t.test("what the reader is told once the chooser has closed", function()
+    -- Maintainer, bulk-adding on the PW5: "the add books menu does nothing
+    -- when I tapped the TBR collection". It had added them, lit the card and
+    -- stayed open.
+    eq(UI.doneText("TBR", 1, false), "Added to TBR")
+    eq(UI.doneText("TBR", 13, false), "13 books added to TBR")
+    eq(UI.doneText("TBR", 1, true), "Taken off TBR")
+    eq(UI.doneText("TBR", 13, true), "13 books taken off TBR")
+end)
+
+t.test("picking a shelf closes the chooser and says what happened", function()
+    reset()
+    local shown, closed, page_fn, on_close = {}, 0, nil, nil
+    -- As lib/bookshelf_page_dialog: on_close runs from its own _dismiss, NOT
+    -- from UIManager:close (the rig: the chooser went, the shelf behind was
+    -- never told).
+    local dialog = { refresh = function() end }
+    function dialog:_dismiss() closed = closed + 1; on_close() end
+    package.loaded["lib/bookshelf_page_dialog"] = { show = function(o)
+        page_fn, on_close = o.page, o.on_close
+        return dialog
+    end }
+    package.loaded["ui/uimanager"] = {
+        show = function(_s, w) shown[#shown + 1] = w end,
+        close = function() closed = closed + 1 end,
+    }
+    package.loaded["ui/widget/notification"] = { new = function(_s, o) return o end }
+    local done
+    UI.pick{ paths = { "/b/q", "/b/r" }, on_done = function(changed) done = changed end }
+    page_fn().blocks[1].callback()
+    eq(closed, 1, "the chooser stayed open: the tap read as doing nothing")
+    eq(done, true)
+    eq(shown[1] and shown[1].text, "2 books added to Best of 2026")
 end)
 
 t.test("with no shelf of the reader's own yet the chooser says what one is", function()
@@ -328,28 +402,42 @@ end)
 -- In a right-to-left language KOReader mirrors the shelf: place 1 is at the
 -- right. "Right" has to move the book towards the right of the SCREEN.
 
-t.test("left to right: Start, Left, Right, End, and Right is a place on", function()
+t.test("left to right: Start, Page, Left, Right, Page, End", function()
+    -- Maintainer: books had Start and End, pinned ornaments had the page
+    -- buttons; both have both.
     local c = UI.moveChips(false)
-    eq(c[1].key .. c[2].key .. c[3].key .. c[4].key, "startleftrightend")
-    eq(c[2].step, -1); eq(c[3].step, 1)
-    eq(c[1].edge, -1); eq(c[4].edge, 1)
-    eq(c[1].icon, "first"); eq(c[2].icon, "prev"); eq(c[3].icon, "next"); eq(c[4].icon, "last")
+    local keys = {}
+    for i, x in ipairs(c) do keys[i] = x.key end
+    eq(table.concat(keys, " "), "start page_prev left right page_next end")
+    eq(c[3].step, -1); eq(c[4].step, 1)
+    eq(c[1].edge, -1); eq(c[6].edge, 1)
+    eq(c[2].page, -1); eq(c[5].page, 1)
+    eq(c[1].icon, "first"); eq(c[2].icon, "page_prev"); eq(c[3].icon, "prev")
+    eq(c[4].icon, "next"); eq(c[5].icon, "page_next"); eq(c[6].icon, "last")
+    -- One job a button.
+    for _i, x in ipairs(c) do
+        local n = (x.step and 1 or 0) + (x.edge and 1 or 0) + (x.page and 1 or 0)
+        eq(n, 1, x.key)
+    end
     eq(UI.swipeStep("east", false), 1); eq(UI.swipeStep("west", false), -1)
     eq(UI.swipeStep("north", false), nil)
 end)
 
 t.test("right to left: Right moves a place BACK, which is right on the screen", function()
     local c = UI.moveChips(true)
-    local by = {}
-    for _i, x in ipairs(c) do by[x.key] = x end
+    local by, keys = {}, {}
+    for i, x in ipairs(c) do by[x.key] = x; keys[i] = x.key end
     eq(by.right.step, -1); eq(by.left.step, 1)
     eq(by.start.edge, -1, "Start is still place 1, which is at the right there")
+    eq(by.page_prev.page, -1, "the page before is still the page before")
     -- The row is mirrored as it is laid out, so the list is given back to
-    -- front for Left to come out on the left: on screen End, Left, Right, Start.
-    eq(c[1].key .. c[2].key .. c[3].key .. c[4].key, "startrightleftend")
+    -- front for Left to come out on the left: on screen End, Page, Left,
+    -- Right, Page, Start.
+    eq(table.concat(keys, " "), "start page_prev right left page_next end")
     -- The glyphs point the way the book goes on the screen.
     eq(by.left.icon, "prev"); eq(by.right.icon, "next")
     eq(by.start.icon, "last"); eq(by["end"].icon, "first")
+    eq(by.page_prev.icon, "page_next"); eq(by.page_next.icon, "page_prev")
     eq(UI.swipeStep("east", true), -1); eq(UI.swipeStep("west", true), 1)
 end)
 

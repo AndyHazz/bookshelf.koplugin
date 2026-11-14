@@ -75,35 +75,11 @@ function M.findOne(bw, name)
     end)
 end
 
--- liveShelf(bw) -> the shelf showing now, for the progress line. The one the
--- pass started from may have been replaced (a book opened and closed); the
--- host's current one is found the way KOReader keeps it.
-local function liveShelf(bw)
-    for _i, mod in ipairs({ "apps/filemanager/filemanager", "apps/reader/readerui" }) do
-        local ok, C = pcall(require, mod)
-        local inst = ok and type(C) == "table" and C.instance
-        local w = inst and inst.bookshelf and inst.bookshelf._widget
-        if w and UIManager:isWidgetShown(w) then return w end
-    end
-    return bw
-end
-
--- holdAwake(on): a pass over a few hundred authors runs for minutes, and the
--- device must not suspend in the middle of one (as Extract page counts holds
--- it, main.lua). The flag's earlier value comes back afterwards.
-local _held_prev
-local function holdAwake(on)
-    local ok_ps, PluginShare = pcall(require, "pluginshare")
-    if on and _held_prev == nil then
-        _held_prev = (ok_ps and PluginShare.pause_auto_suspend) and true or false
-        if ok_ps then PluginShare.pause_auto_suspend = true end
-        pcall(function() UIManager:preventStandby() end)
-    elseif not on and _held_prev ~= nil then
-        if ok_ps then PluginShare.pause_auto_suspend = _held_prev end
-        _held_prev = nil
-        pcall(function() UIManager:allowStandby() end)
-    end
-end
+-- The live shelf for the progress line, and holding the device awake for
+-- the length of a pass, are lib/bookshelf_scan_progress's (shared with the
+-- Hardcover auto-link).
+local function liveShelf(bw) return require("lib/bookshelf_scan_progress").liveShelf(bw) end
+local function holdAwake(on) return require("lib/bookshelf_scan_progress").holdAwake(on) end
 
 -- run(bw, names) -- the bulk pass itself, once confirmed.
 --

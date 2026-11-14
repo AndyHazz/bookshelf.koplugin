@@ -29,6 +29,17 @@ t.test("a segmented control un-picks its active cell only with allow_none", func
     assert(c == 2, "the page's segmented block does not pass allow_none (both forms)")
 end)
 
+-- Maintainer, PW5: books removed from the shelf's own collection by Select
+-- multiple > Apply stayed on the shelf until a swipe-down refresh. Each
+-- collection changed is dropped from the cache, and a spine shelf's own
+-- list is expired (rig: 5 books shown before, 3 after).
+t.test("a bulk collection change reaches the shelf on screen", function()
+    local s = read("lib/bookshelf_bulk_actions.lua")
+    assert(s:find("pcall(Repo.invalidateCollectionCache, name)", 1, true), "the collections' caches are kept")
+    assert(s:find("if bw._expireSpineFetch then bw:_expireSpineFetch() end", 1, true),
+        "the spine shelf keeps its old list")
+end)
+
 t.test("the bulk Collections picker opens as a page of the bulk menu", function()
     local s = read("lib/bookshelf_bulk_actions.lua")
     assert(s:find('over           = dialog and dialog:over({ _("Collections") }),', 1, true),

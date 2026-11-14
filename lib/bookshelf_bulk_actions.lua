@@ -336,7 +336,7 @@ function BulkActions.show(opts)
                         ok = safe("refresh", function()
                             local ok_bim, BIM = pcall(require, "bookinfomanager")
                             if ok_bim and BIM and BIM.deleteBookInfo then
-                                BIM:deleteBookInfo(fp)
+                                require("lib/bookshelf_book_repository").bimDelete(BIM, fp)
                                 require("lib/bookshelf_book_repository").forgetBook(fp)
                                 -- Drop the in-memory scaled cover so the
                                 -- next render re-decodes from the freshly
@@ -424,6 +424,19 @@ function BulkActions.show(opts)
                 end
                 local Repo = require("lib/bookshelf_book_repository")
                 Repo.invalidateBookCache("bulk-apply")
+                -- A collection changed: its cached list goes, and a spine
+                -- shelf's own list with it, or the shelf on screen kept the
+                -- books just taken off its collection until a swipe-down
+                -- refresh (PW5; rig: 5 books shown, 3 after this).
+                if draft.collections_add or draft.collections_remove then
+                    for name in pairs(draft.collections_add or {}) do
+                        pcall(Repo.invalidateCollectionCache, name)
+                    end
+                    for name in pairs(draft.collections_remove or {}) do
+                        pcall(Repo.invalidateCollectionCache, name)
+                    end
+                    if bw._expireSpineFetch then bw:_expireSpineFetch() end
+                end
                 -- Targeted invalidation so the Favourites chip reflects
                 -- the bulk toggle without a swipe-down refresh.
                 if draft.favorite then
@@ -612,6 +625,7 @@ function BulkActions.show(opts)
                   callback = function()
                       require("lib/bookshelf_curated_ui").pick{
                           paths = selection:paths(), after_id = bw and bw.chip,
+                          view_mode = bw and bw._viewMode and bw:_viewMode() or nil,
                           on_done = function(changed)
                               if changed and bw then
                                   -- A spine shelf keeps its own list for a while.

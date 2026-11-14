@@ -570,6 +570,29 @@ test("reviewsHtml renders shared star glyphs for each review", function()
     -- part of this HTML -- see bookshelf_widget.lua's ReviewsHeader).
     has(html, '<p class="stars">' .. HC_STAR:rep(4) .. HC_EMPTY .. "</p>", "per-review star row")
 end)
+-- Hardcover stars round to the nearest half star (maintainer, 2026-11-14):
+-- they used to drop everything under the next half, so 3.9 showed 3 1/2 and
+-- 3.4 showed 3. Under .25 rounds down, .25 to .74 is a half, .75 up is full.
+test("starString rounds a Hardcover rating to the nearest half star", function()
+    local function row(full, half, empty)
+        return HC_STAR:rep(full) .. HC_HALF:rep(half) .. HC_EMPTY:rep(empty)
+    end
+    eq(Tokens.starString(3.0),  row(3, 0, 2), "3.0")
+    eq(Tokens.starString(3.24), row(3, 0, 2), "3.24 rounds down")
+    eq(Tokens.starString(3.25), row(3, 1, 1), "3.25 is a half")
+    eq(Tokens.starString(3.5),  row(3, 1, 1), "3.5")
+    eq(Tokens.starString(3.74), row(3, 1, 1), "3.74 is a half")
+    eq(Tokens.starString(3.75), row(4, 0, 1), "3.75 rounds up")
+    eq(Tokens.starString(3.9),  row(4, 0, 1), "3.9 rounds up")
+    eq(Tokens.starString(4.8),  row(5, 0, 0), "4.8 is five")
+    eq(Tokens.starString(0.2),  row(0, 0, 5), "0.2 shows empty stars, not nothing")
+    eq(Tokens.halfStars(4.3), 4.5)
+    eq(Tokens.halfStars(4.2), 4)
+end)
+test("the top panel's Hardcover stars use the same rounding", function()
+    local src = io.open("lib/bookshelf_hero_card.lua"):read("*a")
+    assert(src:find("halfStars(", 1, true), "the top panel rounds its own way")
+end)
 test("reviewsHtml formats the date (ISO fallback without datetime module)", function()
     local html = Tokens.reviewsHtml{
         title = "T",

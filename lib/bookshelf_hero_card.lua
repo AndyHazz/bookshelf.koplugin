@@ -902,10 +902,13 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
                 if hardcover_mode then
                     -- Hardcover ratings are fractional: full / half / empty
                     -- using the Nerd Font glyph set.
-                    local whole = math.floor(rating)
+                    -- Rounded to the nearest half (Tokens.halfStars), as
+                    -- the %hardcover_stars token is.
+                    local halves = Tokens.halfStars(rating) or 0
+                    local whole = math.floor(halves)
                     if i <= whole then
                         glyph = HC_STAR
-                    elseif i == whole + 1 and rating - whole >= 0.5 then
+                    elseif i == whole + 1 and halves - whole >= 0.5 then
                         glyph = HC_HALF_STAR
                     else
                         glyph = HC_EMPTY_STAR

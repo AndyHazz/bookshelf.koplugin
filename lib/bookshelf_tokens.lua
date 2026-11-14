@@ -426,14 +426,25 @@ Tokens.expanders.hardcover_rating = function(book)
     return string.format("%.1f", r):gsub("%.0$", "")
 end
 
+-- halfStars(rating) -> the rating rounded to the nearest half star, 0-5:
+-- under .25 rounds down, .25 to .74 is a half, .75 and up a whole star
+-- (maintainer: 3.9 showed three and a half, 3.4 showed three). Shared by
+-- the %hardcover_stars token and the top panel's Hardcover stars.
+function Tokens.halfStars(rating)
+    local r = tonumber(rating)
+    if not r then return nil end
+    if r > 5 then r = 5 elseif r < 0 then r = 0 end
+    return math.floor(r * 2 + 0.5) / 2
+end
+
 -- Build a five-glyph star row (full / half / empty) for a numeric rating
 -- in 0-5. Used by the %hardcover_stars token (Hardcover ratings are
 -- inherently fractional). Returns "" for a missing/zero rating so the token
 -- can gate its display. User ratings do NOT use this -- they stay integer.
 function Tokens.starString(rating)
-    local r = tonumber(rating)
-    if not r or r <= 0 then return "" end
-    if r > 5 then r = 5 end
+    local raw = tonumber(rating)
+    if not raw or raw <= 0 then return "" end
+    local r = Tokens.halfStars(raw)
     local whole = math.floor(r)
     local out = {}
     for i = 1, 5 do

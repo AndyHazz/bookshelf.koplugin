@@ -283,8 +283,13 @@ t.test("menu: a tap outside closes it; KOReader's gestures work around it", func
     -- KOReader's zones first, off the panel.
     local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
     local to = src:match("function dialog:onTapOutside%(_arg, ges%)(.-)\n    end\n")
-    assert(to and to:find("close()", 1, true) and to:find("not ges.pos:notIntersectWith(r)", 1, true),
+    -- back(): closes it, then returns to the Arrange menu it came from, when
+    -- it came from one (opts.on_back).
+    assert(to and to:find("back()", 1, true) and to:find("not ges.pos:notIntersectWith(r)", 1, true),
         "a tap outside does not close the menu, or a tap on it does")
+    local back = src:match("local function back%(%)(.-)\n    end\n")
+    assert(back and back:find("close()", 1, true) and back:find("opts.on_back", 1, true),
+        "back() does not close the menu, or does not return to Arrange")
     assert(src:find("function dialog:onHoldOutside() return true end", 1, true), "a hold outside closes it")
     local he = src:match("function dialog:handleEvent%(event%)(.-)\n    end\n")
     assert(he and he:find("GZ.overlayEvent(self, event, InputContainer,", 1, true)

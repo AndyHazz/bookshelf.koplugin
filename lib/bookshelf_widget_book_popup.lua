@@ -1999,8 +1999,9 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             callback = delete_btn.callback }
     end
 
-    -- Third-party actions join the grid after ours, as cards with the Action
-    -- card's puzzle icon (they bring no icon of their own).
+    -- Third-party actions join the grid after ours, as cards. A button picks its
+    -- own icon with `bookshelf_icon` (lib/bookshelf_plugin_button); one that does
+    -- not gets the Action card's puzzle icon.
     for _ri, row in ipairs(plugin_rows or {}) do
         for _ci, spec in ipairs(row) do
             local enabled = spec.enabled
@@ -2014,8 +2015,9 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             local key = row._bs_id and (row._bs_id .. "#" .. _ci) or text
             tile_specs[#tile_specs + 1] = {
                 id = "plugin:" .. key, text = text,
-                icon = "\xEE\xAC\xB0", -- mdi-puzzle
-                enabled = enabled ~= false, callback = spec.callback,
+                icon = require("lib/bookshelf_plugin_button").icon(spec),
+                enabled = enabled ~= false,
+                callback = require("lib/bookshelf_plugin_button").wrap(spec.callback, modal, UIManager),
             }
         end
     end

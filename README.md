@@ -56,7 +56,7 @@ Ready-made looks for your shelf, with framed art, wallpapers, ornaments and new 
 
 ## For plugin authors
 
-Other plugins and user patches can add shelf sources, tokens, cover placeholders and OPDS actions, and anyone can write a micro-module. See [SOURCE_API.md](SOURCE_API.md), [micromodules/README.md](micromodules/README.md) and [For plugin authors](https://andyhazz.github.io/bookshelf-docs/reference/plugin-authors/).
+Other plugins and user patches can add shelf sources, tokens, cover placeholders, book popup button icons and OPDS actions, and anyone can write a micro-module. See [SOURCE_API.md](SOURCE_API.md), [micromodules/README.md](micromodules/README.md) and [For plugin authors](https://andyhazz.github.io/bookshelf-docs/reference/plugin-authors/).
 
 ## Help and feedback
 

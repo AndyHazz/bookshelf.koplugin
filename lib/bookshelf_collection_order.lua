@@ -91,7 +91,7 @@ end
 -- would raise on it. A book that has JOINED since keeps its place relative to
 -- any other latecomer, after everything the reader arranged; left with its
 -- old order it would collide with a new position.
-function CollectionOrder.save(name, items)
+function CollectionOrder.save(name, items, narrow)
     if not CollectionOrder.exists(name) then return false end
     local rc   = collections()
     local coll = rc.coll[name]
@@ -131,8 +131,14 @@ function CollectionOrder.save(name, items)
     -- render of the shelf was served the OLD order from that cache, and the
     -- maintainer had to swipe down to see it. Only the per-shelf results go:
     -- the walk and the light metadata do not depend on a collection's order.
+    -- narrow (a book stepped along its shelf): only this collection's
+    -- shelves, when the repository can. The groups (Authors, Series...) do
+    -- not depend on a collection's order, and dropping them for every step
+    -- made the next visit to each regroup the whole library.
     local Repo = require("lib/bookshelf_book_repository")
-    if Repo.invalidateBookCache then
+    if narrow and Repo.invalidateCollectionCache then
+        Repo.invalidateCollectionCache(name)
+    elseif Repo.invalidateBookCache then
         Repo.invalidateBookCache("collection arranged: " .. name)
     end
     return true

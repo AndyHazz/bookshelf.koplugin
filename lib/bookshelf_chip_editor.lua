@@ -273,6 +273,10 @@ function Editor.sourceSortDefaults(kind)
     return copy
 end
 
+-- The glyph of a shelf of the reader's own (issue 390): the picker is built
+-- above SOURCE_ICONS.
+local SOURCE_ICONS_CURATED = "\u{E7BA}"   -- book-multiple
+
 local function _applySourceDefaults(draft)
     local kind = draft.source and draft.source.kind
     local copy = Editor.sourceSortDefaults(kind)
@@ -319,6 +323,52 @@ local function _applySourceDefaults(draft)
         end
         if fresh and fresh ~= "" then draft.label = fresh end
     end
+end
+
+-- _newCollectionShelf(draft, d, on_close): ask for a name, make a KOReader
+-- collection of that name (or take the one there is) and point the shelf at
+-- it. Nothing is made until the name is confirmed; backing out leaves the
+-- source page as it was. A shelf still being made opens as spines, where the
+-- order reads as a shelf and ornaments can stand among the books; an
+-- existing shelf keeps the view it has.
+function Editor._newCollectionShelf(draft, d, on_close)
+    local UIManager = require("ui/uimanager")
+    local InputDialog = require("ui/widget/inputdialog")
+    local Screen = require("device").screen
+    local input
+    local start = draft.label
+    if start == _("New shelf") or start == "New chip" then start = "" end
+    local function make()
+        -- Left empty: the name the hint shows (a keys-only reader should
+        -- not have to type one).
+        local typed = tostring(input:getInputText() or ""):gsub("^%s+", ""):gsub("%s+$", "")
+        if typed == "" then typed = require("lib/bookshelf_curated_ui").freeName() end
+        local name = require("lib/bookshelf_curated").create(typed)
+        if not name then
+            UIManager:show(require("ui/widget/infomessage"):new{
+                text = _("That name cannot be used for a shelf of your own."), timeout = 3 })
+            return
+        end
+        UIManager:close(input)
+        draft.source = { kind = "collection", id = name }
+        _applySourceDefaults(draft)
+        if draft.pending and draft.view_mode == nil then draft.view_mode = "spines" end
+        Editor._closeMenu(d)
+        on_close()
+    end
+    input = InputDialog:new{
+        title = _("Name your shelf"),
+        input = start or "",
+        input_hint = _("My shelf"),
+        allow_newline = false,
+        text_height = Screen:scaleBySize(40),
+        buttons = { {
+            { text = _("Cancel"), id = "close", callback = function() UIManager:close(input) end },
+            { text = _("Create"), is_enter_default = true, callback = make },
+        } },
+    }
+    UIManager:show(input)
+    input:onShowKeyboard()
 end
 
 -- Group source kinds. These tabs show GROUP CARDS at the top level
@@ -3464,6 +3514,26 @@ function Editor:_pickSource(draft, on_close)
             { text = _("Favorites"), icon = Editor._favGlyph(), on = cur == "favorites",
               callback = set_simple("favorites") },
         } })
+        -- A shelf of the reader's own (issue 390): books they pick, in the
+        -- order they place them. It is a KOReader collection shown as a
+        -- shelf, so this makes one (asked for by name, and only once the name
+        -- is given) or takes one they have. Lit for any single collection's
+        -- shelf, which is the same thing however it was made.
+        add({ type = "option", text = _("Your own shelf"), icon = SOURCE_ICONS_CURATED,
+            desc = (cur == "collection" and idText(cur_id))
+                or _("Books you pick, in the order you place them. Add a book from its long-press menu."),
+            on = cur == "collection",
+            -- Already one: the tap changes WHICH (asking for a name again
+            -- pointed the shelf at a new, empty collection, and its books
+            -- seemed to vanish). Not yet one: make one.
+            callback = function()
+                if cur == "collection" then return open_tag_picker() end
+                Editor._newCollectionShelf(draft, d, on_close)
+            end,
+            links = {
+                { text = _("New shelf") .. "\xE2\x80\xA6", callback = function() Editor._newCollectionShelf(draft, d, on_close) end },
+                { text = _("An existing one") .. CHEV, callback = open_tag_picker },
+            } })
         if card_only then
             -- It shows books, so no stacks (series, authors, a shelf of
             -- shelves...) and nothing online; a shelf of one of them is books.

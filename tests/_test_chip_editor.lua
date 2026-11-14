@@ -927,4 +927,79 @@ t.test("Move to says why when there is nowhere to move", function()
     assert(body:find("Shelf of shelves", 1, true), "no hint about how to make somewhere to move to")
 end)
 
+-- ── A shelf of the reader's own (issue 390) ────────────────────────────────
+-- It is a KOReader collection shown as a shelf, so it needs nothing of its
+-- own in these tables: the source page offers to make one.
+
+t.test("the source page offers a shelf of the reader's own, made as a collection", function()
+    local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    assert(ed:find('text = _("Your own shelf")', 1, true), "no option on the source page")
+    assert(ed:find('Editor._newCollectionShelf(draft, d, on_close)', 1, true))
+    eq(D.SOURCE_SORT_DEFAULTS.curated, nil, "a second kind for what a collection already is")
+end)
+
+t.test("naming the shelf makes the collection and points the shelf at it", function()
+    local UI = package.loaded["ui/uimanager"]
+    local shown = {}
+    UI.show = function(_s, w) shown[#shown + 1] = w end
+    UI.close = function() end
+    local made
+    package.loaded["lib/bookshelf_curated"] = {
+        create = function(name) made = name; return name ~= "" and name or nil end,
+    }
+    local scr = package.loaded["device"].screen
+    scr.scaleBySize = scr.scaleBySize or function(_s, n) return n end
+    local typed = "Beach reads"
+    package.loaded["ui/widget/inputdialog"] = { new = function(_s, o)
+        o.getInputText = function() return typed end
+        o.onShowKeyboard = function() end
+        return o
+    end }
+    package.loaded["ui/widget/infomessage"] = { new = function(_s, o) o.is_info = true; return o end }
+    local closed = 0
+    local real_close = Editor._closeMenu
+    Editor._closeMenu = function() closed = closed + 1 end
+    local draft = { label = "New shelf", source = { kind = "none" }, pending = true }
+    local done = 0
+    Editor._newCollectionShelf(draft, {}, function() done = done + 1 end)
+    local input = shown[1]
+    eq(input.input, "", "the placeholder label was offered as the name")
+    input.buttons[1][2].callback()
+    eq(made, "Beach reads")
+    eq(draft.source.kind, "collection"); eq(draft.source.id, "Beach reads")
+    eq(draft.sort_priority[1].key, "collection_order")
+    eq(draft.label, "Beach reads", "the shelf did not take the collection's name")
+    eq(draft.view_mode, "spines", "a shelf being made opens as spines")
+    eq(done, 1); eq(closed, 1)
+
+    -- A name that cannot be used: nothing changes, the reader is told.
+    package.loaded["lib/bookshelf_curated_ui"] = { freeName = function() return "" end }
+    typed = ""
+    local draft2 = { label = "Kept", source = { kind = "library" }, view_mode = "list" }
+    shown = {}
+    Editor._newCollectionShelf(draft2, {}, function() done = done + 1 end)
+    shown[1].buttons[1][2].callback()
+    eq(draft2.source.kind, "library"); eq(done, 1)
+    assert(shown[2] and shown[2].is_info, "no word on why nothing happened")
+
+    -- Left empty: the name the hint shows.
+    package.loaded["lib/bookshelf_curated_ui"] = { freeName = function() return "My shelf" end }
+    typed = "  "
+    local draft4 = { label = "New shelf", source = { kind = "none" }, pending = true }
+    shown = {}
+    Editor._newCollectionShelf(draft4, {}, function() end)
+    shown[1].buttons[1][2].callback()
+    eq(draft4.source.id, "My shelf")
+
+    -- An existing shelf keeps its view.
+    typed = "TBR"
+    local draft3 = { label = "Kept", source = { kind = "library" }, view_mode = "list" }
+    shown = {}
+    Editor._newCollectionShelf(draft3, {}, function() end)
+    eq(shown[1].input, "Kept", "an existing shelf's name is the natural start")
+    shown[1].buttons[1][2].callback()
+    eq(draft3.view_mode, "list")
+    Editor._closeMenu = real_close
+end)
+
 t.done()

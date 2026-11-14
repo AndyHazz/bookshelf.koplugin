@@ -23,6 +23,27 @@ function M.arrange(specs, layout)
         if ra or rb then return ra ~= nil end
         return a._default_rank < b._default_rank
     end)
+    -- An action the saved order does not know sorted last. One that names a
+    -- neighbor (a.after = that card's id) goes straight after it instead,
+    -- so a card added by a later version shows up where it belongs, not
+    -- under the fold of a reader who arranged their cards before it existed.
+    if next(rank) then
+        local moved = {}
+        for _i, a in ipairs(out) do
+            if a.after and not rank[a.id] then moved[#moved + 1] = a end
+        end
+        for _i, a in ipairs(moved) do
+            local from, to
+            for k, x in ipairs(out) do
+                if x == a then from = k end
+            end
+            table.remove(out, from)
+            for k, x in ipairs(out) do
+                if x.id == a.after then to = k end
+            end
+            if to then table.insert(out, to + 1, a) else table.insert(out, from, a) end
+        end
+    end
     local hidden = layout.hidden or {}
     for _i, a in ipairs(out) do
         a._default_rank = nil

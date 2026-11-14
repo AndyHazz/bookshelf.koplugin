@@ -33,6 +33,29 @@ t.test("a saved id with no action (a plugin since removed) is skipped", function
     t.eq(ids(Arr.arrange(specs("fav", "info"), { order = { "plugin:Gone", "info" } })), "info,fav")
 end)
 
+t.test("a new action that names its neighbor lands beside it in a saved order", function()
+    -- A reader with a saved order found the new cards (issue 390) at the very
+    -- end, under the fold: a new action says which card it belongs after.
+    local list = specs("fav", "shelf", "shelf_move", "info", "delete")
+    list[2].after = "fav"; list[3].after = "shelf"
+    local got = Arr.arrange(list, { order = { "fav", "delete", "info" } })
+    t.eq(ids(got), "fav,shelf,shelf_move,delete,info")
+    -- Once the reader has placed it, their place wins.
+    list = specs("fav", "shelf", "info")
+    list[2].after = "fav"
+    t.eq(ids(Arr.arrange(list, { order = { "shelf", "info", "fav" } })), "shelf,info,fav")
+    -- No saved order: the default order, untouched.
+    list = specs("fav", "shelf", "info")
+    list[2].after = "fav"
+    t.eq(ids(Arr.arrange(list, nil)), "fav,shelf,info")
+    -- A neighbor that is not there: it goes last, as any unknown action.
+    list = specs("info", "shelf")
+    list[2].after = "fav"
+    t.eq(ids(Arr.arrange(list, { order = { "info" } })), "info,shelf")
+    -- The hint is not left on the action.
+    t.eq(got[2].after, "fav")
+end)
+
 t.test("hidden actions are marked, and visible() leaves them out", function()
     local got = Arr.arrange(specs("fav", "info", "delete"), { hidden = { info = true } })
     t.eq(got[2].hidden, true)

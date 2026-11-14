@@ -2706,6 +2706,18 @@ function Repo.invalidateFavoritesCache()
     end
 end
 
+-- invalidateCollectionCache(name): one collection's ORDER changed (a book
+-- stepped along its shelf, issue 390): drop that collection's cached shelves,
+-- whatever their filter and sort, and nothing else. Membership did not
+-- change, so the groups and every other shelf are still right.
+function Repo.invalidateCollectionCache(name)
+    if type(name) ~= "string" then return end
+    local prefix = "collection|" .. name .. "|"
+    for k in pairs(_bySource_cache) do
+        if k:sub(1, #prefix) == prefix then _bySource_cache[k] = nil end
+    end
+end
+
 -- invalidateReadStateCache(): drop only the _bySource_cache entries whose
 -- SORT depends on read state — last-opened time, reading progress, or
 -- read status. Called from onCloseDocument: the just-closed book's read

@@ -604,6 +604,22 @@ function BulkActions.show(opts)
                       callback = toggle("remove_from_history") },
                 } },
                 { type = "heading", text = _("Right away") },
+                -- Hand-ordered shelves (issue 390): the chooser changes the
+                -- shelves as they are ticked, not on Apply, so it sits
+                -- under Right away with the other things that do.
+                { type = "row", label = _("Add to shelf"), value = "",
+                  icon = require("lib/bookshelf_curated_ui").ICON_ADD,
+                  callback = function()
+                      require("lib/bookshelf_curated_ui").pick{
+                          paths = selection:paths(), after_id = bw and bw.chip,
+                          on_done = function(changed)
+                              if changed and bw then
+                                  -- A spine shelf keeps its own list for a while.
+                                  if bw._expireSpineFetch then bw:_expireSpineFetch() end
+                                  bw:_rebuild(); UIManager:setDirty(bw, "ui")
+                              end
+                          end }
+                  end },
                 { type = "chips", items = {
                     { text = move_button.text, callback = move_button.callback },
                     { text = reset_button.text, callback = reset_button.callback },

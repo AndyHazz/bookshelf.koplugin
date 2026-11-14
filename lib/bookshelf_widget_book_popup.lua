@@ -1950,6 +1950,41 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         { id = "select",  text = select_btn.text,  icon = "\xEE\xA0\xB8", callback = select_btn.callback },  -- checkbox-multiple-marked-outline
         { id = "refresh", text = refresh_btn.text, icon = "\xEE\xAD\x8F", callback = refresh_btn.callback }, -- refresh
     }
+    -- Curated shelves (issue 390), straight after Favorite: the way books get
+    -- onto one. The chooser opens over this menu and stays while shelves are
+    -- ticked; the card is lit when the book is on any of them. On a curated
+    -- shelf the book stands on, a second card moves it along that shelf
+    -- and from there any other ("Arrange": "Move on shelf" sat beside the
+    -- file's own "Move...").
+    do
+        local CUI = require("lib/bookshelf_curated_ui")
+        local Curated = require("lib/bookshelf_curated")
+        local on_a_shelf = false
+        for _i, sh in ipairs(CUI.shelves()) do
+            if Curated.has(sh.list, book.filepath) then on_a_shelf = true; break end
+        end
+        table.insert(tile_specs, 2, { id = "shelf", text = _("Add to shelf"), icon = CUI.ICON_ADD,
+            after = "favorite",   -- its place in an order saved before it existed
+            on = on_a_shelf,
+            callback = function()
+                CUI.pick{ paths = { book.filepath }, after_id = bw.chip,
+                    on_done = function(changed)
+                        if not changed then return end
+                        -- A spine shelf keeps its own list for a while.
+                        if bw._expireSpineFetch then bw:_expireSpineFetch() end
+                        refreshInPlace()
+                    end }
+            end })
+        local here = bw._curatedList and bw:_curatedList()
+        if here and Curated.has(here, book.filepath) then
+            table.insert(tile_specs, 3, { id = "shelf_move", text = _("Arrange"), after = "shelf",
+                icon = "\u{E8B5}",   -- cursor-move
+                callback = function()
+                    closeModal()
+                    bw:_curatedMoveMenu(book)
+                end })
+        end
+    end
     -- A record from a device library (Kindle #355, Kobo) is not a file the user
     -- put on the device: its path is the reader's own library entry, or a
     -- generated conversion of one. Delete would really remove the book from the

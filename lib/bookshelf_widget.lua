@@ -2814,6 +2814,14 @@ function BookshelfWidget:_emptyShelfText()
         placeholder_text = _("No books found · Set your library folder in Settings then tap Latest")
     elseif _source_kind == "recent" then
         placeholder_text = _("No recent reads yet · Open a book and it will appear here")
+    elseif _source_kind == "collection" and _tab and _tab.source
+            and require("lib/bookshelf_curated").exists(_tab.source.id) then
+        -- One collection's shelf (issue 390) is filled from the books
+        -- themselves, not from the shelf editor: say where. Only when a
+        -- collection is behind it: a pinned tag is kind "collection" too.
+        placeholder_text = string.format(
+            _("%s is empty \xC2\xB7 Long-press a book on any shelf and tap 'Add to shelf' to put it here. Long-press it here and tap 'Arrange' to change its place."),
+            _tab and _tab.label or self:_chipLabel())
     elseif _is_home_source then
         -- "Home (folders)" (kind "all") + "Home (flattened)" (kind
         -- "library") both depend on KOReader's home_dir being set.
@@ -7143,6 +7151,14 @@ function BookshelfWidget:_activeShelfModules()
     local SM = require("lib/bookshelf_shelf_modules")
     local tab = require("lib/bookshelf_tab_model").getById(self.chip)
     local mods = SM.list(tab)
+    -- On a hand-ordered shelf each piece stays beside its book, whatever
+    -- changed the collection since (issue 390). The guard: _curatedPieces
+    -- asks whether the shelf can be arranged, which asks for its modules.
+    if mods and self._curatedPieces and not self._curated_pieces_busy then
+        self._curated_pieces_busy = true
+        pcall(self._curatedPieces, self, mods)
+        self._curated_pieces_busy = nil
+    end
     local edit = self._shelf_module_edit
     if edit and edit.items and not self:_isSpineMode() then mods = self:_shelfModulesFromEdit(edit) end
     if not mods or #mods == 0 then return nil end
@@ -21631,5 +21647,6 @@ end
 -- each defines its methods on the class here.
 require("lib/bookshelf_widget_opds")(BookshelfWidget)
 require("lib/bookshelf_widget_book_popup")(BookshelfWidget)
+require("lib/bookshelf_widget_curated")(BookshelfWidget)
 
 return BookshelfWidget

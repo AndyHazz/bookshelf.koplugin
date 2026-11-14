@@ -8,14 +8,20 @@ local src = dofile("tests/_widget_source.lua")
 local body = src:match("\nfunction BookshelfWidget:_emptyShelfText%(%)\n(.-)\nend\n")
 assert(body, "could not find BookshelfWidget:_emptyShelfText() - renamed?")
 
+local source_id
 local function run(source_kind, tip, filtered)
     local env = {
         string = string, select = select,
         _ = function(s) return s end,
         Filter = { isActive = function() return filtered == true end },
         require = function(name)
+            if name == "lib/bookshelf_curated" then
+                return { exists = function(id) return id == "TBR" end }
+            end
             assert(name == "lib/bookshelf_tab_model", "unexpected require " .. name)
-            return { getById = function() return { label = "Home", filter = {}, source = { kind = source_kind } } end }
+            return { getById = function()
+                return { label = "Home", filter = {}, source = { kind = source_kind, id = source_id } }
+            end }
         end,
     }
     local f
@@ -48,6 +54,26 @@ t.test("a search with no matches on a FILTERED shelf still says so", function()
     eq(text, 'No matches for "zz"')
     local plain = run("all", nil, true)
     assert(plain:find("Nothing in Home yet", 1, true), plain)
+end)
+
+t.test("an empty shelf on a collection says how books get onto it", function()
+    -- The generic wording sends the reader to the shelf editor's source and
+    -- filter, where there is nothing to add a book with (issue 390).
+    source_id = "TBR"
+    local text, button = run("collection", nil)
+    source_id = nil
+    assert(text:find("Long-press a book", 1, true), text)
+    assert(text:find("Add to shelf", 1, true), text)
+    assert(not text:find("source or filter", 1, true), text)
+    eq(button, false)
+end)
+
+t.test("a pinned tag's empty shelf keeps the general wording", function()
+    -- Kind "collection" too, with no collection to add a book to.
+    source_id = "space-opera"
+    local text = run("collection", nil)
+    source_id = nil
+    assert(not text:find("Add to shelf", 1, true), text)
 end)
 
 t.test("a shelf that is not Home never asked for it", function()

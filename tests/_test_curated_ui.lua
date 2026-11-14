@@ -100,11 +100,13 @@ t.test("a pinned tag is not a shelf to put books on: no collection is behind it"
     eq(UI.listOf(tabs[6]), nil)
 end)
 
-t.test("the Favorites shelf is not one to place by hand, nor in the chooser", function()
-    -- It is not sorted by its collection's order, so a move would write an
-    -- order nothing shows; and the book menu has its own card for it.
+t.test("the Favorites shelf can be placed by hand, but is not in the chooser", function()
+    -- Favorites can sort by its collection's order now (a reader asked), so
+    -- it is a collection to arrange like any other; whether it can be
+    -- arranged right now is the shelf's sort (_curatedArrangeable). The
+    -- book menu has its own card for it, so the chooser leaves it out.
     reset()
-    eq(UI.listOf(tabs[8]), nil)
+    eq(UI.listOf(tabs[8]), "favorites")
     for _i, s in ipairs(UI.shelves()) do assert(s.list ~= "favorites") end
     eq(UI.listOf(tabs[1]), nil)
 end)
@@ -523,6 +525,19 @@ end)
 t.test("no pieces on the shelf: every step is a book swap, and the shifts are safe", function()
     eq(UI.step(2, nil, 1, 1).kind, "book")
     UI.shiftForRemove(nil, 1); UI.shiftForInsert(nil, 1)
+end)
+
+-- The Arrange strip names the shelf's collection: a Favorites shelf has no
+-- name on its source (rig: "This shelf uses the  collection.").
+t.test("collectionName: the collection's name, or Favorites for the Favorites shelf", function()
+    reset()
+    eq(UI.collectionName(tabs[8]), "Favorites")
+    eq(UI.collectionName({ source = { kind = "collection", id = "TBR" } }), "TBR")
+    eq(UI.collectionName({ source = { kind = "library" } }), nil)
+    for _i, f in ipairs({ "lib/bookshelf_widget_curated.lua", "lib/bookshelf_widget.lua" }) do
+        local src = io.open(f):read("*a")
+        assert(src:find("collectionName(", 1, true), f .. " names the collection from source.id")
+    end
 end)
 
 t.done()

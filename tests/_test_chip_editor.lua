@@ -1090,4 +1090,12 @@ t.test("Face out: Choose for each book reads as that, and a reason replaces it",
     assert(SRC:find("if spec.chosen then return L.chosen end", 1, true), "the row reads None")
 end)
 
+-- A reader asked for Favorites in the order they arranged it: it is a
+-- KOReader collection, so its Sort page offers Collection order too.
+t.test("a Favorites shelf's Sort page offers Collection order", function()
+    local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    assert(src:find('if kind == "collection" or kind == "favorites" then', 1, true),
+        "Collection order is offered to collection shelves only")
+end)
+
 t.done()

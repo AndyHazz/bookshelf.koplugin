@@ -2349,6 +2349,59 @@ test("getBySource: a collection keeps its native KOReader order (#441)", functio
         "expected the collection's own order, got " .. got)
 end)
 
+test("getBySource: Favorites can keep its own collection order", function()
+    -- Favorites is a KOReader collection too; a reader asked to see it in
+    -- the order they arranged it. Order set as the REVERSE of alphabetical.
+    _setupResolverLibrary()
+    local rc = package.loaded["readcollection"]
+    local saved = rc.coll.favorites
+    rc.coll.favorites = {
+        ["/lib/novels/charlie.epub"] = { file = "/lib/novels/charlie.epub", order = 1 },
+        ["/lib/comics/bravo.epub"]   = { file = "/lib/comics/bravo.epub",   order = 2 },
+        ["/lib/comics/alpha.epub"]   = { file = "/lib/comics/alpha.epub",   order = 3 },
+    }
+    local list = Repo.getBySource({ kind = "favorites" }, nil,
+                                  { { key = "collection_order", reverse = false } }, 0, 10)
+    rc.coll.favorites = saved
+    _teardownResolverLibrary()
+    local got = {}
+    for i, b in ipairs(list) do got[i] = b.title end
+    got = table.concat(got, ",")
+    assert(got == "Charlie,Bravo,Alpha", "expected the favorites' own order, got " .. got)
+end)
+
+test("a reordered Favorites collection shows its new order (its own cache key)", function()
+    -- A Favorites shelf is cached under "favorites|...", not
+    -- "collection|favorites|...": a reorder (invalidateCollectionCache) has
+    -- to drop it too, or a book moved there stayed put until a refresh.
+    _setupResolverLibrary()
+    local rc = package.loaded["readcollection"]
+    local saved = rc.coll.favorites
+    local function fav(a, b, c)
+        rc.coll.favorites = {
+            ["/lib/novels/charlie.epub"] = { file = "/lib/novels/charlie.epub", order = a },
+            ["/lib/comics/bravo.epub"]   = { file = "/lib/comics/bravo.epub",   order = b },
+            ["/lib/comics/alpha.epub"]   = { file = "/lib/comics/alpha.epub",   order = c },
+        }
+    end
+    local function titles()
+        local list = Repo.getBySource({ kind = "favorites" }, nil,
+                                      { { key = "collection_order", reverse = false } }, 0, 10)
+        local got = {}
+        for i, b in ipairs(list) do got[i] = b.title end
+        return table.concat(got, ",")
+    end
+    fav(1, 2, 3)
+    local first = titles()
+    fav(3, 2, 1)
+    Repo.invalidateCollectionCache(rc.default_collection_name or "favorites")
+    local second = titles()
+    rc.coll.favorites = saved
+    _teardownResolverLibrary()
+    assert(first == "Charlie,Bravo,Alpha", "first: " .. first)
+    assert(second == "Alpha,Bravo,Charlie", "the old order was kept: " .. second)
+end)
+
 test("getBySource: genre kind filters books via BIM keywords->genres mapping", function()
     _setupResolverLibrary()
     -- buildBookMeta maps BIM `keywords` string -> genres array; the genre

@@ -7761,7 +7761,8 @@ function BookshelfWidget:_spineModuleMenu(entry)
             local _cl, ctab = nil, nil
             if bw._curatedList then _cl, ctab = bw:_curatedList() end
             strip[#strip + 1] = { type = "summary",
-                text = ctab and require("ffi/util").template(_("This shelf uses the %1 collection."), ctab.source.id)
+                text = ctab and require("ffi/util").template(_("This shelf uses the %1 collection."),
+                    CUI.collectionName(ctab) or "")
                     or _("Ornament module, positioned manually"),
                 actions = {
                     { label = _("Edit shelf"), callback = editShelf },

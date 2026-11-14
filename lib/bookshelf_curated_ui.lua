@@ -35,10 +35,25 @@ local function TabModel() return require("lib/bookshelf_tab_model") end
 function UI.listOf(tab)
     local src = type(tab) == "table" and tab.source
     if type(src) ~= "table" then return nil end
-    -- Not the Favorites shelf: the repository does not sort it by the
-    -- collection's order, so a move there wrote an order no shelf showed.
+    -- Favorites is a collection too, and sorts by its own order when the
+    -- shelf asks for Collection order (_curatedArrangeable checks the sort).
     local name = src.kind == "collection" and src.id or nil
+    if src.kind == "favorites" then
+        local ok_rc, RC = pcall(require, "readcollection")
+        name = ok_rc and RC and RC.default_collection_name or "favorites"
+    end
     if name and Curated().exists(name) then return name end
+    return nil
+end
+
+-- collectionName(tab) -> the shelf's collection as the reader knows it, for
+-- the Arrange strip: the collection's name, "Favorites" for the Favorites
+-- shelf (its source carries no name), nil for a shelf of no collection.
+function UI.collectionName(tab)
+    local src = type(tab) == "table" and tab.source
+    if type(src) ~= "table" then return nil end
+    if src.kind == "favorites" then return _("Favorites") end
+    if src.kind == "collection" and type(src.id) == "string" then return src.id end
     return nil
 end
 

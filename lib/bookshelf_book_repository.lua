@@ -2748,6 +2748,11 @@ function Repo.invalidateCollectionCache(name)
     for k in pairs(_bySource_cache) do
         if k:sub(1, #prefix) == prefix then _bySource_cache[k] = nil end
     end
+    -- The favorites collection is also the Favorites shelf, cached under
+    -- its own kind ("favorites|..."): a reorder there has to drop that too.
+    local ok_rc, RC = pcall(require, "readcollection")
+    local fav_name = ok_rc and type(RC) == "table" and RC.default_collection_name or "favorites"
+    if name == fav_name then Repo.invalidateFavoritesCache() end
 end
 
 -- invalidateReadStateCache(): drop only the _bySource_cache entries whose
@@ -9307,15 +9312,24 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             -- collection. Same flow as 'collection' but with a fixed
             -- collection name.
             local rc = require("readcollection")
-            local set = {}
+            local set, order = {}, {}
             local fav = rc.coll and rc.coll.favorites
             if type(fav) == "table" then
                 for _file, item in pairs(fav) do
                     local fp = item.file or _file
-                    if type(fp) == "string" then set[fp] = true end
+                    if type(fp) == "string" then
+                        set[fp] = true
+                        order[fp] = type(item) == "table" and item.order or nil
+                    end
                 end
             end
             candidates = loadCandidatesFromPaths(set)
+            -- Favorites is a KOReader collection too: its own order on the
+            -- record, for the Collection order sort, as for a collection
+            -- shelf (a reader asked to see Favorites as they arranged it).
+            for _i, b in ipairs(candidates) do
+                b.collection_order = order[b.filepath]
+            end
         elseif kind == "folder" then
             -- Reached only when a status filter is active (otherwise the
             -- early-return above sends folder chips to getAll for tree view).

@@ -209,7 +209,8 @@ t.test("a pinned piece's menu says what pinning did, and Unpin undoes it", funct
     local sw, rm, add = m:find('_("Swap ornament")', 1, true), m:find('_("Remove ornament")', 1, true),
         m:find('text = _("Add ornament")', 1, true)
     assert(sw and rm and add and sw < rm and rm < add, "not Swap, Remove, Add")
-    assert(m:find('_("This shelf uses the %1 collection."), ctab.source.id)', 1, true), "not the book menu's strip")
+    assert(m:find('_("This shelf uses the %1 collection."),', 1, true) and m:find("CUI.collectionName(ctab)", 1, true),
+        "not the book menu's strip")
     assert(m:find('{ label = _("Edit shelf"), callback = editShelf },\n                    { icon = CUI.ICON_ORNAMENT, label = _("Edit"), callback = adjustPiece },', 1, true),
         "Edit ornament then Edit shelf, at the right")
     assert(m:find('bar[#bar + 1] = { text = _("Remove"), callback = remove }', 1, true), "a module lost Remove")

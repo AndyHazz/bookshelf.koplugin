@@ -778,7 +778,7 @@ function BookshelfWidget:_curatedMoveMenu(book)
     local function strip()
         local T = require("ffi/util").template
         local _l, tab = bw:_curatedList()
-        local name = (tab and tab.source and tab.source.id) or ""
+        local name = CuratedUI().collectionName(tab) or ""
         return { { type = "summary", text = T(_("This shelf uses the %1 collection."), name),
             -- Edit shelf, then "Edit" with a book at the right, as a pinned
             -- piece's Arrange menu has "Edit" with its cup: the same two

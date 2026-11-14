@@ -3,7 +3,8 @@
 -- plugin adds through FileManager:addFileDialogButtons.
 --
 -- A button can choose its own icon with `bookshelf_icon`: ONE glyph of
--- KOReader's bundled symbols font, written as a UTF-8 string:
+-- KOReader's bundled symbols font (its private use area, U+E000 to U+F8FF),
+-- written as a UTF-8 string:
 --
 --     { text = _("Add to My Plugin"), bookshelf_icon = "\xEE\xA5\x91", callback = ... }
 --
@@ -20,21 +21,18 @@ local M = {}
 
 M.DEFAULT = "\xEE\xAC\xB0" -- U+EB30 mdi-puzzle
 
--- One UTF-8 character outside ASCII: a lead byte that says how long it is,
--- then exactly that many continuation bytes. Plain text ("check", "A") is not
--- a glyph, so a name that was meant for KOReader's own icon lookup never draws
--- as letters on the card.
+-- One character of the symbols font's private use area, U+E000 to U+F8FF:
+-- three UTF-8 bytes, EE 80 80 to EF A3 BF. That is what the font covers, and
+-- the plugin's rule for every icon it draws: a glyph from outside it once
+-- crashed a render on a PW5 (lib/bookshelf_menu_icons). Plain text ("check",
+-- "A") is not a glyph, so a name that was meant for KOReader's own icon
+-- lookup never draws as letters on the card.
 local function isGlyph(s)
-    if type(s) ~= "string" then return false end
-    local lead = s:byte(1)
-    if not lead or lead < 0xC2 or lead > 0xF4 then return false end
-    local want = lead >= 0xF0 and 4 or lead >= 0xE0 and 3 or 2
-    if #s ~= want then return false end
-    for i = 2, #s do
-        local b = s:byte(i)
-        if b < 0x80 or b > 0xBF then return false end
-    end
-    return true
+    if type(s) ~= "string" or #s ~= 3 then return false end
+    local a, b, c = s:byte(1, 3)
+    if c < 0x80 or c > 0xBF or b < 0x80 or b > 0xBF then return false end
+    local cp = (a - 0xE0) * 0x1000 + (b - 0x80) * 0x40 + (c - 0x80)
+    return (a == 0xEE or a == 0xEF) and cp >= 0xE000 and cp <= 0xF8FF
 end
 
 -- icon(spec) -> the glyph to draw on the card for this button spec.

@@ -20,7 +20,19 @@ end)
 
 t.test("a button can choose its own glyph", function()
     eq(PB.icon({ text = "Add", bookshelf_icon = FOLDER_MOVE }), FOLDER_MOVE)
-    eq(PB.icon({ bookshelf_icon = ASTRAL }), ASTRAL)
+end)
+
+-- Only the symbols font's private use area, U+E000 to U+F8FF: what the font
+-- covers, and the plugin's rule for every icon (a glyph outside it once
+-- crashed a render on a PW5, lib/bookshelf_menu_icons).
+t.test("only a glyph of the symbols font's private use area", function()
+    eq(PB.icon({ bookshelf_icon = "\xEE\x80\x80" }), "\xEE\x80\x80")   -- U+E000, the first
+    eq(PB.icon({ bookshelf_icon = "\xEF\xA3\xBF" }), "\xEF\xA3\xBF")   -- U+F8FF, the last
+    eq(PB.icon({ bookshelf_icon = "\xEF\xA4\x80" }), PB.DEFAULT)          -- U+F900, past it
+    eq(PB.icon({ bookshelf_icon = "\xED\x9F\xBF" }), PB.DEFAULT)          -- U+D7FF, before it
+    eq(PB.icon({ bookshelf_icon = "\xE2\x82\xAC" }), PB.DEFAULT)          -- a euro sign
+    eq(PB.icon({ bookshelf_icon = "\xC3\xA9" }), PB.DEFAULT)               -- a two-byte letter
+    eq(PB.icon({ bookshelf_icon = ASTRAL }), PB.DEFAULT)                     -- U+F0000, not in the font
 end)
 
 t.test("a stock KOReader icon name is not mistaken for a glyph", function()

@@ -85,6 +85,23 @@ function M.set(mark, surface, on)
     BookshelfSettings.save(m.covers, on == true)
 end
 
+-- signature(surface) -> a short string that changes whenever any mark's
+-- switch for this surface does, for a cache of rendered books to key on.
+-- Each mark gives two characters: whether it is shown, then what the reader
+-- chose for this surface (some painters test that rather than shown()).
+local ORDER = { "progress_bar", "bookmark", "finished_fade", "favorite",
+                "page_badge", "done_badge", "on_hold", "series_num" }
+function M.signature(surface)
+    local out = {}
+    for i = 1, #ORDER do
+        local mark = ORDER[i]
+        local e = M.explicit(mark, surface)
+        out[i] = (M.shown(mark, surface) and "1" or "0")
+            .. (e == nil and "-" or (e and "y" or "n"))
+    end
+    return table.concat(out)
+end
+
 -- "both", "covers", "spines" or "none": for a menu row's summary.
 function M.where(mark)
     local c, s = M.shown(mark, "covers"), M.shown(mark, "spines")

@@ -2241,6 +2241,30 @@ local function _themeChar(night)
     return v
 end
 
+-- _marksChars() -> what a spine's own glyphs depend on, memoised on the
+-- settings generation like _themeChar (issue 605). The status glyph, the
+-- favourite heart or star and the series number are baked into a render, so
+-- the favourite icon, every mark's spine switch and the styles decide() reads
+-- for the status glyph all belong in the key.
+local MARK_STYLE_KEYS = { "progress_badge_style", "progress_badge_enabled",
+                          "on_hold_display", "on_hold_badge_enabled" }
+local _marks_memo = nil
+local function _marksChars()
+    local gen = BookshelfSettings.generation and BookshelfSettings.generation() or 0
+    local m = _marks_memo
+    if m and m.gen == gen then return m.v end
+    local parts = {
+        CoverProgress.favoriteIcon and CoverProgress.favoriteIcon() or "-",
+        Marks.signature("spines"),
+    }
+    for i = 1, #MARK_STYLE_KEYS do
+        parts[#parts + 1] = tostring(BookshelfSettings.read(MARK_STYLE_KEYS[i]))
+    end
+    local v = table.concat(parts, ":")
+    _marks_memo = { gen = gen, v = v }
+    return v
+end
+
 function SpineBookSlot:_renderKey(night)
     local e = self.entry
     local fp = (self.book and self.book.filepath) or self.entry.label or "?"
@@ -2255,6 +2279,8 @@ function SpineBookSlot:_renderKey(night)
         -- flag does not -- so a key that only knew the flag would serve a
         -- light-themed spine to a dark shelf.
         _themeChar(night),
+        -- The glyphs at the head and foot: favourite icon, mark switches.
+        _marksChars(),
         self.show_author == false and "A" or "a",
         -- The ground is part of the picture: a render made over page white
         -- has the page baked into every pixel the book does not cover.

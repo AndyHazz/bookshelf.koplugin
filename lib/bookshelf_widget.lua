@@ -11424,7 +11424,12 @@ function BookshelfWidget:_pageAheadStep(job)
                     end)
                 end
             end
+            -- The rows have not placed their badges yet. Paint those only
+            -- after all rows, so no warm-up position leaks into the kept pixels.
+            local badges = self._spine_badges
+            self._spine_badges = nil
             local ok_paint, perr = pcall(function() self:paintTo(job.full, 0, 0) end)
+            self._spine_badges = badges
             for i, r in ipairs(page.rows) do
                 if type(r) == "table" then rawset(r, "paintTo", own[i]) end
             end
@@ -11437,6 +11442,8 @@ function BookshelfWidget:_pageAheadStep(job)
             d[4](d[1], job.full, d[2], d[3])
             if #job.deferred > 0 then last = false; return end
         end
+        -- Section badges hang over the rows and must be painted last.
+        for _i, b in ipairs(self._spine_badges or {}) do b:paintDeferred(job.full) end
         entry = { key = page.key, rows = page.rows, state = self:_pageStateSnapshot(),
                   minute = self:_pageMinute(), px = self:_pagePxCapture(job.full, page.d) }
         job.full:free(); job.full = nil

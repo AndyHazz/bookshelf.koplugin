@@ -1229,11 +1229,10 @@ end
 -- every rebuild passes through (buildBook calls it too), so one placement covers
 -- every caller, present and future, instead of guarding each site.
 --
--- Identity is always restored. Presentation fields only fill a gap, so a
--- converted book's own EPUB metadata still wins -- with one exception: title.
--- buildBookMeta falls back to the FILENAME when it has nothing better, which is
--- a non-nil value that would otherwise beat the catalogue. A filename is never
--- the better title, so the catalogue takes it back.
+-- Identity is always restored. Catalogue presentation only fills a gap, so a
+-- converted book's own EPUB metadata wins over it; explicit custom metadata
+-- wins over both. A filename fallback is not a real title, so the catalogue
+-- replaces that too.
 local function _reattachKindleIdentity(book, filepath)
     local KindleSource = getKindleSource()
     if not (KindleSource and KindleSource.recordFor) then return end
@@ -1262,6 +1261,18 @@ local function _reattachKindleIdentity(book, filepath)
     if rec.title and rec.title ~= "" and book.title == book.filename then
         book.title = rec.title
         book.display_title = rec.display_title or rec.title
+    end
+    -- A correction made on the Kindle source also applies to its converted
+    -- EPUB, even when that EPUB still embeds the old title or authors.
+    local custom_title = _cpText(rec.kindle_custom_props, "title")
+    if custom_title then
+        book.title = custom_title
+        book.display_title = custom_title
+    end
+    local custom_authors = _cpText(rec.kindle_custom_props, "authors")
+    if custom_authors then
+        book.authors = splitAuthors(custom_authors, filepath)
+        book.author = book.authors and book.authors[1] or nil
     end
 end
 

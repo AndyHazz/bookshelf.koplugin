@@ -339,6 +339,28 @@ t.test("listBooks: derives status from the catalogue percentage", function()
     helpers.eq(zero.status, "unread", "0% -> unread")
 end)
 
+t.test("listBooks: Kindle READ flags finish books independently of position", function()
+    -- These states occur on the device even at 67% or without a position.
+    for _, state in ipairs({ 1, 2, 4 }) do
+        local b = firstBook({ ccRow({ p_readState = state, p_percentFinished = 67.78759 }) })
+        helpers.eq(b.status, "finished", "Kindle READ state " .. state)
+        helpers.eq(b._status, "finished", "filter status")
+        helpers.eq(b.read_status, "finished", "sort status")
+        assert(math.abs(b.book_pct - 0.6778759) < 1e-9, "READ must not move the position")
+    end
+    local b = firstBook({ ccRow({ p_readState = 1, p_percentFinished = "\0nil" }) })
+    helpers.eq(b.status, "finished", "manually read without a position")
+    helpers.eq(b.book_pct, nil, "no position invented")
+end)
+
+t.test("listBooks: explicit KOReader status overrides a Kindle READ flag", function()
+    ready({ ccRow({ p_readState = 2 }) })
+    M._sidecar = function() return { percent_finished = 0.5, status = "reading" } end
+    local b = M.listBooks()[1]
+    helpers.eq(b.status, "reading", "KOReader reread wins")
+    helpers.eq(b.book_pct, 0.5, "KOReader position wins")
+end)
+
 t.test("listBooks: a KOReader sidecar overrides the catalogue percentage", function()
     -- Once the book has been read in KOReader, KOReader's own position is the
     -- truth: the two readers measure different content lengths, so the Kindle
@@ -974,6 +996,75 @@ t.test("size falls back to the download size when disk usage is absent", functio
     onDisk("/mnt/us/documents/Goldratt/The Goal.kfx")
     local b = M.listBooks()[1]
     assert(b.size == 777, "wrong size: " .. tostring(b.size))
+end)
+
+-- KOReader stores user corrections separately from reading-position sidecars.
+local function withCustomMetadata(props, fn)
+    local previous = package.loaded["docsettings"]
+    package.loaded["docsettings"] = {
+        findCustomMetadataFile = function(_self, path)
+            return props[path] and path .. ".custom_metadata.lua" or nil
+        end,
+        openSettingsFile = function(path)
+            local book = path:gsub("%.custom_metadata%.lua$", "")
+            return { readSetting = function(_self, key)
+                assert(key == "custom_props")
+                return props[book]
+            end }
+        end,
+        hasSidecarFile = function() return false end,
+    }
+    local ok, err = pcall(fn)
+    package.loaded["docsettings"] = previous
+    assert(ok, err)
+end
+
+t.test("custom metadata: title and authors reach captions and title sorting", function()
+    local corrected = ccRow()
+    local other = ccRow({ p_uuid = "second", p_location = "/mnt/us/documents/Middle.kfx",
+        p_titles_0_nominal = "Middle" })
+    ready({ corrected, other })
+    withCustomMetadata({ [corrected.p_location] = {
+        title = "A Corrected Title.epub", authors = "Goldratt, Eliyahu M.\n Jeff  Cox ",
+    } }, function()
+        local books = M.listBooks()
+        table.sort(books, SortEngine.chainedComparator({ { key = "title" } }))
+        helpers.eq(books[1].title, "A Corrected Title.epub")
+        helpers.eq(books[1].display_title, books[1].title)
+        helpers.eq(books[1].authors, { "Goldratt, Eliyahu M.", "Jeff Cox" })
+        helpers.eq(books[1].author, "Goldratt, Eliyahu M.")
+        helpers.eq(books[1].filepath, corrected.p_location)
+        helpers.eq(books[1].percent_finished, tonumber(corrected.p_percentFinished) / 100)
+    end)
+end)
+
+t.test("custom metadata: converted EPUB falls back to source corrections", function()
+    local r = ccRow()
+    local cached = "/cache/kindle.koplugin/cc_00000000-1111-2222-3333-444444444444.epub"
+    ready({ r })
+    onDisk(cached)
+    withCustomMetadata({ [r.p_location] = { title = "Corrected", authors = "Correct Author" } }, function()
+        local b = M.listBooks()[1]
+        helpers.eq(b.title, "Corrected")
+        helpers.eq(b.authors, { "Correct Author" })
+        helpers.eq(b.filepath, cached)
+        helpers.eq(b.kindle_source_path, r.p_location)
+    end)
+end)
+
+t.test("custom metadata: EPUB corrections win per field over source corrections", function()
+    local r = ccRow()
+    local cached = "/cache/kindle.koplugin/cc_00000000-1111-2222-3333-444444444444.epub"
+    ready({ r })
+    onDisk(cached)
+    withCustomMetadata({
+        [r.p_location] = { title = "Source Title", authors = "Source Author" },
+        [cached] = { title = "EPUB Title" },
+    }, function()
+        local b = M.listBooks()[1]
+        helpers.eq(b.title, "EPUB Title")
+        helpers.eq(b.authors, { "Source Author" })
+    end)
 end)
 
 t.done()

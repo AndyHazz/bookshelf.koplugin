@@ -2579,6 +2579,53 @@ test("buildBookMeta: a real embedded title still beats the catalogue's", functio
     assert(b.is_kindle == true, "identity still re-attached")
 end)
 
+test("buildBookMeta: Kindle source corrections beat converted EPUB embedded metadata", function()
+    local epub = "/cache/kindle.koplugin/cc_custom.epub"
+    local kfx = "/mnt/us/documents/Custom.kfx"
+    local Kindle = dofile("lib/bookshelf_kindle_source.lua")
+    local previous_ds = package.loaded["docsettings"]
+    local ds = {}
+    for k, v in pairs(previous_ds) do ds[k] = v end
+    ds.findCustomMetadataFile = function(_self, path)
+        return path == kfx and "/metadata/custom_metadata.lua" or nil
+    end
+    ds.openSettingsFile = function()
+        return { readSetting = function(_self, key)
+            if key == "custom_props" then return { title = "Corrected Title", authors = "Correct Author" } end
+        end }
+    end
+    package.loaded["docsettings"] = ds
+    package.loaded["lib/bookshelf_kindle_source"] = Kindle
+    Kindle._stat = function() return { mode = "file", size = 12345, modification = 1 } end
+    Kindle._sidecar = function() return { percent_finished = 0.42, status = "reading" } end
+    Kindle._query = function()
+        return { p_uuid = { "custom" }, p_location = { kfx },
+            p_titles_0_nominal = { "Catalog Title" },
+            j_credits = { '[{"name":{"display":"Catalog Author"},"kind":"Author"}]' },
+            p_mimeType = { "application/x-kfx-ebook" } }, 1
+    end
+    Kindle._plugin = function() return {
+        prepareKnownKindlePath = function() return epub end,
+        cache_manager = { getCachePaths = function() return epub end },
+    } end
+    _G._test_bim_data = { [epub] = { title = "Embedded Title", authors = "Embedded Author" } }
+    local ok, result = pcall(function()
+        local shelf = Kindle.listBooks()[1]
+        assert(shelf, "source record missing")
+        return Repo.buildBookMeta(epub)
+    end)
+    package.loaded["docsettings"] = previous_ds
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    _G._test_bim_data = nil
+    assert(ok, result)
+    assert(result.title == "Corrected Title", "hero ignored source title: " .. tostring(result.title))
+    assert(result.display_title == "Corrected Title", "hero caption differs")
+    assert(result.author == "Correct Author", "hero ignored source author")
+    assert(result.authors[1] == "Correct Author", "hero authors differ")
+    assert(result.filepath == epub and result.kindle_source_path == kfx, "identity changed")
+    assert(result.percent_finished == 0.42, "reading progress changed")
+end)
+
 test("buildBook: leaves an ordinary book untouched when a Kindle library exists", function()
     -- The overlay must be strictly scoped to paths the Kindle source knows.
     _fakeKindleSource({ { filepath = "/mnt/us/documents/Kindle.kfx", is_kindle = true } })

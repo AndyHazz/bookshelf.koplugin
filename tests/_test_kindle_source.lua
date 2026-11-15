@@ -12,6 +12,9 @@ local M = dofile("lib/bookshelf_kindle_source.lua")
 -- other test replaces that seam, so without this the actual sidecar read is
 -- never exercised and could stop reading the rating unnoticed.
 local REAL_SIDECAR = M._sidecar
+-- Likewise the REAL _query, for the schema guard: older firmware's cc.db has
+-- no p_readState, and naming it there fails the whole catalogue read.
+local REAL_QUERY = M._query
 local helpers = dofile("tests/_helpers.lua")
 local t = helpers.runner()
 
@@ -1065,6 +1068,55 @@ t.test("custom metadata: EPUB corrections win per field over source corrections"
         helpers.eq(b.title, "EPUB Title")
         helpers.eq(b.authors, { "Source Author" })
     end)
+end)
+
+-- A cc.db whose Entries table has the given columns. Every statement run on it
+-- is recorded; naming a column it lacks fails the way SQLite does.
+local function fakeSqlite(columns)
+    local have, log = {}, {}
+    for _i, c in ipairs(columns) do have[c] = true end
+    local conn = {}
+    function conn:exec(sql)
+        log[#log + 1] = sql
+        if sql:find("PRAGMA table_info", 1, true) then
+            local names = {}
+            for i, c in ipairs(columns) do names[i] = c end
+            return { name = names, [2] = names }, #names
+        end
+        for col in sql:gmatch("p_[%w_]+") do
+            if not have[col] then error("no such column: " .. col) end
+        end
+        return {}, 0
+    end
+    function conn:close() end
+    package.loaded["lua-ljsqlite3/init"] = { open = function() return conn end }
+    return log
+end
+
+local BASE_COLUMNS = { "p_uuid", "p_location", "p_titles_0_nominal", "p_mimeType",
+    "p_cdeKey", "p_isDRMProtected", "p_diskUsage", "p_contentSize", "p_thumbnail",
+    "p_percentFinished", "p_languages_0", "p_lastAccess", "p_type",
+    "p_isVisibleInHome", "p_isArchived" }
+
+t.test("older firmware without p_readState still lists the catalogue", function()
+    M.invalidate()
+    local log = fakeSqlite(BASE_COLUMNS)
+    local ok, err = pcall(REAL_QUERY)
+    package.loaded["lua-ljsqlite3/init"] = nil
+    assert(ok, "the catalogue read failed: " .. tostring(err))
+    assert(not log[#log]:find("p_readState", 1, true), "asked an old cc.db for p_readState")
+end)
+
+t.test("firmware with p_readState reads it", function()
+    M.invalidate()
+    local cols = {}
+    for i, c in ipairs(BASE_COLUMNS) do cols[i] = c end
+    cols[#cols + 1] = "p_readState"
+    local log = fakeSqlite(cols)
+    local ok, err = pcall(REAL_QUERY)
+    package.loaded["lua-ljsqlite3/init"] = nil
+    assert(ok, "the catalogue read failed: " .. tostring(err))
+    assert(log[#log]:find("p_readState", 1, true), "never read p_readState where it exists")
 end)
 
 t.done()

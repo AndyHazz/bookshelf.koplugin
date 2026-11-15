@@ -90,7 +90,7 @@ local QUERY = [[
 SELECT
     p_uuid, p_location, p_titles_0_nominal, j_credits, p_mimeType, p_cdeKey,
     p_isDRMProtected, p_diskUsage, p_contentSize, p_thumbnail,
-    p_percentFinished, p_readState, p_languages_0, p_lastAccess
+    p_percentFinished,%s p_languages_0, p_lastAccess
 FROM Entries
 WHERE p_type = 'Entry:Item'
     AND p_mimeType IN ('application/x-kfx-ebook',
@@ -102,12 +102,28 @@ WHERE p_type = 'Entry:Item'
     AND p_location <> ''
 ]]
 
+-- Whether cc.db's Entries table has this column. p_readState (the READ marker)
+-- is missing on older firmware (5.9.7 on a PW3), and naming a column SQLite
+-- does not know fails the whole catalogue read, so it is only asked for where
+-- it exists.
+local function _hasColumn(conn, name)
+    local ok, info = pcall(function() return conn:exec("PRAGMA table_info(Entries)") end)
+    local names = ok and type(info) == "table" and (info.name or info[2]) or nil
+    for _i, n in ipairs(names or {}) do
+        if n == name then return true end
+    end
+    return false
+end
+
 function M._query()
     local SQ3 = require("lua-ljsqlite3/init")
     local conn, err = SQ3.open(M.CC_DB_PATH, "ro")
     if not conn then error("cannot open cc.db: " .. tostring(err)) end
     local results, nrow
-    local ok, qerr = pcall(function() results, nrow = conn:exec(QUERY) end)
+    local ok, qerr = pcall(function()
+        local query = QUERY:format(_hasColumn(conn, "p_readState") and " p_readState," or "")
+        results, nrow = conn:exec(query)
+    end)
     conn:close()
     if not ok then error("cc.db query failed: " .. tostring(qerr)) end
     return results, nrow

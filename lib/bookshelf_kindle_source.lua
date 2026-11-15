@@ -90,7 +90,7 @@ local QUERY = [[
 SELECT
     p_uuid, p_location, p_titles_0_nominal, j_credits, p_mimeType, p_cdeKey,
     p_isDRMProtected, p_diskUsage, p_contentSize, p_thumbnail,
-    p_percentFinished, p_languages_0, p_lastAccess
+    p_percentFinished, p_readState, p_languages_0, p_lastAccess
 FROM Entries
 WHERE p_type = 'Entry:Item'
     AND p_mimeType IN ('application/x-kfx-ebook',
@@ -160,6 +160,22 @@ function M._sidecar(path)
         }
     end)
     return ok_open and out or nil
+end
+
+-- Custom metadata can exist before a book has a reading-position sidecar.
+function M._customProps(path)
+    local ok, DocSettings = pcall(require, "docsettings")
+    if not (ok and DocSettings and DocSettings.findCustomMetadataFile) then return nil end
+    local ok_read, props = pcall(function()
+        local file = DocSettings:findCustomMetadataFile(path)
+        if file then return DocSettings.openSettingsFile(file):readSetting("custom_props") end
+    end)
+    return ok_read and type(props) == "table" and props or nil
+end
+
+local function customText(props, key)
+    local value = props and props[key]
+    return type(value) == "string" and value ~= "" and value or nil
 end
 
 -- The Kindle plugin's open_file_ext singleton, or nil. Never require()d: reading
@@ -429,6 +445,20 @@ local function toRecord(row, plugin)
         raw_title = location:match("([^/]+)$") or "Untitled"
     end
     local title = cleanTitle(raw_title, authors)
+    -- Corrections made before conversion live beside the source. Later EPUB
+    -- corrections win per field, so preparing a book never loses either edit.
+    local cp = M._customProps(filepath)
+    local source_cp = filepath ~= location and M._customProps(location) or nil
+    local custom_title = customText(cp, "title") or customText(source_cp, "title")
+    local custom_authors = customText(cp, "authors") or customText(source_cp, "authors")
+    if custom_title then title = custom_title end
+    if custom_authors then
+        authors = {}
+        for name in custom_authors:gmatch("[^\n]+") do
+            local cleaned = name:match("^%s*(.-)%s*$"):gsub("%s+", " ")
+            if cleaned ~= "" then authors[#authors + 1] = cleaned end
+        end
+    end
     -- p_diskUsage is what the book occupies; p_contentSize is the download
     -- size. Either is a reasonable "how big is this book", and the catalogue
     -- does not always carry both.
@@ -444,6 +474,13 @@ local function toRecord(row, plugin)
     if side then
         pct = tonumber(side.percent_finished) or pct
         status = normaliseStatus(side.status)
+    end
+    -- Kindle's READ marker is independent of the saved position: manual (1),
+    -- automatic (2), or backfilled (4). Keep an explicit KOReader status first
+    -- so a reread can remain in progress without changing the native library.
+    local read_state = tonumber(row.p_readState)
+    if not status and (read_state == 1 or read_state == 2 or read_state == 4) then
+        status = "finished"
     end
     status = status or statusFromPercent(pct)
 
@@ -525,6 +562,9 @@ local function toRecord(row, plugin)
         kindle_book_id     = id,
         kindle_source_path = location,
         kindle_raw_title   = raw_title,   -- the catalogue's own wording, for diagnosis
+        kindle_custom_props = (custom_title or custom_authors) and {
+            title = custom_title, authors = custom_authors,
+        } or nil,
         kindle_needs_prepare = needs_prepare or nil,
         kindle_blocked     = block_reason ~= nil or nil,
         kindle_block_reason = block_reason,

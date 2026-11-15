@@ -52,6 +52,7 @@ local function env(PC, top)
     local freed = {}
     local e = {
         pairs = pairs, ipairs = ipairs, type = type, tostring = tostring, pcall = pcall,
+        rawget = rawget, rawset = rawset,
         error = error, math = math, string = string, table = table,
         require = function(name)
             if name == "lib/bookshelf_page_cache" then return PC end
@@ -508,6 +509,66 @@ t.test("the next page waits for a short pause; heavier background work for a lon
     assert(RUN:find("self:_inputBusyFor(PAGE_AHEAD_QUIET_S)", 1, true), "the page build waits as long as the background work")
     local pre = bodyOf("_preloadStep%(%)", "_preloadStep")
     assert(pre:find("self:_inputBusyFor(PAGE_AHEAD_QUIET_S)", 1, true), "the cover warm-up before it waits the long way")
+end)
+
+t.test("section badges are painted once, after the rows, before the page is kept", function()
+    local PC = cacheStub()
+    local s = shelf()
+    local visible_badges = { "the page on screen" }
+    s._spine_badges = visible_badges
+    -- Drive the real position-recording and deferred-paint methods too.
+    local spine = io.open("lib/bookshelf_spine_shelf.lua"):read("*a")
+    local function badgeMethod(name, args)
+        local body = assert(spine:match("\nfunction ShelfBadges:" .. name .. "%([^\n]*%)\n(.-)\nend\n"))
+        return compile("return function(self, " .. args .. ")\n" .. body .. "\nend", _G, name)()
+    end
+    local badges, rows = {}, {}
+    for i = 1, 2 do
+        local b = { dimen = {}, deferred = true, label = "section " .. i,
+                    paintTo = badgeMethod("paintTo", "bb, x, y"),
+                    paintDeferred = badgeMethod("paintDeferred", "bb") }
+        b.drawAt = function(self, bb, _x, y)
+            bb.pixels[y + 20] = self.label
+            bb.labels[#bb.labels + 1] = self.label
+        end
+        badges[i] = b
+        rows[i] = { paintTo = function(_r, bb, x, y)
+            for py = y, y + 20 do bb.pixels[py] = "row" end
+            b:paintTo(bb, x, y)
+        end }
+    end
+    local compose = s._pageCompose
+    s._pageCompose = function(self, turning, ahead)
+        local p = compose(self, turning, ahead)
+        self._spine_badges = badges
+        p.rows = rows
+        return p
+    end
+    s.paintTo = function(self, bb)
+        for i, row in ipairs(rows) do row:paintTo(bb, 0, 50 * i) end
+        for _, b in ipairs(self._spine_badges or {}) do b:paintDeferred(bb) end
+    end
+    local captured
+    s._pagePxCapture = function(_s, bb)
+        captured = bb
+        return { bb = "px", y0 = 0 }
+    end
+    local e = env(PC, s)
+    e.BookshelfWidget._screenLike = function()
+        return { pixels = {}, labels = {}, free = function() end }
+    end
+    local step = compile("local self, job = ...\n" .. STEP, e, "badge step")
+    local um = wire(s, PC, s)
+    s._pageAheadStep = step
+    s:_pageAheadRun()
+    local n = 0
+    while tick(um) do n = n + 1; assert(n < 20, "never finished") end
+    eq(#PC.kept, 1, "the labelled page was not kept")
+    eq(captured.pixels[70], "section 1", "first row's label missing from cached pixels")
+    eq(captured.pixels[120], "section 2", "last row's label missing from cached pixels")
+    eq(captured.pixels[20], nil, "a label was painted at its warm-up position")
+    eq(captured.labels, { "section 1", "section 2" }, "labels must paint once, after all rows")
+    eq(s._spine_badges, visible_badges, "the live page's badges changed")
 end)
 
 t.done()

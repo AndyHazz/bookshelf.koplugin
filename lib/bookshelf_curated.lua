@@ -134,26 +134,37 @@ function M.ordered(name)
     return true
 end
 
--- addMany(name, fps) -> how many went on, at the end, with ONE write (a
--- write a book was seconds for a big selection on a device). A book already
--- there, a file that is not on the device (KOReader raises on one) and a
--- collection that does not exist are all passed over.
-function M.addMany(name, fps)
+-- addMany(name, fps [, opts]) -> how many went on, with ONE write (a write
+-- a book was seconds for a big selection on a device). By default they go
+-- after the books already there, in the order given. opts.first puts them in
+-- the first places instead, in the order given, and the books that were there
+-- keep their order after them. A book already there, a file that is not on
+-- the device (KOReader raises on one) and a collection that does not exist
+-- are all passed over.
+function M.addMany(name, fps, opts)
     local c = coll(name)
     if not c or type(fps) ~= "table" then return 0 end
     local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
-    local rc, n = RC(), 0
+    local first = type(opts) == "table" and opts.first == true
+    local before = first and M.books(name) or nil
+    local rc, added = RC(), {}
     for _i, fp in ipairs(fps) do
         local key = real(fp)
         if key and not c[key] and not (ok_lfs and lfs and not lfs.attributes(key)) then
-            if pcall(rc.addItem, rc, key, name) and c[key] then n = n + 1 end
+            if pcall(rc.addItem, rc, key, name) and c[key] then added[#added + 1] = key end
         end
     end
-    if n > 0 then
+    if #added > 0 then
         rc:write({ [name] = true })
+        if first then
+            local order = {}
+            for _i, key in ipairs(added) do order[#order + 1] = key end
+            for _i, key in ipairs(before) do order[#order + 1] = key end
+            M.setOrder(name, order)
+        end
         changed("curated add: " .. name)
     end
-    return n
+    return #added
 end
 
 function M.add(name, fp) return M.addMany(name, { fp }) == 1 end

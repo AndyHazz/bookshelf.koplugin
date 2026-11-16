@@ -85,12 +85,13 @@ function UI.state(list, paths)
     return on == #paths and "all" or "some"
 end
 
--- toggle(list, paths) -> how many books changed: every one of them goes on,
--- unless all are on already, when they come off.
-function UI.toggle(list, paths)
+-- toggle(list, paths [, opts]) -> how many books changed: every one of them
+-- goes on, unless all are on already, when they come off. opts.first: they go
+-- on in the first places (Curated.addMany).
+function UI.toggle(list, paths, opts)
     local C = Curated()
     if UI.state(list, paths) == "all" then return C.removeMany(list, paths) end
-    return C.addMany(list, paths)
+    return C.addMany(list, paths, opts)
 end
 
 -- freeName() -> a name for a shelf nobody named: "My shelf", or the first
@@ -135,21 +136,36 @@ end
 
 -- doneText(label, n, removed) -> what the reader is told once a tap in the
 -- chooser has put `n` books on the shelf `label` (or taken them off).
-function UI.doneText(label, n, removed)
+function UI.doneText(label, n, removed, first)
     if removed then
         if n == 1 then return T(_("Taken off %1"), label) end
         return T(_("%1 books taken off %2"), n, label)
+    end
+    if first then
+        if n == 1 then return T(_("Added to %1 in first place"), label) end
+        return T(_("%1 books added to %2 in the first places"), n, label)
     end
     if n == 1 then return T(_("Added to %1"), label) end
     return T(_("%1 books added to %2"), n, label)
 end
 
--- _page(paths, on_change, on_new) -> the chooser's page: one card a shelf,
--- on when every book is on it; then a way to make a shelf. on_change(label,
--- n, removed) after a tap changed a list: which shelf, how many books, and
--- whether they came off; on_new() asks for a new shelf.
-function UI._page(paths, on_change, on_new)
+-- _page(paths, on_change, on_new, place) -> the chooser's page: where books
+-- go (place.first), one card a shelf, on when every book is on it; then a
+-- way to make a shelf. on_change(label, n, removed, first) after a tap
+-- changed a list: which shelf, how many books, whether they came off and
+-- whether they went in the first places; on_new() asks for a new shelf.
+function UI._page(paths, on_change, on_new, place)
     local blocks = {}
+    -- Where a book goes on the shelf it is added to, for every shelf below:
+    -- the last place (the default) or the first. A choice of order, so it
+    -- reads the same on any shelf, whatever the shelf is for.
+    place = place or { first = false }
+    local strip = {
+        { type = "heading", text = _("Add in") },
+        { type = "segmented", active = place.first and "first" or "last",
+          items = { { key = "last", label = _("Last place") }, { key = "first", label = _("First place") } },
+          on_pick = function(key) if place.on_pick then place.on_pick(key == "first") end end },
+    }
     local shelves = UI.shelves()
     for _i, s in ipairs(shelves) do
         local st = UI.state(s.list, paths)
@@ -167,8 +183,8 @@ function UI._page(paths, on_change, on_new)
         blocks[#blocks + 1] = { type = "option", text = s.label, icon = UI.ICON_SHELF, desc = desc,
             on = st == "all",
             callback = function()
-                local n = UI.toggle(s.list, paths)
-                if n > 0 then on_change(s.label, n, st == "all") end
+                local n = UI.toggle(s.list, paths, { first = place.first })
+                if n > 0 then on_change(s.label, n, st == "all", place.first) end
             end }
     end
     if #shelves == 0 then
@@ -179,7 +195,7 @@ function UI._page(paths, on_change, on_new)
             and _("A shelf of books you pick, in the order you place them: a home shelf, a to-be-read pile. Kept as a KOReader collection.")
             or nil,
         callback = on_new }
-    return { blocks = blocks }
+    return { strip = strip, blocks = blocks }
 end
 
 -- pick{ paths, after_id, view_mode, on_done }: the chooser, for one book or
@@ -193,13 +209,14 @@ function UI.pick(opts)
     local UIManager = require("ui/uimanager")
     local changed = false
     local dialog
-    local function finish(label, n, removed)
+    local place = { first = false }
+    local function finish(label, n, removed, first)
         changed = true
         -- Its own dismiss: that is what runs on_close (on_done).
         if dialog then dialog:_dismiss() end
         pcall(function()
             UIManager:show(require("ui/widget/notification"):new{
-                text = UI.doneText(label, n, removed == true) })
+                text = UI.doneText(label, n, removed == true, first == true) })
         end)
     end
     local onChange = finish
@@ -217,9 +234,9 @@ function UI.pick(opts)
                 return
             end
             -- An existing collection of that name may hold some already.
-            Curated().addMany(tab.source.id, paths)
+            Curated().addMany(tab.source.id, paths, { first = place.first })
             opts.made_shelf = true
-            finish(tab.label, #paths, false)
+            finish(tab.label, #paths, false, place.first)
         end
         input = InputDialog:new{
             title = _("Shelf name"),
@@ -237,11 +254,16 @@ function UI.pick(opts)
     end
     dialog = require("lib/bookshelf_page_dialog").show{
         title = #paths == 1 and _("Add to shelf") or T(_("Add %1 books to shelf"), #paths),
-        page = function() return UI._page(paths, onChange, askName) end,
+        page = function() return UI._page(paths, onChange, askName, place) end,
         on_close = function()
             if opts.on_done then opts.on_done(changed, opts.made_shelf == true) end
         end,
     }
+    -- A tap on the other place lights it and lays the page out again.
+    place.on_pick = function(first)
+        place.first = first
+        if dialog and dialog.refresh then dialog:refresh() end
+    end
     return dialog
 end
 

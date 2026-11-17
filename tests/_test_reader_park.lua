@@ -78,7 +78,12 @@ package.loaded["ui/widget/booklist"] = {
 -- park() resolves this lazily via require("device").screen only when a
 -- pre-read rotation is recorded, so it stays inert for the other tests.
 local screen_rotation = 0
+-- Every inhibitInputUntil call, in order (issue 610).
+local inhibit_calls = {}
 package.loaded["device"] = {
+    input = {
+        inhibitInputUntil = function(_self, v) inhibit_calls[#inhibit_calls + 1] = v end,
+    },
     screen = {
         getRotationMode = function() return screen_rotation end,
         setRotationMode = function(_self, m) screen_rotation = m end,
@@ -250,6 +255,31 @@ end)
 t.test("unpark on a non-parked session is a false no-op", function()
     reset()
     assert(Park.unpark({}) == false)
+end)
+
+-- Issue 610: a parked reopen is instant, so it never passes through
+-- ReaderUI:init, which is where KOReader stops input while a book opens. The
+-- second tap of a double tap on the hero then landed on the reader and
+-- turned the page. The reopen starts the same guard KOReader gives any newly
+-- shown screen.
+t.test("unpark ignores input until the reader is on screen", function()
+    reset()
+    inhibit_calls = {}
+    local rui = makeRui("/books/a.epub")
+    ReaderUI.instance = rui
+    local shelf = { _stopStatusTimer = function() end }
+    UIManager._window_stack = { { widget = rui }, { widget = shelf } }
+    assert(Park.park(makePlugin(rui)) == true)
+    assert(Park.unpark(shelf) == true)
+    assert(#inhibit_calls == 1 and inhibit_calls[1] == true,
+        "a parked reopen must call Input:inhibitInputUntil(true)")
+end)
+
+t.test("a refused unpark leaves input alone", function()
+    reset()
+    inhibit_calls = {}
+    assert(Park.unpark({}) == false)
+    assert(#inhibit_calls == 0, "nothing reopened, so input must not be blocked")
 end)
 
 print("--- opportunistic finish (idle probe) ---")

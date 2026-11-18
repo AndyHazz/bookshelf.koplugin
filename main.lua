@@ -458,6 +458,11 @@ function Bookshelf:init()
     -- writer. With no competing plugin this is a harmless re-install of our
     -- own callback. Reader context only (self.ui.document set); a no-op in FM.
     if self.ui and self.ui.document then
+        -- Issue 610: this runs inside ReaderUI:init, with input off for the
+        -- load. Taps made meanwhile wait unread in the kernel's queue, and on
+        -- a slow device KOReader lifts the guard before reading them, so
+        -- they turned pages. Drop them when the guard lifts.
+        pcall(function() require("lib/bookshelf_input_guard").arm() end)
         UIManager:nextTick(function()
             self:_wireFastFileBrowserTab(true)
         end)

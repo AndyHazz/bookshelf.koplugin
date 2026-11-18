@@ -339,10 +339,15 @@ function Park.unpark(live_widget, after_open_callback)
     -- ReaderUI:init (input is off for the whole load); this reopen is instant
     -- and skips it, so the second tap of a double tap on the hero, or a tap
     -- while the page refreshed, landed on the reader and turned the page.
-    -- true = KOReader's own delay: 0.8 s on e-ink, 0.4 s elsewhere.
+    -- true = KOReader's own delay: 0.8 s on e-ink, 0.4 s elsewhere. Armed so
+    -- taps still queued when that lifts are dropped, not delivered (see
+    -- lib/bookshelf_input_guard).
     pcall(function()
         local Input = require("device").input
-        if Input and Input.inhibitInputUntil then Input:inhibitInputUntil(true) end
+        if Input and Input.inhibitInputUntil then
+            Input:inhibitInputUntil(true)
+            require("lib/bookshelf_input_guard").arm()
+        end
     end)
     if live_widget then
         if live_widget._stopStatusTimer then

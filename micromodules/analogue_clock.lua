@@ -257,7 +257,20 @@ return {
         if avail_h and avail_h > 0 then
             date_px = math.min(date_px, math.max(10, math.floor(avail_h * 0.16)))
         end
-        local date_h = math.floor(date_px * 1.4 + 0.5) -- one line incl. leading
+        -- The height the date line really takes, measured with the face it is
+        -- drawn in. It used to be estimated from date_px, but Font:getFace scales
+        -- its size by the screen again, so on a screen that scales a lot
+        -- (Auto DPI on a 300 dpi Kobo, about 2.2x) the line was ~40 px taller
+        -- than the reserve, the cell's content outgrew it and the date was
+        -- clipped at the bottom (discussion 615). The font size is left as it
+        -- was: it is how the date has always looked.
+        local date_h
+        do
+            local probe = TextWidget:new{
+                text = "Ag", face = Fonts:getFace("cfont", date_px, { italic = true }) }
+            date_h = probe:getSize().h
+            probe:free()
+        end
 
         -- small/medium are capped and centre in the natural left/right slack,
         -- with tight uniform vertical padding. "large" is inset by an equal,

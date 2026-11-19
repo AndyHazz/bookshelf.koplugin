@@ -88,4 +88,15 @@ t.test("no height (start menu, picker) keeps today's stacked layout", function()
     assert(side(560, nil) == false)
 end)
 
+-- Discussion 615: the date line's reserve was ESTIMATED as date_px * 1.4, but
+-- Font:getFace scales its size by the screen a second time, so on Auto DPI on
+-- a 300 dpi Kobo the real line was ~40 px taller, the content outgrew the cell
+-- and the date was clipped. The reserve must be the measured line height.
+t.test("the date reserve is measured from the face it is drawn in", function()
+    assert(not src:find("date_px%s*%*%s*1%.4"),
+        "date_h is estimated from date_px again: getFace scales it, so it under-reserves")
+    assert(src:find("date_h = probe:getSize%(%)%.h"),
+        "date_h should come from a TextWidget probe in the date face")
+end)
+
 t.done()

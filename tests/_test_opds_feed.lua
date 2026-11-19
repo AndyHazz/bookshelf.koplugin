@@ -264,6 +264,35 @@ eq(Feed.summaryText("A plain description with no headings."),
    "A plain description with no headings.", "summaryText passes plain text through")
 eq(Feed.summaryText(nil), nil, "summaryText tolerates nil")
 
+-- Kavita: <content> is only the MIME type, the blurb is in <summary> behind a
+-- "File Type: ... Summary:" prefix. The MIME type must not become the description.
+local KAVITA_SUMMARY = "File Type: x-cbz - 45.46 MB Summary: It's 1985, and things are fine."
+eq(Feed.summaryText("application/x-cbz"), nil, "summaryText drops a bare MIME type")
+eq(Feed.summaryText("  application/x-cbz\n"), nil, "summaryText drops a padded MIME type")
+eq(Feed.summaryText("Not a type: a/b is mentioned"), "Not a type: a/b is mentioned",
+   "summaryText keeps text that merely contains a slash")
+eq(Feed.summaryText(KAVITA_SUMMARY), "It's 1985, and things are fine.",
+   "summaryText strips Kavita's File Type prefix")
+eq(Feed.summaryText("File Type: x-cbz - 45.46 MB Summary: "), nil,
+   "summaryText: Kavita prefix with no blurb is no description")
+eq(Feed.entryBlurb({ content = "A summary.", summary = "S" }), "A summary.",
+   "entryBlurb prefers a real <content>")
+eq(Feed.entryBlurb({ content = "application/x-cbz", summary = "S" }), "S",
+   "entryBlurb skips a MIME <content> for <summary>")
+eq(Feed.entryBlurb({ summary = "S" }), "S", "entryBlurb falls back to <summary>")
+eq(Feed.entryBlurb({ content = "application/x-cbz" }), nil,
+   "entryBlurb: a lone MIME <content> is no description")
+do
+    local r = Feed.mapEntries({ feed = { entry = { {
+        title = "Friend of the Devil", author = { name = "Ed Brubaker" },
+        content = "application/x-cbz", summary = KAVITA_SUMMARY, id = "20",
+        link = { { rel = "http://opds-spec.org/acquisition/open-access",
+                   type = "application/x-cbz", href = "/dl/20.cbz" } },
+    } } } }, "http://h/opds/all", "k")
+    eq(r.records[1].opds.summary, "It's 1985, and things are fine.",
+       "a Kavita entry's saved description is the blurb, not the MIME type")
+end
+
 -- Calibre-Web (issue 490): its content block opens with a metadata header --
 -- RATING / TAGS / SERIES and custom columns, one "LABEL: value<br />" line
 -- each -- before the blurb's <p>. The header is not the description. Matched

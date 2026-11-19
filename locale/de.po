@@ -6134,6 +6134,10 @@ msgstr "Bookshelf aktualisiert auf v"
 msgid "Restart KOReader now?"
 msgstr "KOReader jetzt neu starten?"
 
+#: lib/bookshelf_updater.lua
+msgid "Close KOReader now? Open it again to finish the update."
+msgstr "KOReader jetzt schließen? Öffnen Sie es erneut, um das Update abzuschließen."
+
 #: lib/bookshelf_updater.lua:708
 msgid "Restart"
 msgstr "Neu starten"

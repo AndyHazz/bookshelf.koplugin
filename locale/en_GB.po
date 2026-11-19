@@ -6091,6 +6091,10 @@ msgstr ""
 msgid "Restart KOReader now?"
 msgstr ""
 
+#: lib/bookshelf_updater.lua
+msgid "Close KOReader now? Open it again to finish the update."
+msgstr ""
+
 #: lib/bookshelf_updater.lua:708
 msgid "Restart"
 msgstr ""

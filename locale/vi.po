@@ -6133,6 +6133,10 @@ msgstr "Sách đã được cập nhật lên v"
 msgid "Restart KOReader now?"
 msgstr "Khởi động lại KOReader bây giờ?"
 
+#: lib/bookshelf_updater.lua
+msgid "Close KOReader now? Open it again to finish the update."
+msgstr "Đóng KOReader ngay bây giờ? Hãy mở lại để hoàn tất cập nhật."
+
 #: lib/bookshelf_updater.lua:708
 msgid "Restart"
 msgstr "Khởi động lại"

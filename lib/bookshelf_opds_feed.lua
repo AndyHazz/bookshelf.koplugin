@@ -509,8 +509,31 @@ local function _calibreHeader(raw)
     return nil
 end
 
+-- Kavita puts the file's MIME type in <content> and the blurb in <summary>.
+local function _isMimeType(s)
+    return type(s) == "string"
+        and s:match("^%s*[%w!#$&^_.+-]+/[%w!#$&^_.+-]+%s*$") ~= nil
+end
+
+-- <content> unless it is only a MIME type, in which case <summary>.
+function M.entryBlurb(entry)
+    local c = entry.content
+    if c ~= nil and not _isMimeType(c) then return c end
+    return entry.summary
+end
+
 function M.summaryText(raw)
     if type(raw) ~= "string" then return raw end
+    -- A bare MIME type is no description (also cleans ones saved before this).
+    if _isMimeType(raw) then return nil end
+    -- Kavita's plain-text summary: "File Type: cbz - 45 MB Summary: <blurb>", or
+    -- just "File Type: cbz - 45 MB" when the chapter has none. Checked first,
+    -- as the blurb may itself hold HTML the Gutenberg match below would cut.
+    if raw:match("^%s*File Type:") then
+        local k = raw:match("^%s*File Type:[^\r\n]-Summary:%s*(.-)%s*$")
+        if k and k ~= "" then return k end
+        return nil
+    end
     local s = raw:match("Summary:%s*(.-)%s*</p>")
     if s and s ~= "" then return s end
     local cw = _calibreHeader(raw)
@@ -699,7 +722,7 @@ function M.mapEntries(catalog, feed_url, server_key)
             local author = entryAuthor(entry)
             local merge_key = (title and author) and (title .. "\0" .. author) or nil
             local existing = merge_key and book_by_key[merge_key]
-            local summary = M.summaryText(entry.content or entry.summary)
+            local summary = M.summaryText(M.entryBlurb(entry))
             if type(summary) ~= "string" then summary = nil end
             if existing then
                 local acq = existing.opds.acquisitions

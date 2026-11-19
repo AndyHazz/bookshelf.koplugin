@@ -275,6 +275,13 @@ eq(Feed.summaryText(KAVITA_SUMMARY), "It's 1985, and things are fine.",
    "summaryText strips Kavita's File Type prefix")
 eq(Feed.summaryText("File Type: x-cbz - 45.46 MB Summary: "), nil,
    "summaryText: Kavita prefix with no blurb is no description")
+eq(Feed.summaryText("File Type: cbz - 45.46 MB"), nil,
+   "summaryText: Kavita's no-summary form (no Summary:) is no description")
+eq(Feed.summaryText("File Type: cbz - 45.46 MB "), nil,
+   "summaryText: Kavita's no-summary form with trailing space is no description")
+eq(Feed.summaryText("File Type: epub - 1 MB Summary: <p>First para.</p><p>Second.</p>"),
+   "<p>First para.</p><p>Second.</p>",
+   "summaryText keeps a Kavita blurb's HTML whole (not cut at the first paragraph)")
 eq(Feed.entryBlurb({ content = "A summary.", summary = "S" }), "A summary.",
    "entryBlurb prefers a real <content>")
 eq(Feed.entryBlurb({ content = "application/x-cbz", summary = "S" }), "S",

@@ -526,14 +526,16 @@ function M.summaryText(raw)
     if type(raw) ~= "string" then return raw end
     -- A bare MIME type is no description (also cleans ones saved before this).
     if _isMimeType(raw) then return nil end
+    -- Kavita's plain-text summary: "File Type: cbz - 45 MB Summary: <blurb>", or
+    -- just "File Type: cbz - 45 MB" when the chapter has none. Checked first,
+    -- as the blurb may itself hold HTML the Gutenberg match below would cut.
+    if raw:match("^%s*File Type:") then
+        local k = raw:match("^%s*File Type:[^\r\n]-Summary:%s*(.-)%s*$")
+        if k and k ~= "" then return k end
+        return nil
+    end
     local s = raw:match("Summary:%s*(.-)%s*</p>")
     if s and s ~= "" then return s end
-    -- Kavita's plain-text summary: "File Type: x-cbz - 45 MB Summary: <blurb>".
-    local k = raw:match("^%s*File Type:[^\r\n]-Summary:%s*(.-)%s*$")
-    if k then
-        if k == "" then return nil end
-        return k
-    end
     local cw = _calibreHeader(raw)
     if cw == false then return nil end
     if cw then return cw end

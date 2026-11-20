@@ -446,6 +446,8 @@ function Bookshelf:init()
     -- menu_items yet — but ReaderMenu:init populates them synchronously
     -- during registerModule, before plugins load, so it's safe here.
     self:_wireFastFileBrowserTab()
+    -- File browser context: the "previous book" opens (issue 617).
+    self:_wirePreviousBookOpen()
 
     -- Re-assert ownership of that callback AFTER the reader is shown.
     -- Another home-screen-replacement plugin can wrap the same
@@ -1737,12 +1739,77 @@ end
 function Bookshelf:_wireFastFileBrowserTab(force)
     if not (self.ui and self.ui.document and self.ui.menu) then return end
     local menu_ref = self.ui.menu
+    local plugin = self
+    -- Newer KOReader (nightlies from October 2026) rebuilds the top-menu
+    -- buttons from getDefaultMenuButtons the first time the menu opens,
+    -- replacing the item wrapped below with a fresh one: the File browser tab
+    -- then went straight to the file browser (issue 617). Wrap each fresh
+    -- copy as it is made. Older KOReader has no such method; nothing to do.
+    if menu_ref.getDefaultMenuButtons and not rawget(menu_ref, "_bookshelf_defaults_hooked") then
+        menu_ref._bookshelf_defaults_hooked = true
+        local orig_defaults = menu_ref.getDefaultMenuButtons
+        menu_ref.getDefaultMenuButtons = function(m, ...)
+            local buttons = orig_defaults(m, ...)
+            if type(buttons) == "table" and type(buttons.filemanager) == "table" then
+                plugin:_wrapFileBrowserItem(menu_ref, buttons.filemanager)
+            end
+            return buttons
+        end
+    end
     if menu_ref._bookshelf_fm_tab_wrapped and not force then return end
     local items = menu_ref.menu_items
     if not (items and items.filemanager) then return end
+    self:_wrapFileBrowserItem(menu_ref, items.filemanager)
+    menu_ref._bookshelf_fm_tab_wrapped = true
+end
+
+-- KOReader's file browser opens the previous book from several places: the
+-- top menu's Reader icon (newer KOReader), the "Previous: ..." menu item and
+-- the "Open previous document" gesture. All of them call
+-- FileManager:onOpenLastDoc, which knows nothing of the shelf, so a book opened
+-- that way over the shelf closed back to the file browser instead (issue 617).
+-- When the shelf is what the user is looking at, open the book the shelf's
+-- way, so it is marked as opened from here (and a parked book is reused).
+-- Anywhere else, and for a missing file (KOReader's own message), KOReader's
+-- method runs unchanged.
+function Bookshelf:_wirePreviousBookOpen()
+    local fm = self.ui
+    if not fm or fm.document or type(fm.onOpenLastDoc) ~= "function" then return end
+    if rawget(fm, "_bookshelf_lastdoc_wrapped") then return end
+    fm._bookshelf_lastdoc_wrapped = true
+    local orig = fm.onOpenLastDoc
+    fm.onOpenLastDoc = function(fm_self, ...)
+        local w = _live_widget
+        local last = G_reader_settings:readSetting("lastfile")
+        if w and type(last) == "string" and Bookshelf._shelfIsFront(fm_self, w)
+                and require("libs/libkoreader-lfs").attributes(last, "mode") == "file" then
+            w:_openBook({ filepath = last }, nil, { no_effect = true })
+            return true
+        end
+        return orig(fm_self, ...)
+    end
+end
+
+-- True when the shelf is the full-screen layer on top: the topmost
+-- covers_fullscreen widget, not counting the file browser's own menu (its
+-- "Previous" item runs before the menu closes). False when the shelf is
+-- buried under another home screen or a reader.
+function Bookshelf._shelfIsFront(fm, shelf)
+    local stack = UIManager._window_stack
+    if not (stack and shelf) then return false end
+    local menu_container = fm and fm.menu and fm.menu.menu_container
+    for i = #stack, 1, -1 do
+        local w = stack[i].widget
+        if w == shelf then return true end
+        if w and w.covers_fullscreen and w ~= menu_container then return false end
+    end
+    return false
+end
+
+function Bookshelf:_wrapFileBrowserItem(menu_ref, item)
     local plugin = self
-    local prev_callback = items.filemanager.callback
-    items.filemanager.callback = function()
+    local prev_callback = item.callback
+    item.callback = function()
         if menu_ref.onTapCloseMenu then menu_ref:onTapCloseMenu() end
         -- Decoupled from "Start with" (issue #98): route back to Bookshelf
         -- whenever it is the live home — i.e. its widget is on the stack,
@@ -1794,7 +1861,6 @@ function Bookshelf:_wireFastFileBrowserTab(force)
             end)
         end
     end
-    menu_ref._bookshelf_fm_tab_wrapped = true
 end
 
 -- Close the live widget if showing, otherwise safe-show. Mirrors the

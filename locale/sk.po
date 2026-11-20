@@ -9889,3 +9889,6 @@ msgstr "Aktualizované pred %1h"
 
 #~ msgid "Current chip"
 #~ msgstr "Aktuálny čip"
+
+msgid "Read now"
+msgstr "Čítať teraz"

@@ -9879,3 +9879,6 @@ msgstr "Aggiornato %1h fa"
 
 #~ msgid "Show on-hold badge"
 #~ msgstr "Mostra distintivo «In sospeso»"
+
+msgid "Read now"
+msgstr "Leggi ora"

@@ -9886,3 +9886,6 @@ msgstr "Обновено преди %1 ч"
 
 #~ msgid "Show on-hold badge"
 #~ msgstr "Показване на значка за изчакване"
+
+msgid "Read now"
+msgstr "Прочети сега"

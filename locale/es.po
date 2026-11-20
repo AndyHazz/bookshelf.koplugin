@@ -6807,7 +6807,7 @@ msgstr "(sin título)"
 
 #: lib/bookshelf_widget_book_popup.lua:507 lib/bookshelf_widget_opds.lua:3258
 msgid "Read"
-msgstr "Leer"
+msgstr "Leído"
 
 #: lib/bookshelf_widget_book_popup.lua:526
 #: lib/bookshelf_widget_book_popup.lua:529

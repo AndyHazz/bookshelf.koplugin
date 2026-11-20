@@ -9743,3 +9743,6 @@ msgstr "Обновлено %1 ч назад"
 
 #~ msgid "Bookshelf: expand or collapse hero"
 #~ msgstr "Bookshelf: развернуть или свернуть карточку"
+
+msgid "Read now"
+msgstr "Читать сейчас"

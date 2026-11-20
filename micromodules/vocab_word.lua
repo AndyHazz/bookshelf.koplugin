@@ -15,18 +15,20 @@ the deck (persistent, resettable from the module settings).
 Key design: sdcv is called exactly ONCE per session, with ALL uncached words
 in a single batch (--utf8-input/output: a locale-less Kobo cannot convert
 non-ASCII queries without --utf8-input, so every accented word would fail to
-cache and never enter the rotation). Definitions are cached persistently in
-vocab_word_cache.json; after the batch every tap serves from cache — zero
-forks, zero OOM. The heavy init (sqlite reads + that one sdcv batch) runs
+cache and never enter the rotation), over the same dict folders KOReader's
+own dictionary searches (data/dict + data/dict_ext). Definitions — and the
+misses: a word no dictionary knows is cached empty, so the batch never
+re-runs for it — live persistently in vocab_word_cache.json; after the batch
+every tap serves from cache — zero forks, zero OOM. The heavy init (sqlite reads + that one sdcv batch) runs
 lazily on the FIRST render, never at module load: this file must load in
 standalone Lua (the headless contract test dofiles every micromodules/*.lua
 with only logger/i18n stubbed), and a blocking load would freeze the menu.
 
-Taps: the word line opens KOReader's DictQuickLookup popup with the full
-multi-dictionary results (ui = nil, so the reader-dependent buttons are
-disabled and the popup is safe from the shelf); "✓ I know it" marks the word;
-anywhere else advances. Tap zones are declared via ctx.set_tap_regions on
-hosts that provide it, with a screen-coordinate fallback for older ones.
+Taps: the word line hands off to the file browser's own dictionary
+(filemanager.instance.dictionary:onLookupWord), which opens the full
+DictQuickLookup popup with working buttons, exactly as a lookup from the
+reader gets it; "✓ I know it" marks the word; anywhere else advances. Tap
+zones are declared via ctx.set_tap_regions.
 ]]
 local _ = require("lib/bookshelf_i18n").gettext
 local logger = require("logger")
@@ -38,7 +40,8 @@ local KEY_FONT_SCALE = "micromodule_vocab_word_font_scale"  -- 80-150, default 1
 local KEY_DICT       = "micromodule_vocab_word_dict"         -- dictionary bookname or "all"
 local KEY_SHOW_CTX   = "micromodule_vocab_word_show_context" -- true: show the book sentence where the word was looked up
 local KEY_PREFER_DUE = "micromodule_vocab_word_prefer_due"   -- true: SRS review-due words come first in the deck
-local CACHE_VERSION  = 7   -- bump to force cache rebuild when data format changes
+local CACHE_VERSION  = 8   -- bump to force cache rebuild when data format changes
+                            -- (8: no more definition_raw in results; misses cached)
 
 -- Lazy requires: nothing below this point loads at module load time. The
 -- settings store is reached through this shim, and Kit/BFont/widgets are
@@ -121,16 +124,16 @@ local function readIfoBookname(path)
     return bookname
 end
 
--- Scan data/dict/ for all available StarDict dictionaries
+-- Scan the dict folders KOReader's own dictionary searches (data/dict +
+-- data/dict_ext) for all available StarDict dictionaries.
 -- Returns array of { name = "bookname", path = "/full/path/to/file.ifo" }
 local function findAvailableDictionaries()
     if _available_dicts then return _available_dicts end
     ensureDeps()
-    local dict_dir = DataStorage:getDataDir() .. "/data/dict"
-    local attr = lfs.attributes(dict_dir, "mode")
-    if attr ~= "directory" then
-        _available_dicts = {}
-        return _available_dicts
+    local data_dir = DataStorage:getDataDir()
+    local dict_dirs = { data_dir .. "/data/dict" }
+    if lfs.attributes(data_dir .. "/data/dict_ext", "mode") == "directory" then
+        dict_dirs[#dict_dirs + 1] = data_dir .. "/data/dict_ext"
     end
 
     local ok, result = pcall(function()
@@ -142,20 +145,22 @@ local function findAvailableDictionaries()
             end
         end
 
-        for file in lfs.dir(dict_dir) do
-            if file ~= "." and file ~= ".." then
-                local full = dict_dir .. "/" .. file
-                local mode = lfs.attributes(full, "mode")
-                if mode == "file" and file:match("%.ifo$") then
-                    addIfo(full)
-                elseif mode == "directory" then
-                    local ok_sub, sub_result = pcall(function()
-                        for sub in lfs.dir(full) do
-                            if sub ~= "." and sub ~= ".." and sub:match("%.ifo$") then
-                                addIfo(full .. "/" .. sub)
+        for _, dict_dir in ipairs(dict_dirs) do
+            for file in lfs.dir(dict_dir) do
+                if file ~= "." and file ~= ".." then
+                    local full = dict_dir .. "/" .. file
+                    local mode = lfs.attributes(full, "mode")
+                    if mode == "file" and file:match("%.ifo$") then
+                        addIfo(full)
+                    elseif mode == "directory" then
+                        local ok_sub, sub_result = pcall(function()
+                            for sub in lfs.dir(full) do
+                                if sub ~= "." and sub ~= ".." and sub:match("%.ifo$") then
+                                    addIfo(full .. "/" .. sub)
+                                end
                             end
-                        end
-                    end)
+                        end)
+                    end
                 end
             end
         end
@@ -174,10 +179,12 @@ local function findAvailableDictionaries()
 end
 
 -- ── Persistent definition cache ────────────────────────────────
--- Stores { word -> { word, results: [ { dict, definition_raw, definition }, ... ] } }
--- `results` holds every dictionary that knows this word (one entry per dictionary).
--- The card display picks the result matching the user's selected dictionary;
--- the popup receives the full array so the user can browse all dictionaries.
+-- Stores { word -> { word, results: [ { dict, definition }, ... ] } }
+-- `results` holds every dictionary that knows this word (one entry per
+-- dictionary); a word NO dictionary knows is stored with results = {} (a
+-- cached miss, so the batch never re-runs for it). The card display picks
+-- the result matching the user's selected dictionary; the popup is a live
+-- onLookupWord, so no raw HTML is kept.
 -- Saves to JSON. Survives KOReader restarts.
 -- After batchBuildCache(), all words are cached — sdcv is never called again.
 local _def_cache = {}
@@ -195,7 +202,7 @@ local function loadPersistentCache()
     local path = getCachePath()
     local attr = lfs.attributes(path, "mode")
     if attr ~= "file" then
-        logger.warn("[vocab_word] no cache file yet:", path)
+        logger.dbg("[vocab_word] no cache file yet:", path)
         return
     end
     local ok, data = pcall(function()
@@ -210,7 +217,7 @@ local function loadPersistentCache()
         -- Invalidate cache if format version changed (e.g. results array added)
         local cached_version = data.__cache_version
         if cached_version ~= CACHE_VERSION then
-            logger.warn("[vocab_word] cache version mismatch:", tostring(cached_version), "→", CACHE_VERSION, "-- rebuilding")
+            logger.dbg("[vocab_word] cache version mismatch:", tostring(cached_version), "→", CACHE_VERSION, "-- rebuilding")
             _def_cache = {}
             _cache_dirty = true
         else
@@ -219,7 +226,7 @@ local function loadPersistentCache()
             _def_cache.__cache_version = nil
             local n = 0
             for _ in pairs(_def_cache) do n = n + 1 end
-            logger.warn("[vocab_word] cache loaded:", n, "words")
+            logger.dbg("[vocab_word] cache loaded:", n, "words")
         end
     else
         logger.warn("[vocab_word] failed to load cache, starting fresh")
@@ -245,7 +252,7 @@ local function savePersistentCache()
         _cache_dirty = false
         local n = 0
         for _ in pairs(_def_cache) do n = n + 1 end
-        logger.warn("[vocab_word] cache saved:", n, "words")
+        logger.dbg("[vocab_word] cache saved:", n, "words")
     else
         logger.warn("[vocab_word] cache save error:", tostring(err))
     end
@@ -287,13 +294,24 @@ local function stripHtml(html)
     return s
 end
 
--- Parse definition HTML to extract word type and acepciones
-local function parseDefinition(html)
+-- Grammatical abbreviations worth relaying as the type (Spanish DRAE and
+-- common English shorthand).
+local TYPE_ABBR_ORDER = { "f.", "m.", "n.", "v.", "adj.", "tr.", "intr.", "adv.", "pron.", "prep.", "conj.", "interj." }
+
+-- Parse definition HTML to extract the type and the senses. The type is
+-- relayed AS THE DICTIONARY PRINTS IT — its own localized label
+-- ("Sustantivo", "Nom") or its own grammatical abbreviation ("m.", "n.") —
+-- never translated to another language.
+local function parseDefinition(html, word)
     if not html or html == "" then return nil end
 
     -- ── Strategy 1: reader.dict ES format ────────────────────
-    -- <b>Tipo</b> + <li>acepción</li>
+    -- <b>Tipo</b> + <li>acepción</li>. Some dictionaries (DIEC) put the
+    -- word itself in the first <b>: that is a header, not a type.
     local word_type = html:match("<b>([^<]+)</b>")
+    if word_type and word and word_type:lower() == word:lower() then
+        word_type = nil
+    end
 
     local acepciones = {}
     for li in html:gmatch("<li>([^<]*)</li>") do
@@ -340,9 +358,9 @@ local function parseDefinition(html)
             local clean = stripHtmlKeepNewlines(html)
             if clean and clean ~= "" then
                 for line in clean:gmatch("[^\n]+") do
-                    line = line:gsub("^%s+", ""):gsub("%s+$", "")
-                    if line ~= "" then
-                        acepciones[#acepciones + 1] = line
+                    local trimmed = line:gsub("^%s+", ""):gsub("%s+$", "")
+                    if trimmed ~= "" then
+                        acepciones[#acepciones + 1] = trimmed
                     end
                 end
             end
@@ -357,32 +375,17 @@ local function parseDefinition(html)
         end
     end
 
-    -- ── Strategy 4: derive type from grammatical abbreviations ─
-    -- Handles Spanish (DRAE: f., m., adj., tr., intr...) and common
-    -- English dictionary shorthand (n., v., adj., adv...).
-    local TYPE_ABBR_ORDER = { "f.", "m.", "n.", "v.", "adj.", "tr.", "intr.", "adv.", "pron.", "prep.", "conj.", "interj." }
-    local TYPE_ABBR_NAMES = {
-        ["f."]     = "Sustantivo femenino",
-        ["m."]     = "Sustantivo masculino",
-        ["n."]     = "Sustantivo",
-        ["v."]     = "Verbo",
-        ["adj."]   = "Adjetivo",
-        ["tr."]    = "Verbo transitivo",
-        ["intr."]  = "Verbo intransitivo",
-        ["adv."]   = "Adverbio",
-        ["pron."]  = "Pronombre",
-        ["prep."]  = "Preposición",
-        ["conj."]  = "Conjunción",
-        ["interj."] = "Interjección",
-    }
+    -- ── Strategy 4: relay the grammatical abbreviation ──────
+    -- DRAE-style and English dictionaries mark the type as a leading
+    -- abbreviation in the sense text ("m.", "com.", "n.", "v."...). Show
+    -- the dictionary's own abbreviation as the type, and strip it from
+    -- the senses so it doesn't appear twice.
     if not word_type and #acepciones > 0 then
         local first = acepciones[1]
-        for _, raw in ipairs(TYPE_ABBR_ORDER) do
-            local escaped = raw:gsub("%.", "%%.")
+        for _, abbr in ipairs(TYPE_ABBR_ORDER) do
+            local escaped = abbr:gsub("%.", "%%.")
             if first:match("^" .. escaped) then
-                word_type = TYPE_ABBR_NAMES[raw]
-                -- Strip the grammatical prefix from every acepción so it
-                -- doesn't appear twice (once as type, once in the text).
+                word_type = abbr
                 for i, a in ipairs(acepciones) do
                     acepciones[i] = a:gsub("^" .. escaped .. "%s*", "")
                 end
@@ -414,22 +417,14 @@ end
 -- (which causes OOM from multiple forks), we call it ONCE with all
 -- uncached words at module init. After that, everything is from cache.
 
--- Find sdcv binary
+-- sdcv, where KOReader's own dictionary finds it: the binary bundled in
+-- the install folder (the process runs with its cwd there), or the Android
+-- native library. Mirrors readerdictionary.lua.
 local function findSdcv()
-    ensureDeps()
-    local data_dir = DataStorage:getDataDir()
-    local candidates = {
-        data_dir .. "/../base/build/arm64-apple-darwin24.4.0-debug/sdcv",
-        data_dir .. "/../base/build/x86_64-linux-debug/sdcv",
-        data_dir .. "/sdcv",
-    }
-    for _, path in ipairs(candidates) do
-        local attr = lfs.attributes(path)
-        if attr and attr.mode == "file" then
-            return path
-        end
+    if android and android.nativeLibraryDir then
+        return android.nativeLibraryDir .. "/libsdcv.so"
     end
-    return nil
+    return "./sdcv"
 end
 
 -- Parse sdcv concatenated JSON output, respecting bracket depth
@@ -487,7 +482,7 @@ local function batchBuildCache()
     ensureDeps()
     local db_path = DataStorage:getSettingsDir() .. "/vocabulary_builder.sqlite3"
     if lfs.attributes(db_path, "mode") ~= "file" then
-        logger.warn("[vocab_word] no vocab DB yet")
+        logger.dbg("[vocab_word] no vocab DB yet")
         return
     end
 
@@ -506,7 +501,7 @@ local function batchBuildCache()
     conn:close()
 
     if #all_words == 0 then
-        logger.warn("[vocab_word] empty vocab DB")
+        logger.dbg("[vocab_word] empty vocab DB")
         return
     end
 
@@ -521,88 +516,92 @@ local function batchBuildCache()
     end
 
     if #uncached == 0 then
-        logger.warn("[vocab_word] all words already cached (", #all_words, ")")
+        logger.dbg("[vocab_word] all words already cached (", #all_words, ")")
         return
     end
 
-    logger.warn("[vocab_word] caching", #uncached, "uncached words:", table.concat(uncached, ", "))
+    logger.dbg("[vocab_word] caching", #uncached, "uncached words:", table.concat(uncached, ", "))
 
-    -- 3. Build sdcv command with all uncached words
+    -- 3. Build the batch: same binary and folders KOReader's own
+    -- dictionary uses (data/dict + data/dict_ext when the latter exists).
     local sdcv = findSdcv()
     if not sdcv then
         logger.warn("[vocab_word] sdcv not found")
         return
     end
 
-    local dict_dir = DataStorage:getDataDir() .. "/data/dict"
-    -- Always query every installed dictionary. The user's selected dictionary
-    -- only affects which result is shown on the card; the popup can browse all.
-    local parts = {
-        "'" .. sdcv .. "'",
-        "-2", "'" .. dict_dir .. "'",
-        "--json",
-    }
-    parts[#parts + 1] = "--exact-search"
-    parts[#parts + 1] = "--non-interactive"
-    parts[#parts + 1] = "--utf8-output"
-    -- Without --utf8-input, sdcv on a locale-less device (Kobo) cannot
-    -- convert non-ASCII queries ("Can not convert … to utf8"), so every
-    -- accented word fails to cache and never enters the random rotation.
-    parts[#parts + 1] = "--utf8-input"
-    parts[#parts + 1] = "--"
-    for _, w in ipairs(uncached) do
-        parts[#parts + 1] = "'" .. w:gsub("'", "'\''") .. "'"
-    end
-    local cmd = table.concat(parts, " ") .. " 2>/dev/null ; echo"
-
-    -- 4. ONE sdcv call for all uncached words
-    local ok_popen, output = pcall(function()
-        local handle = io.popen(cmd, "r")
-        if not handle then return nil end
-        local out = handle:read("*a")
-        handle:close()
-        return out
-    end)
-
-    if not ok_popen or not output or output == "" then
-        logger.warn("[vocab_word] batch sdcv failed")
-        return
+    local data_dir = DataStorage:getDataDir()
+    local dict_dirs = { data_dir .. "/data/dict" }
+    if lfs.attributes(data_dir .. "/data/dict_ext", "mode") == "directory" then
+        dict_dirs[#dict_dirs + 1] = data_dir .. "/data/dict_ext"
     end
 
-    logger.warn("[vocab_word] batch sdcv output length:", #output)
-
-    -- 5. Parse JSON chunks and cache each definition
-    local items = parseSDCVChunks(output)
-    local cached_count = 0
-    -- Group results by word (sdcv may return multiple dicts per word).
-    -- Even with --exact-search some dictionaries return related words
-    -- (e.g. "novela" also returns "novelar"); keep only exact matches.
+    -- Query every installed dictionary. The user's selected dictionary
+    -- only affects which result is shown on the card.
+    local any_success = false
     local word_results = {}
-    for _, item in ipairs(items) do
-        local word = item.word
-        local def_html = item.definition
-        local dict_name = item.dict
-        if word and def_html and word_set[word] then
-            if not word_results[word] then
-                word_results[word] = {}
+    for _, dict_dir in ipairs(dict_dirs) do
+        local parts = {
+            "'" .. sdcv .. "'",
+            "-2", "'" .. dict_dir .. "'",
+            "--json",
+        }
+        parts[#parts + 1] = "--exact-search"
+        parts[#parts + 1] = "--non-interactive"
+        parts[#parts + 1] = "--utf8-output"
+        -- Without --utf8-input, sdcv on a locale-less device (Kobo) cannot
+        -- convert non-ASCII queries ("Can not convert … to utf8"), so every
+        -- accented word fails to cache and never enters the random rotation.
+        parts[#parts + 1] = "--utf8-input"
+        parts[#parts + 1] = "--"
+        for _, w in ipairs(uncached) do
+            parts[#parts + 1] = "'" .. w:gsub("'", "'\''") .. "'"
+        end
+        local cmd = table.concat(parts, " ") .. " 2>/dev/null ; echo"
+
+        local ok_popen, output = pcall(function()
+            local handle = io.popen(cmd, "r")
+            if not handle then return nil end
+            local out = handle:read("*a")
+            handle:close()
+            return out
+        end)
+
+        if ok_popen and output and output ~= "" then
+            any_success = true
+            logger.dbg("[vocab_word] batch sdcv output length:", #output)
+            -- Group results by word (sdcv may return multiple dicts per word).
+            -- Even with --exact-search some dictionaries return related words
+            -- (e.g. "novela" also returns "novelar"); keep only exact matches.
+            for _, item in ipairs(parseSDCVChunks(output)) do
+                local word = item.word
+                local def_html = item.definition
+                if word and def_html and word_set[word] then
+                    local list = word_results[word]
+                    if not list then
+                        list = {}
+                        word_results[word] = list
+                    end
+                    list[#list + 1] = { dict = item.dict or "", definition_raw = def_html }
+                end
             end
-            word_results[word][#word_results[word] + 1] = {
-                dict = dict_name or "",
-                definition_raw = def_html,
-            }
+        else
+            logger.warn("[vocab_word] batch sdcv failed for", dict_dir)
         end
     end
 
+    -- 4. Parse and cache each definition (no raw HTML kept: the popup
+    -- re-queries live via onLookupWord, so the cache stores only what
+    -- the card itself displays).
+    local cached_count = 0
     for word, results_list in pairs(word_results) do
         if not _def_cache[word] then
-            -- Parse all definitions from every dictionary.
             local parsed_results = {}
             for _, r in ipairs(results_list) do
-                local ok_def, definition = pcall(parseDefinition, r.definition_raw)
+                local ok_def, definition = pcall(parseDefinition, r.definition_raw, word)
                 if ok_def and definition then
                     parsed_results[#parsed_results + 1] = {
                         dict = r.dict,
-                        definition_raw = r.definition_raw,
                         definition = definition,
                     }
                 else
@@ -613,7 +612,7 @@ local function batchBuildCache()
             if #parsed_results > 0 then
                 _def_cache[word] = {
                     word = word,
-                    -- Full results array for card display + DictQuickLookup popup.
+                    -- Full results array for card display.
                     -- The card picks the entry matching the selected dictionary.
                     results = parsed_results,
                 }
@@ -622,10 +621,25 @@ local function batchBuildCache()
         end
     end
 
-    if cached_count > 0 then
+    -- 5. Cache the misses too: a word no dictionary knows stays cached
+    -- (empty results), so the one-time batch never re-runs for it in
+    -- later sessions. Only when sdcv actually answered: a failed run
+    -- must not poison the cache. The deck skips entries with no results.
+    local miss_count = 0
+    if any_success then
+        for _, w in ipairs(uncached) do
+            if not _def_cache[w] then
+                _def_cache[w] = { word = w, results = {} }
+                miss_count = miss_count + 1
+            end
+        end
+    end
+
+    if cached_count > 0 or miss_count > 0 then
         _cache_dirty = true
         savePersistentCache()
-        logger.warn("[vocab_word] batch cached:", cached_count, "new words")
+        logger.dbg("[vocab_word] batch cached:", cached_count, "new words,",
+            miss_count, "misses")
     end
 end
 
@@ -676,7 +690,7 @@ local function loadVocabMeta()
     conn:close()
     local n = 0
     for _ in pairs(_vocab_meta) do n = n + 1 end
-    logger.warn("[vocab_word] vocab meta loaded:", n, "words")
+    logger.dbg("[vocab_word] vocab meta loaded:", n, "words")
 end
 
 -- ── Fetch from cache (zero sdcv calls at runtime) ─────────────
@@ -688,11 +702,6 @@ local _vocab_cache
 local TAP_DEBOUNCE_S = 2
 local _last_tap_at = 0
 
--- Word zone tracking: the absolute Y of the word within the cell,
--- used by on_tap to detect taps on the word vs elsewhere.
-local _word_zone_y = 0       -- absolute Y of word top in the cell
-local _word_zone_h = 0       -- height of the word widget
-local _word_zone_padding = 0 -- top padding before the word
 local _last_word_data = nil  -- word_data for the currently displayed word
 
 -- Pre-cache queue: smooth rotation between words
@@ -724,7 +733,7 @@ local function loadKnownWords()
     local stored = _known_store:get("known")
     if type(stored) == "table" then _known = stored end
     if knownCount() > 0 then
-        logger.warn("[vocab_word] known words loaded:", knownCount())
+        logger.dbg("[vocab_word] known words loaded:", knownCount())
     end
 end
 
@@ -763,8 +772,9 @@ local function rebuildDeck()
     end
     local due, rest = {}, {}
     local prefer_due = readPreferDue()
-    for w in pairs(_def_cache) do
-        if not _known[w] then
+    for w, entry in pairs(_def_cache) do
+        -- Misses (no dictionary knows the word) stay out of the deck.
+        if entry.results and #entry.results > 0 and not _known[w] then
             if prefer_due and isDueForReview(w) then
                 due[#due + 1] = w
             else
@@ -776,7 +786,7 @@ local function rebuildDeck()
     shuffleArray(rest)
     for i = 1, #due do _deck[i] = due[i] end
     for i = 1, #rest do _deck[#_deck + 1] = rest[i] end
-    logger.warn("[vocab_word] deck rebuilt:", #due, "due /", #rest, "later")
+    logger.dbg("[vocab_word] deck rebuilt:", #due, "due /", #rest, "later")
 end
 
 -- Draw the next word from the deck; rebuilds (reshuffles) when it runs
@@ -788,7 +798,9 @@ local function drawNextWord(current)
         -- Everything marked known: fall back to any cached word so the
         -- card never goes blank.
         local keys = {}
-        for k in pairs(_def_cache) do keys[#keys + 1] = k end
+        for k, entry in pairs(_def_cache) do
+            if entry.results and #entry.results > 0 then keys[#keys + 1] = k end
+        end
         if #keys == 0 then return nil end
         return _def_cache[keys[math.random(1, #keys)]]
     end
@@ -803,7 +815,7 @@ end
 local function pickNextWord()
     local data = drawNextWord(_last_word_data and _last_word_data.word)
     if not data then
-        logger.warn("[vocab_word] cache empty")
+        logger.dbg("[vocab_word] cache empty")
     end
     return data
 end
@@ -1070,7 +1082,7 @@ return {
             VerticalSpan:new{ dimen = { w = 1, h = sc(4) } },
         }
 
-        -- Word row: plain widget (tap region is handled by on_tap via ctx.tap_pos)
+        -- Word row: plain widget (its tap region is declared at the bottom)
         local current_word = word_data.word
 
         local word_widget = TextWidget:new{
@@ -1084,11 +1096,6 @@ return {
 
         local word_size = word_widget:getSize()
 
-        -- Store absolute word zone for tap detection in on_tap.
-        -- The word sits at cell_y + sc(4) padding from the top of the card.
-        _word_zone_y = 0  -- will be set after we know cell position
-        _word_zone_h = word_size.h
-        _word_zone_padding = sc(4)
         _last_word_data = word_data
 
         local spacer_w = math.max(0, width - word_size.w)
@@ -1236,9 +1243,7 @@ return {
 
         local card = VerticalGroup:new(items)
 
-        -- Tap regions (host >= Sep 2026): word zone → dictionary popup,
-        -- footer → mark as known. Hosts without ctx.set_tap_regions fall
-        -- back to the screen-coordinate word zone in on_tap.
+        -- Tap regions: word zone → dictionary popup, footer → mark as known.
         if ctx.set_tap_regions then
             local group_h = card:getSize().h
             ctx.set_tap_regions({
@@ -1253,19 +1258,18 @@ return {
 
     on_tap = function(ctx)
         lazyInit()
-        local UIManager = require("ui/uimanager")
 
         -- Debounce
         local now = os.time()
         if now - _last_tap_at < TAP_DEBOUNCE_S then return end
 
-        -- "✓ I know it" footer (tap region on hosts that support
-        -- ctx.set_tap_regions): mark the word as known and move on.
+        -- "✓ I know it" footer (tap region): mark the word as known and
+        -- move on.
         if ctx.tapped_region == "know" then
             if _last_word_data then
                 markWordKnown(_last_word_data.word)
                 purgeQueueWord(_last_word_data.word)
-                logger.warn("[vocab_word] marked as known:", _last_word_data.word,
+                logger.dbg("[vocab_word] marked as known:", _last_word_data.word,
                     "(" .. knownCount() .. " known)")
             end
             _last_tap_at = now
@@ -1273,88 +1277,17 @@ return {
             return true
         end
 
-        -- Word zone: tap region id on modern hosts; screen-coordinate
-        -- fallback (cell geometry) on hosts without ctx.set_tap_regions.
-        -- A hit shows the DictQuickLookup popup with full dictionary results.
-        local word_hit = (ctx.tapped_region == "word")
-        if not word_hit and ctx.tapped_region == nil
-                and ctx.tap_pos and ctx.cell_dimen and _last_word_data then
-            local tap_y = ctx.tap_pos.y
-            local cell_y = ctx.cell_dimen.y
-            -- Word zone: cell_y + padding ... cell_y + padding + word_height
-            local word_top = cell_y + _word_zone_padding
-            local word_bottom = word_top + _word_zone_h
-            word_hit = (tap_y >= word_top and tap_y <= word_bottom)
-        end
-
-        if word_hit and _last_word_data then
-            -- Build results array for DictQuickLookup from cached multi-dict data
-            local word = _last_word_data.word
-            local cached_results = _last_word_data.results
-
-            local dict_results
-            if cached_results and #cached_results > 0 then
-                -- Build DictQuickLookup results from every cached dictionary.
-                -- Put the currently selected dictionary first so the popup
-                -- opens on the same definition shown on the card.
-                dict_results = {}
-                local selected_dict = readSelectedDict()
-                for pass = 1, 2 do
-                    for _, r in ipairs(cached_results) do
-                        local is_selected = (selected_dict == "all" or r.dict == selected_dict)
-                        if (pass == 1 and is_selected) or (pass == 2 and not is_selected) then
-                            dict_results[#dict_results + 1] = {
-                                dict = r.dict,
-                                word = word,
-                                definition = r.definition_raw or "",
-                                is_html = true,
-                            }
-                        end
-                    end
-                end
-            else
-                -- Fallback: cache entry is from old version without 'results'.
-                -- Reconstruct from parsed data.
-                local def = _last_word_data.definition
-                local lines = {}
-                if def and def.type then
-                    lines[#lines + 1] = def.type
-                end
-                if def and def.acepciones and #def.acepciones > 0 then
-                    for i, a in ipairs(def.acepciones) do
-                        lines[#lines + 1] = i .. ". " .. a
-                    end
-                end
-                local plain_text = table.concat(lines, "\n")
-                if plain_text == "" then
-                    plain_text = _("(definition not available)")
-                end
-                dict_results = {
-                    {
-                        dict = _last_word_data.dict or "",
-                        word = word,
-                        definition = plain_text,
-                        is_html = false,
-                    },
-                }
+        -- Word zone: hand off to the file browser's own dictionary, which
+        -- opens the full DictQuickLookup popup with working buttons, exactly
+        -- as a lookup from the reader gets it. (A hand-built DictQuickLookup
+        -- with ui = nil errors in buildButtonLayout on both 2026.07.1 and
+        -- the current nightlies, and the host pcalls taps, so it failed
+        -- silently.)
+        if ctx.tapped_region == "word" and _last_word_data then
+            local filemanager = require("apps/filemanager/filemanager")
+            if filemanager.instance and filemanager.instance.dictionary then
+                filemanager.instance.dictionary:onLookupWord(_last_word_data.word)
             end
-
-            -- Import DictQuickLookup lazily
-            local DictQuickLookup = require("ui/widget/dictquicklookup")
-            -- Pass ui = nil so DictQuickLookup disables all ui-dependent
-            -- buttons (menu icon, search, highlight, wikipedia) and avoids crashes.
-            local dict_popup = DictQuickLookup:new{
-                word = word,
-                ui = nil,
-                results = dict_results,
-                -- Override: disable text selection callbacks that crash without ui
-                onHoldStartText = function() end,
-                onHoldPanText = function() end,
-                onHoldReleaseText = function() end,
-            }
-            -- Disable edit button callback (pencil icon crashes without ui)
-            dict_popup.onLookupInputWord = function() end
-            UIManager:show(dict_popup)
             _last_tap_at = now
             return true
         end

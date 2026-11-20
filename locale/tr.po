@@ -8454,3 +8454,6 @@ msgstr "%1 dk önce güncellendi"
 #: micromodules/weather.lua:462 micromodules/weather.lua:548
 msgid "Updated %1h ago"
 msgstr "%1 sa önce güncellendi"
+
+msgid "Read now"
+msgstr "Şimdi oku"

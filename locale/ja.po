@@ -9831,3 +9831,6 @@ msgstr "%1時間前更新"
 
 #~ msgid "Edit Hardcover link"
 #~ msgstr "Hardcoverのリンクを編集"
+
+msgid "Read now"
+msgstr "今すぐ読む"

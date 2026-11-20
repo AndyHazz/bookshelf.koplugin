@@ -6809,6 +6809,9 @@ msgstr "(kein Titel)"
 msgid "Read"
 msgstr "Gelesen"
 
+msgid "Read now"
+msgstr "Jetzt lesen"
+
 #: lib/bookshelf_widget_book_popup.lua:526
 #: lib/bookshelf_widget_book_popup.lua:529
 msgid "%1% read"

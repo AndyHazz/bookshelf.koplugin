@@ -6806,7 +6806,7 @@ msgstr "(không tiêu đề)"
 
 #: lib/bookshelf_widget_book_popup.lua:507 lib/bookshelf_widget_opds.lua:3258
 msgid "Read"
-msgstr "Đọc"
+msgstr "Đã đọc"
 
 #: lib/bookshelf_widget_book_popup.lua:526
 #: lib/bookshelf_widget_book_popup.lua:529
@@ -9817,3 +9817,6 @@ msgstr "Đã cập nhật %1h trước"
 
 #~ msgid "Edit Hardcover link"
 #~ msgstr "Chỉnh sửa liên kết Hardcover"
+
+msgid "Read now"
+msgstr "Đọc ngay"

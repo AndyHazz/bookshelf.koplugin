@@ -6816,7 +6816,7 @@ msgstr "(без названия)"
 
 #: lib/bookshelf_widget_book_popup.lua:507 lib/bookshelf_widget_opds.lua:3258
 msgid "Read"
-msgstr "Читать"
+msgstr "Прочитано"
 
 #: lib/bookshelf_widget_book_popup.lua:526
 #: lib/bookshelf_widget_book_popup.lua:529
@@ -9743,3 +9743,6 @@ msgstr "Обновлено %1 ч назад"
 
 #~ msgid "Bookshelf: expand or collapse hero"
 #~ msgstr "Bookshelf: развернуть или свернуть карточку"
+
+msgid "Read now"
+msgstr "Читать сейчас"

@@ -8657,3 +8657,6 @@ msgstr ""
 #~ "Reset the book detail area to default settings?\n"
 #~ "\n"
 #~ "All hero/detail text and font customisations will be lost. The Bookshelf UI font and shelf menu are unaffected."
+
+msgid "Read now"
+msgstr "Read now"

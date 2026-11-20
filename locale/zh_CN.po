@@ -9893,3 +9893,6 @@ msgstr "%1 小时前更新"
 
 #~ msgid "Show on-hold badge"
 #~ msgstr "显示搁置徽章"
+
+msgid "Read now"
+msgstr "立即阅读"

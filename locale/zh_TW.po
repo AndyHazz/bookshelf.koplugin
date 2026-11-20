@@ -9801,3 +9801,6 @@ msgstr "%1 小時前更新"
 
 #~ msgid "%1 p"
 #~ msgstr "%1 頁"
+
+msgid "Read now"
+msgstr "立即閱讀"

@@ -6811,7 +6811,7 @@ msgstr "(nincs cím)"
 
 #: lib/bookshelf_widget_book_popup.lua:507 lib/bookshelf_widget_opds.lua:3258
 msgid "Read"
-msgstr "Olvasás"
+msgstr "Elolvasva"
 
 #: lib/bookshelf_widget_book_popup.lua:526
 #: lib/bookshelf_widget_book_popup.lua:529
@@ -9867,3 +9867,6 @@ msgstr "Frissítve: %1 órával ezelőtt"
 
 #~ msgid "Turns off the micro-module hero view and its chip, removes micro-modules from the start menu and its add menu, and hides the \"Hero area starts with\" setting. Your module configuration is kept, so re-enabling restores everything."
 #~ msgstr "Kikapcsolja a micromodule hero nézetet és a hozzá tartozó chipet, eltávolítja a micromodule-okat a kezdőmenüből és a hozzáadás menüből, és elrejti a \"A hero area kezdőnézete\" beállítást. A modul-konfiguráció megmarad, így az újra engedélyezéssel minden visszaáll."
+
+msgid "Read now"
+msgstr "Olvasd el most"

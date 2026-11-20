@@ -23,13 +23,26 @@ local function fmtDate(y, m, d)
     return string.format("%04d-%02d-%02d", y, m, d)
 end
 
--- Whole-day difference (target - today). Both anchored at local noon so a DST
--- shift can't move the day boundary and miscount by one.
-local function daysUntil(y, m, d)
-    local target = os.time{ year = y, month = m, day = d, hour = 12 }
-    local now = os.date("*t")
-    now.hour, now.min, now.sec = 12, 0, 0
-    return math.floor((target - os.time(now)) / 86400 + 0.5)
+-- Days since 1970-01-01 for a calendar date, by arithmetic alone (the civil
+-- day count from Howard Hinnant's date algorithms). Not via a timestamp: on a
+-- 32-bit device (Kobo, older Kindles) time_t ends in 2038, so a later target
+-- came back as -1 and the count ran from 1970 instead (issue 616).
+local function dayNumber(y, m, d)
+    if m <= 2 then y = y - 1 end
+    local era = math.floor(y / 400)
+    local yoe = y - era * 400
+    local mp = (m + 9) % 12
+    local doy = math.floor((153 * mp + 2) / 5) + d - 1
+    local doe = yoe * 365 + math.floor(yoe / 4) - math.floor(yoe / 100) + doy
+    return era * 146097 + doe - 719468
+end
+
+-- Whole-day difference (target - today). Calendar dates, not timestamps, so
+-- neither a DST shift nor the 2038 limit can move it. `today` (a date table)
+-- is for tests; it defaults to the local date now.
+local function daysUntil(y, m, d, today)
+    today = today or os.date("*t")
+    return dayNumber(y, m, d) - dayNumber(today.year, today.month, today.day)
 end
 
 -- Date picker (defaults to `initial` or today) -> on_pick("YYYY-MM-DD").
@@ -72,8 +85,8 @@ local function pickLabel(initial, ok_text, on_done, on_cancel)
 end
 
 return {
-    -- Test hooks: the date maths is pure (daysUntil noon-anchors both ends
-    -- so DST can't miscount); the registry ignores underscore keys.
+    -- Test hooks: the date maths is pure (calendar day numbers, so neither
+    -- DST nor the 2038 limit can miscount); the registry ignores underscore keys.
     _parseDate = parseDate,
     _fmtDate   = fmtDate,
     _daysUntil = daysUntil,

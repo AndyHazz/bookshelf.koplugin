@@ -50,4 +50,23 @@ t.test("daysUntil: future and past whole-day counts", function()
     assert(spec._daysUntil(shifted(365)) == 365, "a year out")
 end)
 
+t.test("dayNumber matches known dates", function()
+    local T = function(y, m, d) return { year = y, month = m, day = d } end
+    assert(spec._daysUntil(1970, 1, 1, T(1970, 1, 1)) == 0)
+    assert(spec._daysUntil(2026, 11, 20, T(1970, 1, 1)) == 20777)
+    assert(spec._daysUntil(2000, 3, 1, T(2000, 2, 28)) == 2, "leap day 2000")
+    assert(spec._daysUntil(1900, 3, 1, T(1900, 2, 28)) == 1, "no leap day 1900")
+end)
+
+t.test("issue 616: a date past 2038 counts forward, not from 1970", function()
+    local today = { year = 2026, month = 11, day = 20 }
+    -- 2075-04-15 from 2026-11-20 (the reporter's numbers): 17678 days until.
+    assert(spec._daysUntil(2075, 4, 15, today) == 17678)
+    assert(spec._daysUntil(2140, 1, 1, today) > 0)
+    -- A 64-bit test machine can't fail the line above the way a Kobo did, so
+    -- also pin that the target never goes through os.time (32-bit time_t).
+    local src = io.open("micromodules/countdown.lua"):read("*a")
+    assert(not src:find("os.time", 1, true), "countdown must not call os.time")
+end)
+
 t.done()

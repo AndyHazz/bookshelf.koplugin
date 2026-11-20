@@ -9804,3 +9804,6 @@ msgstr "Оновлено %1г тому"
 
 #~ msgid "Installed version"
 #~ msgstr "Встановлена версія"
+
+msgid "Read now"
+msgstr "Читати зараз"

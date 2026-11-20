@@ -3255,7 +3255,7 @@ function BookshelfWidget:_opdsRunDownload(book, acq, dest, dialog)
 
             UIManager:show(require("ui/widget/confirmbox"):new{
                 text        = T(_("%1 downloaded. Read it now?"), title),
-                ok_text     = _("Read"),
+                ok_text     = _("Read now"),
                 -- Liveness guard: with the shelf gone (closed, or replaced by a
                 -- re-open), _launchReader would be stamping pre-read state onto
                 -- a dead widget.

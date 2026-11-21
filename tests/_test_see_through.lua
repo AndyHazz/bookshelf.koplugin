@@ -104,4 +104,68 @@ t.test("a failed copy is no keep, not an error at paint time", function()
     eq(See.take(screen, 0, 0, 5, 5), nil)
 end)
 
+-- Over a wallpaper (issue: "too faint over any wallpaper"): less shows
+-- through, and with the panel blur on, what shows is blurred.
+local function withPicture(blur, fn)
+    package.loaded["lib/bookshelf_wallpaper"] = {
+        isShowing = function() return true end,
+        blurOn = function() return blur end,
+    }
+    local real_blur = See._blur
+    local blurred = {}
+    See._blur = function(copy)
+        local b = fakeBB(copy.w, copy.h, copy.typ); b.soft_of = copy
+        blurred[#blurred + 1] = b
+        return b
+    end
+    local ok, err = pcall(fn, blurred)
+    See._blur = real_blur
+    package.loaded["lib/bookshelf_wallpaper"] = nil
+    if not ok then error(err, 0) end
+end
+
+t.test("over a wallpaper the book lets less through", function()
+    withPicture(false, function(blurred)
+        made = {}
+        local screen = fakeBB(600, 800, "T8")
+        local keep = See.take(screen, 0, 0, 10, 10)
+        eq(#blurred, 0, "no blur unless the panel blur is on")
+        See.put(keep, screen, 0.6)
+        eq(screen.calls[1][9], See.OVER_PICTURE)
+        assert(See.OVER_PICTURE < 0.6)
+    end)
+end)
+
+t.test("with the panel blur on, the blurred patch is what is mixed in", function()
+    withPicture(true, function(blurred)
+        made = {}
+        local screen = fakeBB(600, 800, "T8")
+        local keep = See.take(screen, 0, 0, 10, 10)
+        eq(#blurred, 1)
+        eq(made[1].freed, true, "the sharp copy is freed")
+        See.put(keep, screen, 0.6)
+        assert(screen.calls[1][2] == blurred[1], "mixed in blurred")
+        eq(blurred[1].freed, true)
+    end)
+end)
+
+t.test("a blur that fails leaves the sharp copy, still faded", function()
+    withPicture(true, function()
+        See._blur = function() error("boom") end
+        made = {}
+        local screen = fakeBB(600, 800, "T8")
+        local keep = See.take(screen, 0, 0, 10, 10)
+        assert(keep, "still a keep")
+        See.put(keep, screen, 0.6)
+        assert(screen.calls[1][2] == made[1], "the sharp copy")
+    end)
+end)
+
+t.test("no wallpaper: the strength is the caller's", function()
+    made = {}
+    local screen = fakeBB(600, 800, "T8")
+    See.put(See.take(screen, 0, 0, 10, 10), screen, 0.6)
+    eq(screen.calls[1][9], 0.6)
+end)
+
 t.done()

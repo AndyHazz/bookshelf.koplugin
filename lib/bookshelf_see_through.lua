@@ -15,8 +15,46 @@
 -- One buffer the book's size in the target's own type and two blits a faded
 -- book; nothing for a book that is not faded. Every step is guarded: a
 -- target that cannot be read just leaves the book solid.
+--
+-- Over a wallpaper the same share washed a busy print straight through the
+-- cover ("too faint over any wallpaper", maintainer on the PW5), so a book
+-- there lets less of it through (OVER_PICTURE), and with Blur wallpaper behind
+-- panels on, what shows through is blurred the way a panel's backdrop is.
 
 local M = {}
+
+-- The most of what is behind that shows through a book over a wallpaper.
+M.OVER_PICTURE = 0.5
+
+-- The wallpaper module when it is loaded and a picture is on screen, else nil.
+-- Read from package.loaded: a shelf with no wallpaper never loads it for this.
+local function picture()
+    local W = package.loaded["lib/bookshelf_wallpaper"]
+    if type(W) ~= "table" or type(W.isShowing) ~= "function" then return nil end
+    local ok, on = pcall(W.isShowing)
+    return (ok and on) and W or nil
+end
+
+-- blurred(copy) -> a blurred copy of the patch (the panel blur's own
+-- arithmetic, lib/bookshelf_frost), or nil when the type is not one it knows.
+-- The patch is its own region: no margin outside the book to read.
+function M._blur(copy)
+    local Blitbuffer = require("ffi/blitbuffer")
+    local typ = copy:getType()
+    local grey = typ == Blitbuffer.TYPE_BB8
+    if not (grey or typ == Blitbuffer.TYPE_BBRGB32) then return nil end
+    local ffi = require("ffi")
+    local Frost = require("lib/bookshelf_frost")
+    local w, h = copy:getWidth(), copy:getHeight()
+    local out = Blitbuffer.new(w, h, typ)
+    local ok = pcall(Frost.blur,
+        ffi.cast("uint8_t *", copy.data), tonumber(copy.stride), grey and 1 or 4, grey and 1 or 3,
+        w, h, 0, 0, w, h, ffi.cast("uint8_t *", out.data), tonumber(out.stride),
+        (not grey) and 255 or nil,
+        function(n) return ffi.new("double[?]", math.max(1, n)) end)
+    if not ok then out:free(); return nil end
+    return out
+end
 
 -- take(bb, x, y, w, h) -> keep | nil. The rect is cut to the target.
 function M.take(bb, x, y, w, h)
@@ -34,6 +72,14 @@ function M.take(bb, x, y, w, h)
         local copy = Blitbuffer.new(cw, ch, bb:getType())
         copy:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, x0, y0, cw, ch)
         keep = { bb = copy, x = x0, y = y0, w = cw, h = ch }
+        local W = picture()
+        if W then
+            keep.over_picture = true
+            if type(W.blurOn) == "function" and W.blurOn() then
+                local ok_b, soft = pcall(M._blur, copy)
+                if ok_b and soft then copy:free(); keep.bb = soft end
+            end
+        end
     end)
     if not ok then
         if keep and keep.bb and keep.bb.free then pcall(keep.bb.free, keep.bb) end
@@ -47,6 +93,7 @@ end
 function M.put(keep, bb, strength)
     if not keep then return false end
     local done = false
+    if strength and keep.over_picture then strength = math.min(strength, M.OVER_PICTURE) end
     if strength and strength > 0 then
         done = pcall(function()
             bb:addblitFrom(keep.bb, keep.x, keep.y, 0, 0, keep.w, keep.h, math.min(1, strength))

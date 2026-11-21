@@ -18,8 +18,10 @@ non-ASCII queries without --utf8-input, so every accented word would fail to
 cache and never enter the rotation), over the same dict folders KOReader's
 own dictionary searches (data/dict + data/dict_ext). Definitions — and the
 misses: a word no dictionary knows is cached empty, so the batch never
-re-runs for it — live persistently in vocab_word_cache.json; after the batch
-every tap serves from cache — zero forks, zero OOM. The heavy init (sqlite reads + that one sdcv batch) runs
+re-runs for it (until the installed dictionary set changes, when cached
+misses are dropped for a re-check) — live persistently in
+vocab_word_cache.json; after the batch every tap serves from cache — zero
+forks, zero OOM. The heavy init (sqlite reads + that one sdcv batch) runs
 lazily on the FIRST render, never at module load: this file must load in
 standalone Lua (the headless contract test dofiles every micromodules/*.lua
 with only logger/i18n stubbed), and a blocking load would freeze the menu.
@@ -190,6 +192,12 @@ end
 local _def_cache = {}
 local _cache_path = nil
 local _cache_dirty = false
+-- Dictionary names the cached misses were looked up under, and the ones
+-- installed at the last batch (stamped into the cache on save; misses are
+-- dropped on load when the set changed, so a newly installed dictionary
+-- gets a chance at words it might know).
+local _cache_dicts = nil
+local _batch_dicts = nil
 
 local function getCachePath()
     if _cache_path then return _cache_path end
@@ -219,11 +227,14 @@ local function loadPersistentCache()
         if cached_version ~= CACHE_VERSION then
             logger.dbg("[vocab_word] cache version mismatch:", tostring(cached_version), "→", CACHE_VERSION, "-- rebuilding")
             _def_cache = {}
+            _cache_dicts = nil
             _cache_dirty = true
         else
             _def_cache = data
             -- Remove version key from cache entries (not a word)
             _def_cache.__cache_version = nil
+            _cache_dicts = type(data.__dicts) == "table" and data.__dicts or nil
+            _def_cache.__dicts = nil
             local n = 0
             for _ in pairs(_def_cache) do n = n + 1 end
             logger.dbg("[vocab_word] cache loaded:", n, "words")
@@ -239,10 +250,13 @@ local function savePersistentCache()
     if not _cache_dirty then return end
     local path = getCachePath()
     local ok, err = pcall(function()
-        -- Stamp version into cache before saving
+        -- Stamp version (and the dictionary names the misses were cached
+        -- under) into the cache before saving
         _def_cache.__cache_version = CACHE_VERSION
+        _def_cache.__dicts = _batch_dicts
         local content = JSON.encode(_def_cache)
         _def_cache.__cache_version = nil  -- remove from live cache
+        _def_cache.__dicts = nil
         local f = io.open(path, "w")
         if not f then return nil end
         f:write(content)
@@ -505,6 +519,40 @@ local function batchBuildCache()
         return
     end
 
+    -- Drop cached misses when the installed dictionary set changed (or an
+    -- older cache never recorded it): a word that missed before a
+    -- dictionary was installed deserves a re-check. They re-enter the
+    -- batch as uncached below. findAvailableDictionaries() is memoized.
+    local names_now = {}
+    for _, d in ipairs(findAvailableDictionaries()) do
+        names_now[#names_now + 1] = d.name
+    end
+    local dicts_changed = (_cache_dicts == nil)
+    if _cache_dicts then
+        if #_cache_dicts ~= #names_now then
+            dicts_changed = true
+        else
+            for i, name in ipairs(_cache_dicts) do
+                if name ~= names_now[i] then dicts_changed = true break end
+            end
+        end
+    end
+    if dicts_changed then
+        local dropped = 0
+        for w, entry in pairs(_def_cache) do
+            if entry.results and #entry.results == 0 then
+                _def_cache[w] = nil
+                dropped = dropped + 1
+            end
+        end
+        if dropped > 0 then
+            _cache_dirty = true
+            logger.dbg("[vocab_word] dictionary set changed: dropped",
+                dropped, "cached misses for a re-check")
+        end
+    end
+    _batch_dicts = names_now
+
     -- 2. Filter already cached + build word set for exact-match filtering
     local word_set = {}
     local uncached = {}
@@ -567,7 +615,11 @@ local function batchBuildCache()
             return out
         end)
 
-        if ok_popen and output and output ~= "" then
+        -- The trailing "; echo" in cmd makes the output non-empty even
+        -- when sdcv itself produced nothing, so the success test is a
+        -- literal "[": a healthy sdcv answers in JSON arrays, a crashed
+        -- one leaves only the echo's newline.
+        if ok_popen and output and output:find("[", 1, true) then
             any_success = true
             logger.dbg("[vocab_word] batch sdcv output length:", #output)
             -- Group results by word (sdcv may return multiple dicts per word).

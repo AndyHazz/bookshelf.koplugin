@@ -37,9 +37,15 @@ local Curated = {
     books = function(id) return lists[id] or {} end,
     count = function(id) return #(lists[id] or {}) end,
 }
-Curated.addMany = function(id, fps)
+Curated.addMany = function(id, fps, opts)
     local n = 0
-    for _i, fp in ipairs(fps) do if Curated.add(id, fp) then n = n + 1 end end
+    local first = type(opts) == "table" and opts.first == true
+    for _i, fp in ipairs(fps) do
+        if first then
+            -- the first places, in the order given (the real one is covered in _test_curated_add_place.lua)
+            if Curated.has(id, fp) == false and lists[id] then table.insert(lists[id], n + 1, fp); n = n + 1 end
+        elseif Curated.add(id, fp) then n = n + 1 end
+    end
     return n
 end
 Curated.removeMany = function(id, fps)
@@ -538,6 +544,48 @@ t.test("collectionName: the collection's name, or Favorites for the Favorites sh
         local src = io.open(f):read("*a")
         assert(src:find("collectionName(", 1, true), f .. " names the collection from source.id")
     end
+end)
+
+-- ── where books go: the last place (the default) or the first ────────────
+
+t.test("the chooser offers where books go, last place by default", function()
+    reset()
+    local model = UI._page({ "/b/q" }, function() end, function() end)
+    eq(model.strip[2].type, "segmented")
+    eq(model.strip[2].active, "last")
+    eq(#model.strip[2].items, 2)
+    -- The shelf cards stay where they were, so the strip is not among them.
+    assert(model.blocks[1].text == "Best of 2026", "the strip pushed the shelves down")
+end)
+
+t.test("picking the first place is told to whoever laid the page out", function()
+    reset()
+    local picked
+    local place = { first = false, on_pick = function(first) picked = first end }
+    local model = UI._page({ "/b/q" }, function() end, function() end, place)
+    model.strip[2].on_pick("first")
+    eq(picked, true)
+    model.strip[2].on_pick("last")
+    eq(picked, false)
+    place.first = true
+    eq(UI._page({ "/b/q" }, function() end, function() end, place).strip[2].active, "first")
+end)
+
+t.test("a tap with the first place chosen puts the books in the first places", function()
+    reset()
+    Curated.addMany("Best of 2026", { "/b/old" })
+    local got
+    local place = { first = true }
+    UI._page({ "/b/q", "/b/r" }, function(label, n, removed, first) got = { n, removed, first } end,
+        function() end, place).blocks[1].callback()
+    eq(table.concat(Curated.books("Best of 2026"), " "), "/b/q /b/r /b/a /b/old")
+    eq(got[1], 2); eq(got[2], false); eq(got[3], true)
+end)
+
+t.test("what the reader is told when books went in the first places", function()
+    eq(UI.doneText("TBR", 1, false, true), "Added to TBR in first place")
+    eq(UI.doneText("TBR", 3, false, true), "3 books added to TBR in the first places")
+    eq(UI.doneText("TBR", 3, true, true), "3 books taken off TBR", "taking off ignores the place")
 end)
 
 t.done()

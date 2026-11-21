@@ -569,7 +569,9 @@ H.test("a Plain box shows no picture: the name and count stay where they were", 
     package.loaded["lib/bookshelf_image_source"]=saved
 end)
 
-H.test("the native planner paginates boxes as single slots and resumes inside compacted groups", function()
+-- nativePlan(faces) -> plan(items, opts): SpineShelf.plan compiled over a
+-- stub shelf. Every book faces out unless faces is false.
+local function nativePlan(faces)
     local SL=require("lib/bookshelf_spine_layout")
     local shelf={_flattenItems=native_flatten,VIEW_SIN=.2,FACE_GAP_DP=8,
         faceOutSpec=function() return {all=true} end,recentSet=function() end,
@@ -577,7 +579,7 @@ H.test("the native planner paginates boxes as single slots and resumes inside co
         persistProgress=function() end,prefetchFacts=function() end,
         markSeriesHeads=function() end,thicknessPages=function() return 300 end,textThicken=function() return 1 end,
         -- Every book faces out (faceOutSpec above), as SpineShelf.facesOut answers it.
-        facesOut=function(_spec,_f,src) return src.filepath ~= nil end,
+        facesOut=function(_spec,_f,src) return src.filepath ~= nil and faces ~= false end,
         -- SpineShelf.faceOutCover, as plan() sizes a face-out's cover.
         faceOutCover=function(row_h,aspect,ha)
             local Scr=package.loaded.device.screen
@@ -605,6 +607,11 @@ H.test("the native planner paginates boxes as single slots and resumes inside co
         end,
     }
     local plan=compile("return function(items,opts)\n"..plan_body.."\nend",pe)()
+    return plan
+end
+
+H.test("the native planner paginates boxes as single slots and resumes inside compacted groups", function()
+    local plan=nativePlan()
     local list={}
     for i=1,10 do list[#list+1]={series_name="Saga "..i,books=members(3,"Saga "..i,"/s"..i)} end
     local items=Boxes.prepare(list)
@@ -673,6 +680,94 @@ H.test("native row construction routes taps and projected shadows through the se
     for i,col in ipairs(columns) do
         for k,v in pairs(expected[i]) do H.eq(col[k],v) end
     end
+end)
+
+H.test("a box inside an author's run stands at the book gap, not the face-out gap (620)", function()
+    local plan=nativePlan(false)
+    local loose=book(9,nil,"/loose"); loose.series_name=nil
+    local raw={kind="author",label="Author",books={}}
+    for _,b in ipairs(members(2,"Saga A","/a")) do raw.books[#raw.books+1]=b end
+    for _,b in ipairs(members(2,"Saga B","/b")) do raw.books[#raw.books+1]=b end
+    raw.books[#raw.books+1]=loose
+    local other={kind="author",label="Other",books={book(1,nil,"/o"),book(2,nil,"/o")}}
+    other.books[1].series_name, other.books[2].series_name = nil, nil
+    local items=Boxes.prepare({raw,other})
+    local p=plan(items,{row_h=240,content_w=2000,n_rows=1,gap=3,group_gap=20,balance=false})
+    local e=p.entries
+    H.eq(#e,5,"two boxes, the loose book, the other author's two books")
+    assert(e[1].series_box and e[2].series_box and not e[3].series_box)
+    H.eq(e[1].run_idx,e[3].run_idx,"the boxes left the author's run")
+    H.eq(e[2].gap_before,3,"box beside box in one author: the face-out gap split the run")
+    H.eq(e[3].gap_before,3,"book after a box in one author: the face-out gap split the run")
+    H.eq(e[4].gap_before,20,"the author boundary lost its group gap")
+    -- On the Series chip a box is its own item and keeps its air.
+    local own=plan(Boxes.prepare({{series_name="X",books=members(2,"X","/x")},
+        {series_name="Y",books=members(2,"Y","/y")}}),
+        {row_h=240,content_w=2000,n_rows=1,gap=3,group_gap=3,balance=false})
+    assert(own.entries[2].gap_before>3, "boxes of their own lost the face-out gap")
+end)
+
+H.test("a box inside an author's run sits under the author's label; a box of its own gets none (620)", function()
+    local box=Boxes.box(members(3,"Saga"),"Saga")
+    local shape=Boxes.geometry(box,{w=160,face_h=240,depth=8,h=248},{content_w=800})
+    local shelf={bookLook=function() return {r=90,g=120,b=80} end, shownLook=function() return {r=90,g=120,b=80} end,
+        plankUnit=function() return 10 end,plankFace=function() return 20 end,
+        plankInset=function() return 5 end,plankSurface=function() return 10 end,
+        plankDesignWidget=function() end,endMargin=function() return 10 end,
+        shadowsEnabled=function() return false end,
+    }
+    local body=assert(shelf_source:match("function SpineShelf%.rowWidget%(opts%)\n(.-)\nend"))
+    local row=compile("return function(opts)\n"..body.."\nend",{
+        SpineShelf=shelf,Geom=W,Widget=W,ShelfPlank=W,ShelfBadges=W,SpineBookSlot=W,
+        Screen=package.loaded.device.screen,_gettime=function() return 0 end,
+        _nightMode=function() return false end,RECESS_HALO_DP=2,RECESS_SIDE_DP=2,
+        require=function(name)
+            if name=="lib/bookshelf_wallpaper" then return {shadeRect=function() end} end
+            if name=="ui/widget/horizontalgroup" or name=="ui/widget/horizontalspan"
+                or name=="ui/widget/overlapgroup" then return W end
+            return require(name)
+        end,
+    })()
+    local author={kind="author",label="Moberg",books=box.books}
+    local function badges(item, section)
+        local entry={book=box,item=item,run_idx=1,w=shape.w,h=shape.h,series_box=shape,face_out=true,
+            section_label=section}
+        local out=row{plan={entries={entry}},row={first=1,last=1},width=800,height=320,gap=10,callbacks={}}
+        return out._shelf_badges
+    end
+    local b=badges(author)
+    assert(b and b.spans and #b.spans==1, "an author whose books are all in a box lost its label")
+    H.eq(b.spans[1].w,shape.w)
+    H.eq(badges(box),nil,"a box of its own got a label under its own name")
+    local f=badges(box,"Adventure")
+    assert(f and f.spans and f.spans[1].label=="Adventure", "a box in a Home folder's run lost the folder's label")
+end)
+
+H.test("a box keeps its books' section and never spans two sections (620)", function()
+    local function tagged(n, series, label, path)
+        local b=book(n,series,path); b.shelf_section, b.shelf_section_path = label, path
+        return b
+    end
+    -- Home folders: sections with paths.
+    local out=Boxes.prepare({tagged(1,"Saga","Adventure","/adv"),tagged(2,"Saga","Adventure","/adv"),
+        tagged(3,nil,"Adventure","/adv")})
+    H.eq(#out,2)
+    assert(Boxes.isBox(out[1]))
+    H.eq(out[1].shelf_section,"Adventure","the box left its folder's run")
+    H.eq(out[1].shelf_section_path,"/adv")
+    -- A shelf of shelves' spill: labels, no paths.
+    out=Boxes.prepare({tagged(1,"Saga","Shelf A"),tagged(2,"Saga","Shelf A"),
+        tagged(3,"Saga","Shelf B"),tagged(4,"Saga","Shelf B")})
+    H.eq(#out,2,"one series from two shelves became one box")
+    H.eq(out[1].shelf_section,"Shelf A"); H.eq(out[2].shelf_section,"Shelf B")
+    assert(out[1]._series_box_key~=out[2]._series_box_key, "two shelves' boxes share a key")
+    -- The planner's runs: the box stands in its section's run.
+    local runs=native_flatten(Boxes.prepare({tagged(9,nil,"Adventure","/adv"),tagged(1,"Saga","Adventure","/adv"),
+        tagged(2,"Saga","Adventure","/adv"),tagged(3,nil,"Adventure","/adv")}))
+    H.eq(#runs,3)
+    H.eq(runs[1].run_idx,runs[2].run_idx,"the box broke its folder's run")
+    H.eq(runs[2].run_idx,runs[3].run_idx,"the box broke its folder's run")
+    H.eq(runs[2].section_label,"Adventure")
 end)
 
 H.test("a box's sticker is kept between page turns, scaled in C", function()

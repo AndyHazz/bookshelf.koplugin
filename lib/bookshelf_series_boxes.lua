@@ -49,14 +49,18 @@ function M.box(books, title, original, light_meta)
     }
     table.sort(members, cmp)
     local box = copy(original)
-    box.filepath, box.path, box.shelf_section, box.shelf_section_path = nil, nil, nil, nil
+    box.filepath, box.path = nil, nil
+    -- The section its books came from (a Home folder, a shelf spilled into
+    -- a shelf of shelves) stays: the box is one of that run's books, under
+    -- its label, not a break in it (issue 620). prepare() never boxes books
+    -- from two sections together.
     box.kind, box.series_name, box.label, box.name = "series", title, title, title
     box.title, box.display_title = title, title
     box.books, box.first_book, box.book_count = members, members[1], #members
     box.books_meta = nil
     box.author, box.authors = members[1].author, members[1].authors
     box._series_box = true
-    box._series_box_key = (original and original.shelf_section_path or "") .. "\0" .. title
+    box._series_box_key = (original and (original.shelf_section_path or original.shelf_section) or "") .. "\0" .. title
     box._series_display_books = nil
     box._series_sort_book = copy(original or members[1])
     -- A box has no reading status of its own, nor a borrowed cover buffer.
@@ -99,7 +103,9 @@ function M.prepare(items, light_meta)
         elseif item.filepath and name(item) and not item.is_remote then
             -- Distinct physical sections may contain different editions of
             -- a series: do not silently merge those collections together.
-            local key = (item.shelf_section_path or "") .. "\0" .. name(item)
+            -- A section with no path (a shelf of shelves' spill) is told
+            -- apart by its label.
+            local key = (item.shelf_section_path or item.shelf_section or "") .. "\0" .. name(item)
             local g = groups[key]
             if not g then
                 g = {books={}, title=name(item), original=item, at=#out+1}

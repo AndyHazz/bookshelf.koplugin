@@ -4936,7 +4936,13 @@ function SpineShelf.plan(items, opts)
                 -- sides wherever it stands (maintainer, on device, after the
                 -- constant was widened and nothing appeared to change --
                 -- because this branch never reached it).
-                gap_before = (face_out or prev_face) and face_gap or book_gap
+                -- A series box inside a group (an author's books) is one of
+                -- the run's books, not a cover: it stands at the book gap,
+                -- or the group's edges read no wider than its insides
+                -- (issue 620; the face gap is as wide as the group gap).
+                local cover_here = face_out and not bk._series_box
+                local cover_prev = prev_face and not (prev_e and prev_e.series_box)
+                gap_before = (cover_here or cover_prev) and face_gap or book_gap
             else
                 if prev.in_group or f.in_group then
                     gap_before = group_gap
@@ -5694,7 +5700,12 @@ function SpineShelf.rowWidget(opts)
                 cursor = cursor + gap_w
                 if gap_w > 0 then block_x0 = cursor end
             end
-            if not e.series_box and ((e.item and e.item.books) or e.section_label) then
+            -- A box that is a shelf item of its own (Series chip) carries its
+            -- name on its front and gets no badge; a box inside a group or a
+            -- tagged section is one of its books, under its badge (issue
+            -- 620: an author whose books were all boxed lost its name).
+            local own_box = e.series_box and e.item == e.book and not e.section_label
+            if not own_box and ((e.item and e.item.books) or e.section_label) then
                 -- Every GROUP gets a badge, single-member ones included --
                 -- on a grouping chip each item is a section, and an
                 -- unbadged lone book reads as a stray (user report: the

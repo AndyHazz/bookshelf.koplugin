@@ -82,4 +82,15 @@ t.test("report: Calibre column counts get their own section (issue 405)", functi
     assert(not none:find("Calibre", 1, true), "no Calibre line when nothing came from it")
 end)
 
+t.test("report: characters per page counts get their own section", function()
+    local html = Tokens.pageCountReportHtml{
+        stable = { { name = "The Traveler", pages = 551 } },
+    }
+    assert(html:find("Counted at KOReader's characters per page (1)", 1, true), html)
+    assert(html:find("551 pages", 1, true), html)
+    assert(html:find("Characters per page 1", 1, true), "summary line counts it")
+    local none = Tokens.pageCountReportHtml{ rendered = { { name = "A", pages = 1 } } }
+    assert(not none:find("Characters per page", 1, true), "no line when nothing came from it")
+end)
+
 t.done()

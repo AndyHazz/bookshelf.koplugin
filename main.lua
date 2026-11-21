@@ -2716,6 +2716,7 @@ function Bookshelf:scanPageCounts(opts)
         calibre   = {},
         publisher = {},
         hardcover = {},
+        stable    = {},
         rendered  = {},
         failed    = {},
     }
@@ -2857,7 +2858,13 @@ function Bookshelf:scanPageCounts(opts)
         -- (bookshelf_pagemap_probe) -- the truest count there is, and
         -- milliseconds per book. Stop in the status line cancels.
         report.cancelled = false
-        if opts.publisher ~= false then
+        -- With KOReader's Characters per page default set to override
+        -- publisher page numbers, a book's own list is not the count it will
+        -- show: the render pass counts it the way KOReader will instead.
+        local ok_lay, Lay = pcall(require, "lib/bookshelf_reader_layout")
+        local cpp_overrides = ok_lay and Lay.charsPerPage and Lay.charsPerPage()
+                              and Lay.overridesPublisher() and opts.render ~= false
+        if opts.publisher ~= false and not cpp_overrides then
             -- In forked batches, like the render pass: the zip reads leave
             -- the main process, so the shelf keeps answering taps (device
             -- report: swipes queued until this pass finished), and the
@@ -3072,10 +3079,20 @@ function Bookshelf:scanPageCounts(opts)
                             if ok_l then pcall(Layout.afterLoad, doc) end
                             if doc.render then doc:render() end
                             local n = doc:getPageCount()
+                            -- KOReader's Characters per page default, when it
+                            -- applies to this book: the count it will show on
+                            -- the first open.
+                            local sp
+                            if ok_l and Layout.stablePages then
+                                local ok_s, v = pcall(Layout.stablePages, doc)
+                                if ok_s then sp = v end
+                            end
                             pcall(function() doc:close() end)
-                            return n
+                            return ok_l and Layout.countLine(n, sp) or n
                         end)
-                        if ok_pc and tonumber(pc) and tonumber(pc) > 0 then return tostring(pc) end
+                        if ok_pc and pc ~= nil and require("lib/bookshelf_reader_layout").readCountLine(tostring(pc)) then
+                            return tostring(pc)
+                        end
                         -- No count: why, for the log (not a number, so the
                         -- parent takes it as a failure).
                         return "!" .. G.failureNote(ok_pc and "no count" or pc, headroom, avail)
@@ -3094,8 +3111,14 @@ function Bookshelf:scanPageCounts(opts)
                 end
                 processed = i
                 logger.info(string.format("bookshelf: page count render %d/%d took %.1fs", i, #todo, elapsed))
-                local pages = tonumber(pages_s)
-                if pages and pages > 0 then
+                local pages, stable = require("lib/bookshelf_reader_layout").readCountLine(pages_s)
+                if pages and stable then
+                    -- Characters per page: layout-free like a publisher
+                    -- count, and the number the book will show once opened.
+                    persist(fp, pages, "print")
+                    report.stable[#report.stable + 1] =
+                        { name = nameFor(fp), pages = pages }
+                elseif pages and pages > 0 then
                     -- A render count is layout-derived, not publisher truth:
                     -- it stays out of sidecars (persist() only writes those
                     -- for publisher counts).
@@ -3109,7 +3132,7 @@ function Bookshelf:scanPageCounts(opts)
                 end
                 -- Flush every few books: a mid-scan crash or battery death
                 -- should not cost the finished work.
-                if #report.rendered % 10 == 0 then SpineShelf.flushPersist() end
+                if (#report.rendered + #report.stable) % 10 == 0 then SpineShelf.flushPersist() end
             end
         end
         Guard.clear()

@@ -211,9 +211,19 @@ function Dialog:init()
     -- ScrollableContainer.
     local function build(inner_w)
         iw = inner_w
+        -- KOReader's Characters per page default for new books, when set:
+        -- the render then counts what a first open will show.
+        local Lay = require("lib/bookshelf_reader_layout")
+        local cpp = Lay.charsPerPage()
+        local ren_hint = cpp
+            and T(_("Lays out each remaining book and counts it at %1 characters per page, your stable page numbers default, so the count matches what you see when reading."), cpp)
+            or _("Lays out each remaining book in your font and margins, so the count matches what you see when reading.")
+        local pub_hint = (cpp and Lay.overridesPublisher())
+            and _("Printed page numbers that some books carry. Not used while your stable page numbers default overrides them.")
+            or _("Printed page numbers that some books carry.")
         local pub, _pub = option{
             label = _("Publisher page numbers (fast)"),
-            hint  = _("Printed page numbers that some books carry."),
+            hint  = pub_hint,
             checked = o.publisher, callback = source("publisher"),
         }
         local hcv, _hcv = option{
@@ -242,7 +252,7 @@ function Dialog:init()
         }
         local ren, _ren = option{
             label = _("Your reading settings (slow)"),
-            hint  = _("Lays out each remaining book in your font and margins, so the count matches what you see when reading."),
+            hint  = ren_hint,
             checked = o.render, callback = source("render"),
         }
         -- Radios, not the segmented control: this is a form to fill in and

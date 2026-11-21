@@ -183,6 +183,64 @@ local function nilOrTrue(key)
     return v == nil or v == true
 end
 
+-- KOReader's Characters per page default for new books (Stable page numbers >
+-- Default settings for new books), or nil when it is off. A book opened for
+-- the first time with it set gets a stable page count of that many characters
+-- a page, which then wins everywhere a count shows; a scan that counts pages
+-- some other way gives a never-opened book a number that changes on its first
+-- open.
+function M.charsPerPage()
+    local cpp = tonumber(g("pagemap_chars_per_synthetic_page", nil, nil))
+    return (cpp and cpp > 0) and cpp or nil
+end
+
+-- Whether that default replaces a book's own publisher page numbers
+-- (Override publisher page numbers). Off, a book that has them keeps them.
+function M.overridesPublisher() return isTrue("pagemap_synthetic_overrides") end
+
+-- stablePages(doc) -> the stable page count KOReader will give this book on its
+-- first open under the Characters per page default, or nil when the default is
+-- off or does not apply to the book: ReaderPageMap's own rule, and its own
+-- count (the third value of getPageMapCurrentPageLabel, which it saves as
+-- pagemap_doc_pages). Counted in characters, so the font does not change it,
+-- but crengine needs the book laid out first: without render() a book with a
+-- publisher list crashed it on the desktop.
+-- The page-count scan's render runs in a fork that answers in one string.
+-- countLine(pages, stable) -> that string: "s<n>" for a characters-per-page
+-- count, "<n>" for a laid-out one, nil for neither.
+-- readCountLine(s) -> pages, is_stable; nil when it holds no count (a failure
+-- note starts with "!").
+function M.countLine(pages, stable)
+    stable = tonumber(stable)
+    if stable and stable > 0 then return "s" .. math.floor(stable) end
+    pages = tonumber(pages)
+    if pages and pages > 0 then return tostring(math.floor(pages)) end
+    return nil
+end
+function M.readCountLine(s)
+    if type(s) ~= "string" then return nil end
+    local st = tonumber(s:match("^s(%d+)$"))
+    if st and st > 0 then return st, true end
+    local n = tonumber(s:match("^(%d+)$"))
+    if n and n > 0 then return n, false end
+    return nil
+end
+
+function M.stablePages(doc)
+    local cpp = M.charsPerPage()
+    if not (cpp and doc and doc.buildSyntheticPageMap) then return nil end
+    local provided = doc.hasPageMapDocumentProvided and doc:hasPageMapDocumentProvided()
+    if provided and not M.overridesPublisher() then return nil end
+    doc:buildSyntheticPageMap(cpp)
+    local _label, _idx, count = doc:getPageMapCurrentPageLabel()
+    count = tonumber(count)
+    if not (count and count > 0) then
+        local map = doc:getPageMap()
+        count = type(map) == "table" and #map or nil
+    end
+    return (count and count > 0) and count or nil
+end
+
 -- The reader's order, which is also the fast one: ReaderUI applies every
 -- module's settings BEFORE loadDocument (in a post-init callback) and only the
 -- book's language after it (PreRenderDocument). Settings changed after the

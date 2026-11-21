@@ -159,4 +159,57 @@ t.test("after the load the real format decides, as ReaderTypeset does", function
     eq(calls2.setStyleSheet, nil, "no second styling when the guess was right")
 end)
 
+-- KOReader's Characters per page default for new books: the scan counts a
+-- never-opened book the way a first open will (ReaderPageMap:_postInit).
+local function cppDoc(provided, count)
+    local d = { built = nil }
+    function d:hasPageMapDocumentProvided() return provided end
+    function d:buildSyntheticPageMap(cpp) self.built = cpp end
+    function d:getPageMapCurrentPageLabel() return "1", 1, count end
+    function d:getPageMap() return {} end
+    return d
+end
+
+t.test("characters per page: off, or a book's own page list without override, counts nothing", function()
+    settings = {}
+    local d = cppDoc(false, 300)
+    eq(L.stablePages(d), nil); eq(d.built, nil)
+    eq(L.charsPerPage(), nil)
+    settings = { pagemap_chars_per_synthetic_page = 1500 }
+    d = cppDoc(true, 300)
+    eq(L.stablePages(d), nil, "the book's publisher numbers stand")
+    eq(d.built, nil)
+end)
+
+t.test("characters per page: KOReader's own count at the default", function()
+    settings = { pagemap_chars_per_synthetic_page = 1500 }
+    local d = cppDoc(false, 551)
+    eq(L.stablePages(d), 551); eq(d.built, 1500)
+    settings = { pagemap_chars_per_synthetic_page = 1200, pagemap_synthetic_overrides = true }
+    d = cppDoc(true, 690)
+    eq(L.stablePages(d), 690, "override: replaces the publisher list"); eq(d.built, 1200)
+    eq(L.overridesPublisher(), true)
+end)
+
+t.test("characters per page: no count from the label falls back to the map's length", function()
+    settings = { pagemap_chars_per_synthetic_page = 1500 }
+    local d = cppDoc(false, nil)
+    function d:getPageMap() return { {}, {}, {} } end
+    eq(L.stablePages(d), 3)
+    d = cppDoc(false, nil)
+    eq(L.stablePages(d), nil, "an empty map is no count")
+end)
+
+t.test("the render fork's answer: a characters-per-page count is told apart", function()
+    eq(L.countLine(535, 551), "s551")
+    eq(L.countLine(535, nil), "535")
+    eq(L.countLine(nil, nil), nil)
+    eq(L.countLine(0, 0), nil)
+    local n, st = L.readCountLine("s551"); eq(n, 551); eq(st, true)
+    n, st = L.readCountLine("535"); eq(n, 535); eq(st, false)
+    eq(L.readCountLine("!out of memory"), nil)
+    eq(L.readCountLine("s0"), nil)
+    eq(L.readCountLine(nil), nil)
+end)
+
 t.done()

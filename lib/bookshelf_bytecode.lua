@@ -63,15 +63,51 @@ local function mkdirs(L, path)
     return L.attributes(path) ~= nil
 end
 
+-- C stdio and fsync through the ffi, or nil off LuaJIT.
+local _cio
+local function cio()
+    if _cio ~= nil then return _cio or nil end
+    _cio = false
+    local ok_ffi, ffi = pcall(require, "ffi")
+    if not ok_ffi then return nil end
+    pcall(require, "ffi/posix_h")
+    for _i, decl in ipairs({ "typedef struct _IO_FILE FILE;", "FILE *fopen(const char *, const char *);",
+            "size_t fwrite(const void *, size_t, size_t, FILE *);", "int fflush(FILE *);",
+            "int fileno(FILE *);", "int fsync(int);", "int fclose(FILE *);" }) do
+        pcall(ffi.cdef, decl)
+    end
+    if pcall(function() local C = ffi.C; assert(C.fopen and C.fwrite and C.fflush and C.fileno and C.fsync and C.fclose) end) then
+        _cio = ffi
+    end
+    return _cio or nil
+end
+
+-- writeFile(path, code) -> true when all of code is in the file. On a device
+-- it reaches the disk before this returns: renamed into place unsynced, a
+-- forced reboot can leave a copy whose name is there but whose contents are
+-- not, and LuaJIT runs bytecode unchecked (issue 621).
+M._writeFile = function(path, code)
+    local ffi = cio()
+    if ffi then
+        local C = ffi.C
+        local fp = C.fopen(path, "wb")
+        if fp == nil then return false end
+        local ok = tonumber(C.fwrite(code, 1, #code, fp)) == #code and C.fflush(fp) == 0
+        if ok then C.fsync(C.fileno(fp)) end
+        return (C.fclose(fp) == 0) and ok
+    end
+    local f = io.open(path, "wb")
+    if not f then return false end
+    local wrote = f:write(code)
+    return (f:close() and wrote) and true or false
+end
+
 local function store(L, dir, base, file, fn)
     if not mkdirs(L, dir) or not freeOk(dir) then return end
     local ok, code = pcall(string.dump, fn)
     if not ok or not code then return end
     local tmp = dir .. "/." .. file .. ".tmp"
-    local f = io.open(tmp, "wb")
-    if not f then return end
-    local wrote = f:write(code)
-    f:close()
+    local wrote = M._writeFile(tmp, code)
     if not wrote or not os.rename(tmp, dir .. "/" .. file) then os.remove(tmp); return end
     -- The copies of earlier versions of this module.
     pcall(function()

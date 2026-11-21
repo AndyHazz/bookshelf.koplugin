@@ -4260,6 +4260,26 @@ function Settings:_performanceSubItems()
             end,
         },
         {
+            -- Our modules load from compiled copies (lib/bookshelf_bytecode),
+            -- ~0.3-0.5 s off a PW5 start. The start guard switches this off
+            -- by itself after two starts that did not settle (issue 621).
+            text = _("Compiled code cache"),
+            help_text = _("Keep a compiled copy of Bookshelf's code, so KOReader "
+                .. "starts faster (about half a second on a Kindle Paperwhite). "
+                .. "Turn it off if Bookshelf has trouble starting on your device. "
+                .. "Bookshelf also turns it off by itself if it fails to start "
+                .. "twice in a short time. Takes effect when KOReader restarts."),
+            checked_func = function()
+                return require("lib/bookshelf_start_guard").bytecodeOn()
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                local G = require("lib/bookshelf_start_guard")
+                G.setBytecode(not G.bytecodeOn())
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+        {
             text = _("Pre-warm shelf cache"),
             help_text = _("Warms each shelf's data in the background shortly"
                 .. " after launch so switching shelves is instant. On a large"

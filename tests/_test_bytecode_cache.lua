@@ -131,7 +131,14 @@ t.test("main.lua installs it before any other module of ours", function()
     local src = io.open("main.lua"):read("*a")
     local i = src:find('require("lib/bookshelf_bytecode").install()', 1, true)
     assert(i, "main.lua does not install it")
-    eq(src:find('require("lib/bookshelf_', 1, true), i, "a module of ours loads before the bytecode cache is in place")
+    -- Except the start guard (issue 621), which may clear the copies, so
+    -- has to come first, from source.
+    local guard = 'require("lib/bookshelf_start_guard")'
+    local first = src:find('require("lib/bookshelf_', 1, true)
+    while first and src:sub(first, first + #guard - 1) == guard do
+        first = src:find('require("lib/bookshelf_', first + 1, true)
+    end
+    eq(first, i, "a module of ours loads before the bytecode cache is in place")
 end)
 
 -- ── Parsed data kept the same way (the translations) ─────────────────────────

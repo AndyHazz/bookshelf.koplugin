@@ -28,9 +28,17 @@
 --   * is_doc_only = false — plugin loads in both FileManager and Reader contexts,
 --     which is required so the close-document hook fires inside the Reader.
 
+-- Before the caches are read: a start that never settled (froze, crashed)
+-- has them cleared now (lib/bookshelf_start_guard, issue 621).
+pcall(function() require("lib/bookshelf_start_guard").arm() end)
 -- Before any module of ours: they load from compiled bytecode kept on the
 -- device (lib/bookshelf_bytecode), not parsed from source on every start.
-pcall(function() require("lib/bookshelf_bytecode").install() end)
+-- Unless that is switched off (Performance tweaks, or by the start guard).
+pcall(function()
+    if require("lib/bookshelf_start_guard").bytecodeOn() then
+        require("lib/bookshelf_bytecode").install()
+    end
+end)
 
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 -- First of all: a KOReader older than Bookshelf needs gets a stub plugin that
@@ -500,6 +508,24 @@ function Bookshelf:init()
         local ok, StaleSweep = pcall(require, "lib/bookshelf_stale_sweep")
         if ok and StaleSweep then
             pcall(function() StaleSweep:run() end)
+        end
+    end)
+
+    -- The start got through: well after the first paint, since the freeze
+    -- in issue 621 came once the shelf was on screen (lib/bookshelf_start_guard).
+    afterFirstPaint(20, function()
+        pcall(function() require("lib/bookshelf_start_guard").settle() end)
+    end)
+    -- Once, after the guard switched the compiled copies off: say why, and
+    -- where to turn them back on.
+    afterFirstPaint(1, function()
+        local ok, told = pcall(function() return require("lib/bookshelf_start_guard").takeNotice() end)
+        if ok and told then
+            UIManager:show(require("ui/widget/infomessage"):new{
+                text = _("Bookshelf had trouble starting twice in a short time, so it no longer keeps "
+                    .. "a compiled copy of its code. Starting may take a little longer. To turn it "
+                    .. "back on: Settings > Advanced > Performance tweaks > Compiled code cache."),
+            })
         end
     end)
 
@@ -2370,6 +2396,8 @@ function Bookshelf:onExit()
     require("lib/bookshelf_reader_park").noteExit()
     -- A scan stopped by a clean exit did not crash on its book (issue 518).
     pcall(function() require("lib/bookshelf_render_guard").clear() end)
+    -- Nor did a start that ends in a clean exit (lib/bookshelf_start_guard).
+    pcall(function() require("lib/bookshelf_start_guard").settle() end)
 end
 Bookshelf.onRestart = Bookshelf.onExit
 

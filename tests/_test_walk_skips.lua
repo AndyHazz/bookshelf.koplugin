@@ -20,6 +20,18 @@ local src = io.open("lib/bookshelf_book_repository.lua"):read("*a")
 
 local WALK = assert(src:match("\nlocal function walkBooks%(root, depth, out, current_depth, dirs, listings%)\n(.-)\nend\n"),
     "walkBooks moved")
+-- The real _skipDir and its alias table, over this file's SYSTEM_DIR_NAMES.
+local ALIAS_SRC = assert(src:match("\nlocal ALIAS_DIRS = (%b{})"), "ALIAS_DIRS moved")
+local SKIP_SRC = assert(src:match("\nlocal function _skipDir%(parent, entry%)\n(.-)\nend\n"), "_skipDir moved")
+local function skipDir(system)
+    local env = setmetatable({ SYSTEM_DIR_NAMES = system,
+        ALIAS_DIRS = assert(load("return " .. ALIAS_SRC))() }, { __index = _G })
+    local code = "return function(parent, entry)\n" .. SKIP_SRC .. "\nend"
+    local f
+    if setfenv then f = assert(loadstring(code)); setfenv(f, env)
+    else f = assert(load(code, "skip", "t", env)) end
+    return f()
+end
 local SUPPORTED = { epub = true, pdf = true, html = true, cbz = true }
 
 -- tree: path -> { names } for folders; anything else is a file.
@@ -52,6 +64,7 @@ local function walk(tree, root, data_dir, depth)
     local env = setmetatable({
         Repo = Repo,
         SYSTEM_DIR_NAMES = { proc = true },
+        _skipDir = skipDir({ proc = true }),
         _joinPath = function(a, b) return a .. "/" .. b end,
         _supportedExt = function(name)
             local e = name:match("%.([^.]+)$")
@@ -157,6 +170,25 @@ t.test("a never-opened book is answered from the folder listings, and a close dr
         "every never-opened book is statted in each metadata location")
     assert(R:find("            _dir_entry_cache[parent] = nil", 1, true),
         "a book opened for the first time keeps reading as never opened (its folder's listing is stale)")
+end)
+
+t.test("a home folder of /mnt on a Kindle finds each book once, not again under base-us (619)", function()
+    local tree = {
+        ["/mnt"] = { "us", "base-us", "proc" },
+        ["/mnt/us"] = { "documents" },
+        ["/mnt/us/documents"] = { "a.epub" },
+        ["/mnt/base-us"] = { "documents" },
+        ["/mnt/base-us/documents"] = { "a.epub" },
+        ["/mnt/proc"] = {},
+    }
+    local found = walk(tree, "/mnt")
+    eq(#found, 1); eq(found[1], "/mnt/us/documents/a.epub")
+    local skip = skipDir({})
+    eq(skip("/mnt/", "base-us"), true, "a trailing slash on the parent too")
+    eq(skip("/", "base-us"), false)
+    -- Only that exact folder: a base-us anywhere else is someone's own.
+    local mine = { ["/books"] = { "base-us" }, ["/books/base-us"] = { "b.epub" } }
+    eq(#walk(mine, "/books"), 1)
 end)
 
 t.done()

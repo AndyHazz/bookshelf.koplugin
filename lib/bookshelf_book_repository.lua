@@ -1106,6 +1106,24 @@ local SYSTEM_DIR_NAMES = {
     ["lost+found"] = true,
 }
 
+-- Folders that are another view of storage already reachable by a different
+-- path, keyed by their parent. A Kindle mounts its user storage twice:
+-- /mnt/us (what KOReader uses) and /mnt/base-us (the raw FAT mount behind it),
+-- with different device and inode numbers, so nothing downstream can tell the
+-- two copies of a book apart. A home folder of /mnt or / found every book
+-- twice, and deleting either removed both (issue 619).
+local ALIAS_DIRS = { ["/mnt"] = { ["base-us"] = true } }
+
+-- _skipDir(parent, entry) -> true for a folder no walk should enter.
+local function _skipDir(parent, entry)
+    if SYSTEM_DIR_NAMES[entry] then return true end
+    local p = parent
+    if type(p) == "string" and #p > 1 then p = p:gsub("/+$", "") end
+    local alias = ALIAS_DIRS[p]
+    return alias ~= nil and alias[entry] == true
+end
+Repo._skipDir = _skipDir
+
 -- pcall wrapper around Repo.buildBookMeta. A single malformed file's
 -- metadata extraction (parser blow-up, corrupt BIM row, unexpected
 -- charset) must not kill the entire shelf rebuild — Recent dodges this
@@ -3484,7 +3502,7 @@ local function walkBooks(root, depth, out, current_depth, dirs, listings)
             local ext = entry:match("%.([^%.]+)$")
             skip = ext ~= nil and Repo._NOT_BOOK_EXT[ext:lower()] == true
         end
-        if not skip and entry:sub(1, 1) ~= "." and not SYSTEM_DIR_NAMES[entry] then
+        if not skip and entry:sub(1, 1) ~= "." and not _skipDir(root, entry) then
             local fp = _joinPath(root, entry)
             -- One stat call instead of two on real lfs (which returns a
             -- table from attributes(fp) with no key). Falls back to two
@@ -4579,7 +4597,7 @@ function Repo.folderHasBooks(path)
                                 return true
                             end
                         elseif attr.mode == "directory" and entry ~= ".sdr"
-                                and not SYSTEM_DIR_NAMES[entry] then
+                                and not _skipDir(dir, entry) then
                             stack[#stack + 1] = fp
                         end
                     end
@@ -5068,7 +5086,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
     local entries = {}
     for entry in iter, dir_obj do
         if entry ~= "." and entry ~= ".." and entry:sub(1, 1) ~= "."
-                and not SYSTEM_DIR_NAMES[entry] then
+                and not _skipDir(path, entry) then
             local fp   = _joinPath(path, entry)
             local attr = lfs.attributes(fp)
             if attr and entry:sub(-4) ~= ".sdr" then
@@ -7628,7 +7646,7 @@ function Repo.getAllFolderChoices()
         local ok, iter, dir_obj = pcall(lfs.dir, root)
         if not ok or type(iter) ~= "function" then return end
         for entry in iter, dir_obj do
-            if entry:sub(1, 1) ~= "." and not SYSTEM_DIR_NAMES[entry]
+            if entry:sub(1, 1) ~= "." and not _skipDir(root, entry)
                     and entry:sub(-4) ~= ".sdr" then
                 local fp = _joinPath(root, entry)
                 if lfs.attributes(fp, "mode") == "directory" then

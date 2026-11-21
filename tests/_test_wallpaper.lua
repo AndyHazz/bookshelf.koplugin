@@ -2195,4 +2195,129 @@ t.test("the picker's Scaling button cycles Stretch > Crop to fill > Fit and stor
     package.loaded["lib/bookshelf_wallpaper"] = nil
 end)
 
+
+-- ── Transparency (issue 612) ───────────────────────────────────────────────
+-- An RGBA PNG decodes premultiplied, so its transparent pixels were black
+-- whatever Color behind wallpaper said. A picture that can be see-through is
+-- laid on that colour at decode, and the colour is in its cache keys.
+
+-- A PNG of just the chunks that matter: signature, IHDR with this colour
+-- type, the extra chunks given, then IDAT and IEND.
+local function pngBytes(colour_type, extra)
+    local function be32(n) return string.char(math.floor(n / 16777216) % 256, math.floor(n / 65536) % 256,
+        math.floor(n / 256) % 256, n % 256) end
+    local function chunk(kind, data) return be32(#data) .. kind .. data .. "CRC!" end
+    local ihdr = be32(10) .. be32(10) .. string.char(8, colour_type, 0, 0, 0)
+    local out = "\137PNG\r\n\26\n" .. chunk("IHDR", ihdr)
+    for _i, c in ipairs(extra or {}) do out = out .. chunk(c[1], c[2]) end
+    return out .. chunk("IDAT", "xxxx") .. chunk("IEND", "")
+end
+local function writePng(dir, name, bytes)
+    local f = assert(io.open(dir .. "/" .. name, "wb")); f:write(bytes); f:close()
+    return dir .. "/" .. name
+end
+
+t.test("mayHaveAlpha: PNGs with an alpha channel or tRNS, nothing else", function()
+    local W = fresh()
+    local d = scratch()
+    eq(W.mayHaveAlpha(writePng(d, "rgba.png", pngBytes(6))), true, "RGBA")
+    eq(W.mayHaveAlpha(writePng(d, "ga.png", pngBytes(4))), true, "grey + alpha")
+    eq(W.mayHaveAlpha(writePng(d, "rgb.png", pngBytes(2))), false, "RGB")
+    eq(W.mayHaveAlpha(writePng(d, "pal.png", pngBytes(3, { { "PLTE", "abc" } }))), false, "palette, no tRNS")
+    eq(W.mayHaveAlpha(writePng(d, "palt.png", pngBytes(3, { { "PLTE", "abc" }, { "tRNS", "\0" } }))), true,
+        "palette with tRNS")
+    eq(W.mayHaveAlpha(writePng(d, "j.jpg", "\255\216\255\224 not a png")), false, "JPEG")
+    eq(W.mayHaveAlpha(writePng(d, "short.png", "\137PNG\r\n\26\n\0\0")), false, "cut short")
+    eq(W.mayHaveAlpha(d .. "/missing.png"), false, "missing")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
+t.test("colourTag: grey and colour", function()
+    local W = fresh()
+    eq(W.colourTag({ a = 255 }), "gff")
+    eq(W.colourTag({ r = 48, g = 96, b = 192 }), "3060c0")
+end)
+
+-- A ground colour with the invert() KOReader's colours have.
+local function grey(v)
+    return { a = v, invert = function(self) return grey(255 - self.a) end }
+end
+
+t.test("bg: a see-through picture is laid on the colour behind it, keyed on it", function()
+    local W = fresh()
+    installBlitbufferStub({})
+    W._lfs = lfs_shim
+    local d = scratch()
+    W._data_dir = d; W.ensureDir()
+    writePng(W.dir(), "glass.png", pngBytes(6))
+    local asked = {}
+    W._render = function(_p, w, h, flat) asked[#asked + 1] = flat or false; return fakeBB(w, h) end
+    W.bg("glass.png", 100, 100, false, grey(0))
+    eq(asked[1].a, 0, "laid on the colour")
+    W.bg("glass.png", 100, 100, false, grey(0))
+    eq(#asked, 1, "same colour: kept")
+    W.bg("glass.png", 100, 100, false, grey(255))
+    eq(#asked, 2, "another colour: decoded again")
+    eq(asked[2].a, 255)
+    W.bg("glass.png", 100, 100, true, grey(0))
+    eq(asked[3].a, 255, "held inverted: laid on the negative, which the flip turns back")
+    os.execute("rm -rf '" .. d .. "'")
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
+t.test("bg: an opaque picture ignores the colour, so changing it decodes nothing", function()
+    local W = fresh()
+    installBlitbufferStub({})
+    W._lfs = lfs_shim
+    local d = scratch()
+    W._data_dir = d; W.ensureDir()
+    writePng(W.dir(), "solid.png", pngBytes(2))
+    local asked = {}
+    W._render = function(_p, w, h, flat) asked[#asked + 1] = flat or false; return fakeBB(w, h) end
+    W.bg("solid.png", 100, 100, false, grey(0))
+    W.bg("solid.png", 100, 100, false, grey(255))
+    eq(#asked, 1, "one decode")
+    eq(asked[1], false, "nothing to lay it on")
+    os.execute("rm -rf '" .. d .. "'")
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
+t.test("flatten: alpha spent over the colour; an opaque buffer handed back", function()
+    local W = fresh()
+    local painted, blended = {}, {}
+    package.loaded["ffi/blitbuffer"] = {
+        TYPE_BB8 = 1, TYPE_BB8A = 2, TYPE_BBRGB32 = 4,
+        new = function(w, h, t)
+            local bb = fakeBB(w, h)
+            bb.t = t
+            function bb:getType() return self.t end
+            function bb:pmulalphablitFrom(src, ...) blended[#blended + 1] = { into = self, src = src, ... } end
+            return bb
+        end,
+    }
+    package.loaded["lib/bookshelf_color"] = {
+        paintRect = function(bb, x, y, w, h, c) painted[#painted + 1] = { bb = bb, c = c, w = w, h = h } end,
+    }
+    local function src(t) local b = fakeBB(10, 20); b.t = t; function b:getType() return self.t end; return b end
+    local opaque = src(1)
+    eq(W.flatten(opaque, grey(0)), opaque, "BB8 has no alpha")
+    local rgba = src(4)
+    local out = W.flatten(rgba, { r = 48, g = 96, b = 192 })
+    assert(out ~= rgba, "a new buffer")
+    eq(out:getType(), 4, "colour stays colour")
+    eq(painted[1].c.b, 192, "painted with the colour itself (paintRect, not a grey fill)")
+    eq(painted[1].w, 10); eq(painted[1].h, 20)
+    eq(blended[1].into, out); eq(blended[1].src, rgba)
+    assert(rgba.freed, "the decode is freed")
+    local ga = src(2)
+    eq(W.flatten(ga, grey(0)):getType(), 1, "grey + alpha comes out grey")
+    package.loaded["ffi/blitbuffer"] = nil
+    package.loaded["lib/bookshelf_color"] = nil
+end)
+
+t.test("the widget hands bg the colour behind the wallpaper", function()
+    local src = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(src:find("Wallpaper.bg(name, self.width, self.height, pre, self:_pageGroundColor())", 1, true))
+end)
+
 t.done()

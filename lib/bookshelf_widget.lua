@@ -4270,7 +4270,8 @@ function BookshelfWidget:_wallpaperWidgetRaw()
         local pre = Wallpaper.preInvert(Screen.night_mode and true or false)
         local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
         if ok_t and TP and TP.isDarkName(name) then pre = Screen.night_mode and true or false end
-        return Wallpaper.bg(name, self.width, self.height, pre)
+        -- The colour behind it, for a see-through picture (issue 612).
+        return Wallpaper.bg(name, self.width, self.height, pre, self:_pageGroundColor())
     end)
     return ok and w or nil
 end

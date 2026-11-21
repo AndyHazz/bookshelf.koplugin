@@ -1920,14 +1920,90 @@ end
 -- decode() stretches to the size asked for. The reader's Scaling (fill, fit)
 -- reads the picture's own size from its file header (ImageSource.probeSize,
 -- PNG and JPEG) and asks for the scaled size instead: see decodeLaid.
-local function decode(path, w, h)
+-- ── Transparency (issue 612) ────────────────────────────────────────────────
+--
+-- A wallpaper is painted as an opaque blit, and kept in the screen's own type
+-- (BB8 on a greyscale panel), so whatever alpha a picture has must be spent
+-- before then. MuPDF hands an RGBA PNG back premultiplied, so its transparent
+-- pixels are black: they were drawn black whatever Color behind wallpaper was
+-- set to. flatten() lays the picture on that colour once, at decode, and the
+-- result is cached like any opaque picture.
+
+-- mayHaveAlpha(path) -> whether the file can carry transparency: a PNG with an
+-- alpha channel (colour types 4 and 6) or a tRNS chunk before its pixels. Only
+-- those have the colour behind in their cache keys, so changing that colour
+-- never decodes a JPEG again. A few header bytes, remembered per file.
+local _alpha_memo = {}
+function M.mayHaveAlpha(path)
+    local ok_l, lfs = pcall(require, "libs/libkoreader-lfs")
+    local a = ok_l and lfs and lfs.attributes(path) or nil
+    local memo = path .. "|" .. tostring(a and a.size) .. "|" .. tostring(a and a.modification)
+    if _alpha_memo[memo] ~= nil then return _alpha_memo[memo] end
+    local result = false
+    local f = io.open(path, "rb")
+    if f then
+        if f:read(8) == "\137PNG\r\n\26\n" then
+            -- Chunks: 4-byte big-endian length, 4-byte type, data, 4-byte CRC.
+            for _i = 1, 64 do
+                local head = f:read(8)
+                if not head or #head < 8 then break end
+                local b1, b2, b3, b4 = head:byte(1, 4)
+                local len, kind = ((b1 * 256 + b2) * 256 + b3) * 256 + b4, head:sub(5, 8)
+                if kind == "IHDR" then
+                    local data = f:read(len)
+                    local ct = data and data:byte(10)
+                    if ct == 4 or ct == 6 then result = true; break end
+                    f:seek("cur", 4)
+                elseif kind == "tRNS" then
+                    result = true; break
+                elseif kind == "IDAT" or kind == "IEND" then
+                    break
+                else
+                    f:seek("cur", len + 4)
+                end
+            end
+        end
+        f:close()
+    end
+    _alpha_memo[memo] = result
+    return result
+end
+
+-- colourTag(c) -> the colour as a short key part: "g" and the grey, or the hex.
+function M.colourTag(c)
+    local ok, s = pcall(function()
+        if c.r then return string.format("%02x%02x%02x", c.r, c.g, c.b) end
+        return string.format("g%02x", c.a)
+    end)
+    return ok and s or "?"
+end
+
+-- flatten(pic, colour) -> pic, its alpha spent over colour; an opaque buffer is
+-- handed back as it is. Premultiplied, as MuPDF's pixmaps are.
+function M.flatten(pic, colour)
+    if not (pic and colour) then return pic end
+    local Blitbuffer = require("ffi/blitbuffer")
+    local t = pic:getType()
+    if t ~= Blitbuffer.TYPE_BBRGB32 and t ~= Blitbuffer.TYPE_BB8A then return pic end
+    local w, h = pic:getWidth(), pic:getHeight()
+    local out = Blitbuffer.new(w, h, (t == Blitbuffer.TYPE_BB8A) and Blitbuffer.TYPE_BB8 or Blitbuffer.TYPE_BBRGB32)
+    -- paintRect, not fill: fill takes a grey, and a colour came out as its
+    -- luminance. The same call paints the ground everywhere else.
+    require("lib/bookshelf_color").paintRect(out, 0, 0, w, h, colour)
+    out:pmulalphablitFrom(pic, 0, 0, 0, 0, w, h)
+    pic:free()
+    return out
+end
+
+local function decode(path, w, h, flat)
     -- M._render is the test seam, the same one the ornaments module exposes:
     -- the painting is what is worth pinning headless, and a real decode would
     -- drag KOReader's image stack into a plain-Lua suite.
-    if M._render then return M._render(path, w, h) end
+    if M._render then return M._render(path, w, h, flat) end
     local RenderImage = require("ui/renderimage")
     local t0 = _gettime()
     local bb = RenderImage:renderImageFile(path, false, w, h)
+    if flat and bb then bb = M.flatten(bb, flat) end
     -- Permanent, per the [bookshelf perf] convention: this is the one
     -- synchronous decode on the cold-start path, and it is the number to
     -- watch if a picture ever lands in a launch complaint.
@@ -1988,8 +2064,8 @@ end
 -- its own size, the crop's part of it cut out and scaled to the screen
 -- (fitLayout's crop, for a shape too extreme to decode at its covering
 -- size). M._scale is the test seam.
-function M.decodeCrop(path, crop, w, h)
-    local src = decode(path)
+function M.decodeCrop(path, crop, w, h, flat)
+    local src = decode(path, nil, nil, flat)
     if not src then return nil end
     local Blitbuffer = require("ffi/blitbuffer")
     local part = Blitbuffer.new(crop[3], crop[4], src:getType())
@@ -2004,11 +2080,11 @@ end
 -- margin (fit; painted with the ground colour at paint time). Always screen
 -- sized, so the blurs under the panels, the night flip and the disk cache
 -- treat it like any other wallpaper.
-local function decodeLaid(path, w, h, lay)
-    if not lay then return decode(path, w, h) end
-    if lay[5] then return M.decodeCrop(path, lay[5], w, h) end
+local function decodeLaid(path, w, h, lay, flat)
+    if not lay then return decode(path, w, h, flat) end
+    if lay[5] then return M.decodeCrop(path, lay[5], w, h, flat) end
     local dw, dh, ox, oy = lay[1], lay[2], lay[3], lay[4]
-    local src = decode(path, dw, dh)
+    local src = decode(path, dw, dh, flat)
     if not src then return nil end
     local Blitbuffer = require("ffi/blitbuffer")
     local out = Blitbuffer.new(w, h, src:getType())
@@ -2113,13 +2189,15 @@ function M.toScreenType(bb)
     return (ok and out) or bb
 end
 
--- bg(name, w, h, night) -> a paintable full-screen widget, or nil.
+-- bg(name, w, h, night, ground) -> a paintable full-screen widget, or nil.
+-- ground is the colour behind the wallpaper (the page ground, as painted):
+-- what a picture's transparent parts show (issue 612).
 --
 -- night is part of the key AND of the render: the panel inverts everything at
 -- refresh, so a wallpaper that should look like itself has to be painted
 -- pre-inverted, exactly as a cover is. Same reasoning as the ornaments'
 -- faithful mode.
-function M.bg(name, w, h, night)
+function M.bg(name, w, h, night, ground)
     local path = M.pathFor(name)
     if not path or not w or not h or w <= 0 or h <= 0 then return nil end
     -- Image contrast's wallpaper brightness and contrast are part of the
@@ -2137,6 +2215,19 @@ function M.bg(name, w, h, night)
         if dw then lay = { dw, dh, ox, oy, crop } end
     end
     local fit_tag = lay and ("|" .. M.fitMode()) or ""
+    -- A picture that can be see-through is laid on the colour behind it at
+    -- decode, so that colour is part of what it is kept under. Its negative
+    -- when the picture is held inverted: the flip below then lands it on the
+    -- colour itself.
+    local flat
+    if ground and M.mayHaveAlpha(path) then
+        flat = ground
+        if night then
+            local ok_i, inv = pcall(function() return ground:invert() end)
+            flat = ok_i and inv or ground
+        end
+        fit_tag = fit_tag .. "|g" .. M.colourTag(flat)
+    end
     local key = path .. "|" .. w .. "x" .. h .. fit_tag .. adjust .. (night and "|n" or "")
     if M._bg and M._bg_key == key then return M._bg end
     local keep = keepTwo()
@@ -2167,7 +2258,7 @@ function M.bg(name, w, h, night)
     local bb = dkey and diskCache() and diskCache().load(dkey)
     if not bb then
         local ok
-        ok, bb = pcall(decodeLaid, path, w, h, lay)
+        ok, bb = pcall(decodeLaid, path, w, h, lay, flat)
         if not ok or not bb then
             logger.info("[bookshelf] wallpaper could not be decoded:", path)
             return nil

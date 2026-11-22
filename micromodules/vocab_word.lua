@@ -38,7 +38,6 @@ local logger = require("logger")
 -- Setting keys (module-settings convention: micromodule_<key>_<setting>)
 local KEY_SENSES     = "micromodule_vocab_word_senses"      -- 1, 2, 3, "all"
 local KEY_SHOW_TYPE  = "micromodule_vocab_word_show_type"   -- true/false
-local KEY_FONT_SCALE = "micromodule_vocab_word_font_scale"  -- 80-150, default 100
 local KEY_DICT       = "micromodule_vocab_word_dict"         -- dictionary bookname or "all"
 local KEY_SHOW_CTX   = "micromodule_vocab_word_show_context" -- true: show the book sentence where the word was looked up
 local KEY_PREFER_DUE = "micromodule_vocab_word_prefer_due"   -- true: SRS review-due words come first in the deck
@@ -62,12 +61,6 @@ end
 
 local function readShowType()
     return store().read(KEY_SHOW_TYPE, true)
-end
-
-local function readFontScale()
-    local v = tonumber(store().read(KEY_FONT_SCALE, 100))
-    if v and v >= 80 and v <= 150 then return v end
-    return 100
 end
 
 local function readSelectedDict()
@@ -801,6 +794,48 @@ local function purgeQueueWord(word)
     end
 end
 
+-- Why the card has little or nothing to show, or nil when Vocabulary
+-- Builder is collecting words: "plugin_off" (the plugin is disabled, so
+-- nothing is saved at all) or "auto_off" (lookups are saved only through
+-- the dictionary popup's "Add to vocabulary builder" button).
+local function vocabStatus()
+    local G = rawget(_G, "G_reader_settings")
+    if not G then return nil end
+    local disabled = G:readSetting("plugins_disabled")
+    if type(disabled) == "table" and disabled.vocabbuilder then return "plugin_off" end
+    local vb = G:readSetting("vocabulary_builder")
+    if type(vb) == "table" and not vb.enabled then return "auto_off" end
+    return nil
+end
+
+-- Words the card can show (a dictionary knows them), known ones included.
+local function usableWordCount()
+    local n = 0
+    for _, entry in pairs(_def_cache) do
+        if entry.results and #entry.results > 0 then n = n + 1 end
+    end
+    return n
+end
+
+-- The hint the card shows instead of a word, or nil to show a word. With
+-- the plugin off the deck can never grow; with one word a tap has nothing
+-- to move on to, so it says how to collect more.
+local function hintText(status, count)
+    local how_plugin = _("Turn on Vocabulary builder in Tools > More tools > Plugin management, then words you look up while reading appear here.")
+    local how_auto = _("To save every word you look up, turn on Auto add new words in Vocabulary builder's menu (search menu > Vocabulary builder).")
+    if status == "plugin_off" then return how_plugin end
+    if count == 0 then
+        if status == "auto_off" then
+            return _("Look up words while reading to fill this card.") .. " " .. how_auto
+        end
+        return _("Look up words while reading to fill this card.")
+    end
+    if count == 1 and status == "auto_off" then
+        return _("Only one word saved so far.") .. " " .. how_auto
+    end
+    return nil
+end
+
 -- Is a word due for review according to Vocabulary Builder's SRS data?
 local function isDueForReview(word)
     local m = _vocab_meta[word]
@@ -920,55 +955,12 @@ local function fetchRandomWord()
     return data
 end
 
--- ── Text wrapping ──────────────────────────────────────────────
-
-local function wrapText(text, max_chars, max_lines)
-    max_lines = max_lines or 2
-    if not text or text == "" then return "" end
-    local function utf8len(s)
-        local _, count = s:gsub("[\1-\127\194-\244][\128-\191]*", "")
-        return count
-    end
-    local function utf8sub(s, i, j)
-        -- LuaJIT (Lua 5.1) has no utf8 library (a Lua 5.3+ feature): walk the
-        -- same byte pattern utf8len uses. Also tolerant of invalid UTF-8
-        -- bytes, which utf8.codes would reject (sdcv output can carry them).
-        local result = {}
-        local n = 0
-        for ch in s:gmatch("[\1-\127\194-\244][\128-\191]*") do
-            n = n + 1
-            if n >= i and (j == nil or n <= j) then
-                result[#result + 1] = ch
-            end
-            if j and n >= j then break end
-        end
-        return table.concat(result)
-    end
-    if utf8len(text) <= max_chars then return text end
-    local lines, current = {}, ""
-    for word in text:gmatch("%S+") do
-        local cur_len = utf8len(current)
-        local word_len = utf8len(word)
-        if cur_len + word_len + 1 > max_chars then
-            if current ~= "" then lines[#lines + 1] = current end
-            current = word
-        else
-            current = current == "" and word or (current .. " " .. word)
-        end
-    end
-    if current ~= "" then lines[#lines + 1] = current end
-    if #lines > max_lines then
-        lines[max_lines] = utf8sub(lines[max_lines], 1, max_chars - 3) .. "…"
-        for i = max_lines + 1, #lines do lines[i] = nil end
-    end
-    return table.concat(lines, "\n")
-end
-
 -- ── Settings dialog ────────────────────────────────────────────
 
 local function showSettings(ctx)
     lazyInit()
     local Kit = require("lib/bookshelf_module_kit")
+    local T = require("ffi/util").template
     local dialog
 
     -- The standard pick-landed triple (close the dialog, reload the menu
@@ -984,31 +976,35 @@ local function showSettings(ctx)
         local current = store().read(key, default)
         return Kit.radioRow{
             label = label,
-            active = (current == value),
+            -- tostring: Senses shown stores 1-3 as numbers but defaults
+            -- to the string "3", which never matched the number 3 row.
+            active = (tostring(current) == tostring(value)),
             on_pick = function()
-                if current == value then return end
+                if tostring(current) == tostring(value) then return end
                 store().save(key, value)
                 picked()
             end,
         }
     end
 
-    local function fontScaleBtn(label, delta)
-        return {
-            text = label,
-            callback = function()
-                local current = readFontScale()
-                local new_val = math.max(80, math.min(150, current + delta))
-                if new_val == current then return end
-                store().save(KEY_FONT_SCALE, new_val)
+    -- Toggle row for a stored true/false setting (default on): a checkmark,
+    -- and a tap flips it.
+    local function toggleBtn(key, label)
+        local on = store().read(key, true) == true
+        return Kit.radioRow{
+            label = label, active = on, toggle = true,
+            on_pick = function()
+                store().save(key, not on)
                 picked()
             end,
         }
     end
 
     local function resetKnownBtn()
+        local n = knownCount()
         return {
-            text = _("Reset known words") .. " (" .. knownCount() .. ")",
+            text = T(_("Reset known words (%1)"), n),
+            enabled = n > 0,
             callback = function()
                 _known = {}
                 if _known_store then _known_store:set("known", {}) end
@@ -1018,37 +1014,28 @@ local function showSettings(ctx)
         }
     end
 
+    -- One heading, then that setting's choices side by side on one row, as
+    -- the other modules' settings are laid out.
+    local function heading(text) return { { text = text, enabled = false } } end
     local buttons = {
-        { { text = _("Senses shown"), enabled = false } },
-        { radioBtn(KEY_SENSES, _("1"), 1, "3") },
-        { radioBtn(KEY_SENSES, _("2"), 2, "3") },
-        { radioBtn(KEY_SENSES, _("3"), 3, "3") },
-        { radioBtn(KEY_SENSES, _("All"), "all", "3") },
-        { { text = _("Show word type"), enabled = false } },
-        { radioBtn(KEY_SHOW_TYPE, _("Yes"), true, true) },
-        { radioBtn(KEY_SHOW_TYPE, _("No"), false, true) },
-        { { text = _("Font scale") .. ": " .. readFontScale() .. "%", enabled = false } },
-        { fontScaleBtn("  \xE2\x96\xB2  ", 10) },
-        { fontScaleBtn("  \xE2\x96\xBC  ", -10) },
-        { { text = _("Show book context"), enabled = false } },
-        { radioBtn(KEY_SHOW_CTX, _("Yes"), true, true) },
-        { radioBtn(KEY_SHOW_CTX, _("No"), false, true) },
-        { { text = _("Review-due words first"), enabled = false } },
-        { radioBtn(KEY_PREFER_DUE, _("Yes"), true, true) },
-        { radioBtn(KEY_PREFER_DUE, _("No"), false, true) },
-        { { text = _("Known words"), enabled = false } },
-        { resetKnownBtn() },
+        heading(_("Senses shown")),
+        { radioBtn(KEY_SENSES, "1", 1, "3"), radioBtn(KEY_SENSES, "2", 2, "3"),
+          radioBtn(KEY_SENSES, "3", 3, "3"), radioBtn(KEY_SENSES, _("All"), "all", "3") },
+        heading(_("Show")),
+        { toggleBtn(KEY_SHOW_TYPE, _("Word type")), toggleBtn(KEY_SHOW_CTX, _("Book context")) },
+        { toggleBtn(KEY_PREFER_DUE, _("Review-due words first")) },
     }
 
-    -- Dictionary selector
+    -- Dictionary selector: names are long, so one to a row.
     local dicts = findAvailableDictionaries()
     if #dicts > 0 then
-        buttons[#buttons + 1] = { { text = _("Dictionary"), enabled = false } }
+        buttons[#buttons + 1] = heading(_("Dictionary"))
         buttons[#buttons + 1] = { radioBtn(KEY_DICT, _("All dictionaries"), "all", "all") }
         for _, d in ipairs(dicts) do
             buttons[#buttons + 1] = { radioBtn(KEY_DICT, d.name, d.name, "all") }
         end
     end
+    buttons[#buttons + 1] = { resetKnownBtn() }
 
     dialog = require("ui/widget/buttondialog"):new(Kit.withClose{
         title        = _("Vocab Word"),
@@ -1078,6 +1065,9 @@ end
 
 return {
     key = "vocab_word",
+    -- A headword and definitions: one grid column wide they shrink to
+    -- nothing (as Quote of the day's text does).
+    min_w = 2,
     title = _("Vocab Word"),
     summary = _("From Vocabulary Builder + dictionary. Works offline."),
 
@@ -1095,22 +1085,38 @@ return {
         local Blitbuffer = require("ffi/blitbuffer")
         local HorizontalGroup = require("ui/widget/horizontalgroup")
         local HorizontalSpan = require("ui/widget/horizontalspan")
-        local user_scale = readFontScale()
-        local sc = Kit.sc(scale_pct * user_scale / 100)
+        -- Sized by the host alone (its own module text size included): a
+        -- size setting of the module's own was undone by the cell's fit.
+        local sc = Kit.sc(scale_pct)
         local show_type = readShowType()
         local max_acepciones = readAcepciones()
 
-        local word_data = fetchRandomWord()
-
+        -- Nothing to show, or nothing a tap could move on to: say how to
+        -- collect words instead (the preview keeps the sample word).
+        local hint = not ctx.preview and hintText(vocabStatus(), usableWordCount())
+        local word_data = not hint and fetchRandomWord()
         if not word_data then
+            local VerticalGroup = require("ui/widget/verticalgroup")
+            local VerticalSpan = require("ui/widget/verticalspan")
             local TextWidget = require("lib/bookshelf_colour_text")
-            return TextWidget:new{
-                text = _("No vocab words yet"),
-                face = Kit.face(14, scale_pct, {italic = true}),
-                width = width,
-                fgcolor = Kit.COLOR_MUTED,
+            local head_face, head_bold = Kit.face(16, scale_pct, {bold = true})
+            local head = TextWidget:new{
+                text = _("Vocab Word"),
+                face = head_face, bold = head_bold,
+                max_width = width,
+                fgcolor = Kit.COLOR_PRIMARY,
                 bgcolor = Kit.CARD_BG,
             }
+            local gap = sc(6)
+            local room = ctx.height or ctx.max_height
+            local body = Kit.fitText{
+                text = hint or _("No vocab words yet"),
+                size = 13, scale_pct = scale_pct, width = width,
+                fgcolor = Kit.COLOR_MUTED,
+                max_h = room and (room - head:getSize().h - gap) or nil,
+            }
+            return VerticalGroup:new{ align = "left",
+                head, VerticalSpan:new{ dimen = { w = 1, h = gap } }, body }
         end
 
         local VerticalGroup = require("ui/widget/verticalgroup")
@@ -1126,7 +1132,6 @@ return {
         local word_face, word_bold = BFont:getFace("Inter-ExtraBold.ttf", sc(word_size))
         local type_face, type_bold = BFont:getFace("Caveat-Regular.ttf", sc(18), { italic = true })
         local dict_face, dict_bold = BFont:getFace("Caveat-Regular.ttf", sc(11), { italic = true })
-        local def_face, def_bold = BFont:getFace("infofont", sc(12))
 
         local items = {
             align = "left",
@@ -1204,54 +1209,13 @@ return {
             items[#items + 1] = type_widget
         end
 
-        if def and def.acepciones and #def.acepciones > 0 then
-            items[#items + 1] = VerticalSpan:new{ dimen = { w = 1, h = sc(6) } }
-
-            local max_chars = math.floor(width / (sc(12) * 0.45))
-            if max_chars < 30 then max_chars = 30 end
-
-            local limit = max_acepciones == "all" and #def.acepciones or max_acepciones
-
-            local shown = {}
-            for i = 1, math.min(limit, #def.acepciones) do
-                local acep = wrapText(def.acepciones[i], max_chars, 2)
-                if acep ~= "" then
-                    shown[#shown + 1] = i .. ". " .. acep
-                end
-            end
-
-            if #shown > 0 then
-                items[#items + 1] = TextBoxWidget:new{
-                    text = table.concat(shown, "\n"),
-                    face = def_face,
-                    bold = def_bold,
-                    width = width,
-                    fgcolor = Kit.COLOR_MUTED,
-                    bgcolor = Kit.CARD_BG,
-                    alignment = "left",
-                }
-            end
-        end
-
-        -- Reading context: the book sentence where the word was looked up,
-        -- captured by the Vocabulary Builder itself.
-        local meta = _vocab_meta[current_word]
-        if readShowContext() and meta and meta.context then
-            local ctx_max = math.floor(width / (sc(13) * 0.45))
-            if ctx_max < 30 then ctx_max = 30 end
-            local quote = wrapText("«" .. meta.context .. "»", ctx_max, 2)
-            if quote ~= "" then
-                items[#items + 1] = VerticalSpan:new{ dimen = { w = 1, h = sc(6) } }
-                items[#items + 1] = TextBoxWidget:new{
-                    text = quote,
-                    face = BFont:getFace("Caveat-Regular.ttf", sc(13), { italic = true }),
-                    width = width,
-                    fgcolor = Kit.COLOR_MUTED,
-                    bgcolor = Kit.CARD_BG,
-                    alignment = "left",
-                }
-            end
-        end
+        -- The definitions and the book quote: placeholders here, filled once
+        -- the fixed parts are measured (below), so they get the room that is
+        -- really left and wrap at the real width.
+        local def_slot = #items + 1
+        items[def_slot] = false
+        local ctx_slot = #items + 1
+        items[ctx_slot] = false
 
         -- Source dictionary: small, right-aligned attribution at the bottom.
         if dict_row then
@@ -1272,10 +1236,12 @@ return {
             bgcolor = Kit.CARD_BG,
             alignment = "right",
         }
+        local meta = _vocab_meta[current_word]
         local book_widget
         if meta and meta.book then
             book_widget = TextWidget:new{
-                text = wrapText(meta.book, 22, 1),
+                text = meta.book,
+                max_width = math.max(1, width - know_widget:getSize().w - sc(8)),
                 face = footer_face,
                 bold = footer_bold,
                 fgcolor = Kit.COLOR_MUTED,
@@ -1292,6 +1258,80 @@ return {
             HorizontalSpan:new{ width = math.max(0, width - book_w - know_size.w) },
             know_widget,
         }
+
+        -- Now the flexible text. The room: the cell's height (or the start
+        -- menu's ceiling) less everything else on the card. The quote keeps
+        -- to two lines; the definitions take the rest and end in an ellipsis
+        -- rather than make the host shrink the whole card to fit them.
+        local fixed_h = 0
+        for i = 1, #items do
+            local it = items[i]
+            if it and it.getSize then fixed_h = fixed_h + it:getSize().h end
+        end
+        local room = ctx.height or ctx.max_height
+        local def_face_size = Kit.face(12, scale_pct).size
+
+        local quote_widget
+        if readShowContext() and meta and meta.context and meta.context ~= "" then
+            local qface = BFont:getFace("Caveat-Regular.ttf", sc(13), { italic = true })
+            local qline = math.floor(qface.size * 1.3 + 0.5)
+            quote_widget = TextBoxWidget:new{
+                text = "\u{00AB}" .. meta.context .. "\u{00BB}",
+                face = qface,
+                width = width,
+                height = qline * 2,
+                height_adjust = true,
+                height_overflow_show_ellipsis = true,
+                fgcolor = Kit.COLOR_MUTED,
+                bgcolor = Kit.CARD_BG,
+                alignment = "left",
+            }
+            fixed_h = fixed_h + quote_widget:getSize().h + sc(6)
+        end
+
+        local def_widget
+        if def and def.acepciones and #def.acepciones > 0 then
+            local limit = max_acepciones == "all" and #def.acepciones or max_acepciones
+            local shown = {}
+            for i = 1, math.min(limit, #def.acepciones) do
+                local a = def.acepciones[i]
+                if a and a ~= "" then shown[#shown + 1] = i .. ". " .. a end
+            end
+            if #shown > 0 then
+                local one_line = math.floor(def_face_size * 1.3 + 0.5)
+                local max_h
+                if room and room > 0 then
+                    max_h = math.max(one_line, room - fixed_h - sc(6))
+                else
+                    max_h = one_line * 8
+                end
+                def_widget = Kit.fitText{
+                    text = table.concat(shown, "\n"), size = 12, scale_pct = scale_pct,
+                    width = width, max_h = max_h, fgcolor = Kit.COLOR_MUTED,
+                }
+            end
+        end
+
+        -- Into their slots; an empty slot is dropped.
+        local filled = {}
+        for i = 1, #items do
+            if i == def_slot then
+                if def_widget then
+                    filled[#filled + 1] = VerticalSpan:new{ dimen = { w = 1, h = sc(6) } }
+                    filled[#filled + 1] = def_widget
+                end
+            elseif i == ctx_slot then
+                if quote_widget then
+                    filled[#filled + 1] = VerticalSpan:new{ dimen = { w = 1, h = sc(6) } }
+                    filled[#filled + 1] = quote_widget
+                end
+            else
+                filled[#filled + 1] = items[i]
+            end
+        end
+        filled.align = items.align
+        filled.dimen = items.dimen
+        items = filled
 
         local card = VerticalGroup:new(items)
 
@@ -1351,4 +1391,5 @@ return {
 
     show_settings = showSettings,
     keep_open = true,
+    _test = { hintText = hintText, vocabStatus = vocabStatus },
 }

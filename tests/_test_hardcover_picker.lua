@@ -142,6 +142,20 @@ t.test("an edition's row: what tells editions apart; the counts apart", function
     eq(stats, "268 pages \xC2\xB7 22 readers")
 end)
 
+-- Issue 624: editions fetched through another Hardcover plugin's API carry
+-- the publisher as { name = } (ours flattens it to a string); table.concat
+-- on a table crashed KOReader as the list drew.
+t.test("an edition whose publisher is a table still makes a row", function()
+    local rec = { edition_id = 7, title = "T", edition_format = "Paperback",
+        publisher = { name = "Cherokee Pub. Co." }, language = { language = "English" } }
+    local _l, sub = Picker.describe(rec)
+    eq(sub, "Paperback \xC2\xB7 Cherokee Pub. Co. \xC2\xB7 English")
+    -- A field of some other shape is left out, not a crash.
+    _l, sub = Picker.describe({ edition_id = 7, title = "T",
+        edition_format = { name = "?" }, publisher = { id = 3 } })
+    eq(sub, nil)
+end)
+
 t.test("big counts are short, so the line fits", function()
     local _l, _s, stats = Picker.describe({ title = "T", pages = 1210, users_read_count = 51200 })
     eq(stats, "1,210 pages \xC2\xB7 51k reads")

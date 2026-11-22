@@ -74,12 +74,14 @@ function M.describe(rec)
     local label = type(rec.title) == "string" and rec.title ~= "" and rec.title or _("Untitled")
     if rec.release_year then label = label .. " (" .. tostring(rec.release_year) .. ")" end
     local parts = {}
-    local function add(v) if v and v ~= "" then parts[#parts + 1] = v end end
+    -- Strings only: records can come from another plugin's Hardcover API,
+    -- whose shapes differ from our client's (issue 624).
+    local function add(v) if type(v) == "string" and v ~= "" then parts[#parts + 1] = v end end
     if rec.edition_id then
         -- Editions of one book share its author: what differs is the format,
         -- the publisher and the language.
         add(rec.edition_format)
-        add(rec.publisher)
+        add(type(rec.publisher) == "table" and rec.publisher.name or rec.publisher)
         add(type(rec.language) == "table" and rec.language.language or nil)
     else
         add(authors(rec))

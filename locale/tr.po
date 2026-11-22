@@ -3,13 +3,13 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-14 18:13+0000\n"
+"POT-Creation-Date: 2026-11-22 12:34+0000\n"
 "Language: tr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: _meta.lua:19 lib/bookshelf_action_exec.lua:77 main.lua:758
+#: _meta.lua:19 lib/bookshelf_action_exec.lua:77 main.lua:791
 msgid "Bookshelf"
 msgstr "Bookshelf"
 
@@ -137,26 +137,27 @@ msgid "View in book"
 msgstr "Kitapta göster"
 
 #: lib/bookshelf_book_highlights.lua:197 lib/bookshelf_changelog.lua:148
-#: lib/bookshelf_chip_editor.lua:1208 lib/bookshelf_chip_editor.lua:1992
-#: lib/bookshelf_chip_editor.lua:3242 lib/bookshelf_collection_manager.lua:548
+#: lib/bookshelf_chip_editor.lua:1210 lib/bookshelf_chip_editor.lua:1994
+#: lib/bookshelf_chip_editor.lua:3244 lib/bookshelf_collection_manager.lua:548
 #: lib/bookshelf_folder_picker.lua:178 lib/bookshelf_hardcover_key_ui.lua:165
-#: lib/bookshelf_hardcover_picker.lua:212 lib/bookshelf_icons_library.lua:500
+#: lib/bookshelf_hardcover_picker.lua:214 lib/bookshelf_icons_library.lua:500
 #: lib/bookshelf_library_modal.lua:651 lib/bookshelf_line_editor.lua:178
 #: lib/bookshelf_module_kit.lua:114 lib/bookshelf_module_picker.lua:319
 #: lib/bookshelf_ornament_browser.lua:390 lib/bookshelf_plank_browser.lua:278
 #: lib/bookshelf_reviews_modal.lua:594 lib/bookshelf_settings.lua:338
 #: lib/bookshelf_theme_library.lua:726 lib/bookshelf_updater.lua:483
-#: lib/bookshelf_wallpaper_browser.lua:397 lib/bookshelf_widget_opds.lua:2781
+#: lib/bookshelf_updater.lua:715 lib/bookshelf_wallpaper_browser.lua:397
+#: lib/bookshelf_widget_opds.lua:2781
 msgid "Close"
 msgstr "Kapat"
 
-#: lib/bookshelf_book_repository.lua:6781
-#: lib/bookshelf_book_repository.lua:7847
-#: lib/bookshelf_book_repository.lua:9463 micromodules/weather.lua:62
+#: lib/bookshelf_book_repository.lua:6875
+#: lib/bookshelf_book_repository.lua:7941
+#: lib/bookshelf_book_repository.lua:9566 micromodules/weather.lua:62
 msgid "Unknown"
 msgstr "Bilinmiyor"
 
-#: lib/bookshelf_book_repository.lua:7966 lib/bookshelf_chip_editor.lua:3298
+#: lib/bookshelf_book_repository.lua:8060 lib/bookshelf_chip_editor.lua:3300
 #: lib/bookshelf_filter.lua:343
 msgid "Unrated"
 msgstr "Puansız"
@@ -176,7 +177,7 @@ msgstr "Seçilenleri düzenle (%d)"
 
 #: lib/bookshelf_bulk_actions.lua:78 lib/bookshelf_bulk_actions.lua:83
 #: lib/bookshelf_bulk_actions.lua:603 lib/bookshelf_bulk_actions.lua:608
-#: lib/bookshelf_chip_editor.lua:405 lib/bookshelf_chip_editor.lua:3569
+#: lib/bookshelf_chip_editor.lua:407 lib/bookshelf_chip_editor.lua:3571
 #: lib/bookshelf_settings.lua:662 lib/bookshelf_widget_book_popup.lua:3571
 msgid "Collections"
 msgstr "Dermeler"
@@ -191,9 +192,9 @@ msgid "Reset %d books?"
 msgstr "%d kitap sıfırlansın mı?"
 
 #: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_module_card_menu.lua:117
-#: lib/bookshelf_ornament_menu.lua:385 lib/bookshelf_settings.lua:5138
-#: lib/bookshelf_settings.lua:5181 lib/bookshelf_theme_pack.lua:1395
-#: lib/bookshelf_widget_book_popup.lua:2748 main.lua:3136
+#: lib/bookshelf_ornament_menu.lua:385 lib/bookshelf_settings.lua:5158
+#: lib/bookshelf_settings.lua:5201 lib/bookshelf_theme_pack.lua:1395
+#: lib/bookshelf_widget_book_popup.lua:2748 main.lua:3258
 msgid "Reset"
 msgstr "Sıfırla"
 
@@ -203,13 +204,13 @@ msgid "Pending changes discarded"
 msgstr "Bekleyen değişiklikler atıldı"
 
 #: lib/bookshelf_bulk_actions.lua:158 lib/bookshelf_bulk_actions.lua:174
-#: lib/bookshelf_chip_editor.lua:1777 lib/bookshelf_chip_editor.lua:1788
-#: lib/bookshelf_chip_editor.lua:3394 lib/bookshelf_collection_manager.lua:326
+#: lib/bookshelf_chip_editor.lua:1779 lib/bookshelf_chip_editor.lua:1790
+#: lib/bookshelf_chip_editor.lua:3396 lib/bookshelf_collection_manager.lua:326
 #: lib/bookshelf_collection_manager.lua:355 lib/bookshelf_move_flow.lua:427
 #: lib/bookshelf_opds_catalog_editor.lua:104
 #: lib/bookshelf_ornament_browser.lua:293
 #: lib/bookshelf_page_count_dialog.lua:72 lib/bookshelf_settings.lua:1756
-#: lib/bookshelf_start_menu_edit.lua:382 lib/bookshelf_widget.lua:20818
+#: lib/bookshelf_start_menu_edit.lua:382 lib/bookshelf_widget.lua:20827
 #: lib/bookshelf_widget_book_popup.lua:1796
 #: lib/bookshelf_widget_book_popup.lua:1815
 #: lib/bookshelf_widget_book_popup.lua:4042
@@ -230,13 +231,13 @@ msgstr "%d kitap silinsin mi?"
 msgid "Move to folder…"
 msgstr "Klasöre taşı…"
 
-#: lib/bookshelf_bulk_actions.lua:253 lib/bookshelf_chip_editor.lua:1208
-#: lib/bookshelf_chip_editor.lua:1282 lib/bookshelf_collection_manager.lua:281
+#: lib/bookshelf_bulk_actions.lua:253 lib/bookshelf_chip_editor.lua:1210
+#: lib/bookshelf_chip_editor.lua:1284 lib/bookshelf_collection_manager.lua:281
 #: lib/bookshelf_collection_manager.lua:357
 #: lib/bookshelf_collection_manager.lua:364
 #: lib/bookshelf_collection_manager.lua:398
 #: lib/bookshelf_collection_manager.lua:539 lib/bookshelf_color_palette.lua:525
-#: lib/bookshelf_curated_ui.lua:216 lib/bookshelf_folder_picker.lua:64
+#: lib/bookshelf_curated_ui.lua:231 lib/bookshelf_folder_picker.lua:64
 #: lib/bookshelf_font_picker.lua:274 lib/bookshelf_hardcover_key_ui.lua:76
 #: lib/bookshelf_library_modal.lua:665 lib/bookshelf_line_editor.lua:553
 #: lib/bookshelf_move_flow.lua:34 lib/bookshelf_move_flow.lua:387
@@ -244,23 +245,23 @@ msgstr "Klasöre taşı…"
 #: lib/bookshelf_ornament_browser.lua:390
 #: lib/bookshelf_page_count_dialog.lua:188 lib/bookshelf_settings.lua:1764
 #: lib/bookshelf_settings.lua:3437 lib/bookshelf_settings.lua:3835
-#: lib/bookshelf_settings.lua:5449 lib/bookshelf_settings.lua:5772
-#: lib/bookshelf_start_menu_edit.lua:57 lib/bookshelf_widget.lua:10501
-#: lib/bookshelf_widget.lua:21685 lib/bookshelf_widget_book_popup.lua:1412
+#: lib/bookshelf_settings.lua:5469 lib/bookshelf_settings.lua:5792
+#: lib/bookshelf_start_menu_edit.lua:57 lib/bookshelf_widget.lua:10503
+#: lib/bookshelf_widget.lua:21694 lib/bookshelf_widget_book_popup.lua:1412
 #: lib/bookshelf_widget_book_popup.lua:3800
 #: lib/bookshelf_widget_book_popup.lua:3880
 #: lib/bookshelf_widget_book_popup.lua:3927
 #: lib/bookshelf_widget_book_popup.lua:3995
 #: lib/bookshelf_widget_book_popup.lua:4043
 #: lib/bookshelf_widget_book_popup.lua:4049 lib/bookshelf_widget_opds.lua:2136
-#: main.lua:2448 micromodules/action.lua:240 micromodules/countdown.lua:60
+#: main.lua:2547 micromodules/action.lua:240 micromodules/countdown.lua:73
 #: micromodules/reading_goal.lua:496 micromodules/reading_goal.lua:541
 #: micromodules/shelf.lua:396 micromodules/weather.lua:254
 msgid "Cancel"
 msgstr "İptal"
 
-#: lib/bookshelf_bulk_actions.lua:289 lib/bookshelf_chip_editor.lua:3840
-#: lib/bookshelf_color_palette.lua:529 lib/bookshelf_settings.lua:5786
+#: lib/bookshelf_bulk_actions.lua:289 lib/bookshelf_chip_editor.lua:3842
+#: lib/bookshelf_color_palette.lua:529 lib/bookshelf_settings.lua:5806
 msgid "Apply"
 msgstr "Uygula"
 
@@ -357,14 +358,16 @@ msgstr "Neyin değişeceğini seçin, sonra Uygula'ya dokunun."
 msgid ""
 "Apply will:\n"
 "%1"
-msgstr "Uygula şunları yapacak:\n%1"
+msgstr ""
+"Uygula şunları yapacak:\n"
+"%1"
 
-#: lib/bookshelf_bulk_actions.lua:583 lib/bookshelf_chip_editor.lua:3832
+#: lib/bookshelf_bulk_actions.lua:583 lib/bookshelf_chip_editor.lua:3834
 #: lib/bookshelf_widget_book_popup.lua:2268
 msgid "Clear"
 msgstr "Temizle"
 
-#: lib/bookshelf_bulk_actions.lua:593 lib/bookshelf_chip_editor.lua:2917
+#: lib/bookshelf_bulk_actions.lua:593 lib/bookshelf_chip_editor.lua:2919
 #: lib/bookshelf_widget_book_popup.lua:2152
 msgid "Reading status"
 msgstr "Okuma durumu"
@@ -374,15 +377,15 @@ msgstr "Okuma durumu"
 msgid "Unopened"
 msgstr "Açılmamış"
 
-#: lib/bookshelf_bulk_actions.lua:596 lib/bookshelf_chip_editor.lua:2806
-#: lib/bookshelf_chip_editor.lua:4163 lib/bookshelf_filter.lua:298
+#: lib/bookshelf_bulk_actions.lua:596 lib/bookshelf_chip_editor.lua:2808
+#: lib/bookshelf_chip_editor.lua:4171 lib/bookshelf_filter.lua:298
 #: lib/bookshelf_filter.lua:330 lib/bookshelf_icons_catalogue.lua:23
 #: lib/bookshelf_start_menu_modules.lua:534 lib/bookshelf_tokens.lua:263
 #: lib/bookshelf_widget_book_popup.lua:2156 micromodules/shelf_size.lua:23
 msgid "Reading"
 msgstr "Okunuyor"
 
-#: lib/bookshelf_bulk_actions.lua:597 lib/bookshelf_chip_editor.lua:2808
+#: lib/bookshelf_bulk_actions.lua:597 lib/bookshelf_chip_editor.lua:2810
 #: lib/bookshelf_filter.lua:299 lib/bookshelf_filter.lua:331
 #: lib/bookshelf_tokens.lua:264 lib/bookshelf_widget_book_popup.lua:525
 #: lib/bookshelf_widget_book_popup.lua:2157 micromodules/random_unread.lua:311
@@ -390,7 +393,7 @@ msgstr "Okunuyor"
 msgid "On hold"
 msgstr "Bekliyor"
 
-#: lib/bookshelf_bulk_actions.lua:598 lib/bookshelf_chip_editor.lua:2807
+#: lib/bookshelf_bulk_actions.lua:598 lib/bookshelf_chip_editor.lua:2809
 #: lib/bookshelf_filter.lua:299 lib/bookshelf_filter.lua:332
 #: lib/bookshelf_tokens.lua:265 lib/bookshelf_widget_book_popup.lua:523
 #: lib/bookshelf_widget_book_popup.lua:2158 micromodules/random_unread.lua:312
@@ -398,9 +401,9 @@ msgstr "Bekliyor"
 msgid "Finished"
 msgstr "Tamamlandı"
 
-#: lib/bookshelf_bulk_actions.lua:600 lib/bookshelf_chip_editor.lua:421
-#: lib/bookshelf_chip_editor.lua:3204 lib/bookshelf_chip_editor.lua:3557
-#: lib/bookshelf_chip_editor.lua:3585 lib/bookshelf_filter.lua:35
+#: lib/bookshelf_bulk_actions.lua:600 lib/bookshelf_chip_editor.lua:423
+#: lib/bookshelf_chip_editor.lua:3206 lib/bookshelf_chip_editor.lua:3559
+#: lib/bookshelf_chip_editor.lua:3587 lib/bookshelf_filter.lua:35
 #: lib/bookshelf_sort_engine.lua:757
 msgid "Rating"
 msgstr "Puan"
@@ -414,12 +417,12 @@ msgstr "Sık kullanılan"
 #: lib/bookshelf_start_menu_edit.lua:519
 #: lib/bookshelf_widget_book_popup.lua:3656
 #: lib/bookshelf_widget_book_popup.lua:3802
-#: lib/bookshelf_widget_book_popup.lua:3882 micromodules/countdown.lua:123
+#: lib/bookshelf_widget_book_popup.lua:3882 micromodules/countdown.lua:136
 msgid "Add"
 msgstr "Ekle"
 
 #: lib/bookshelf_bulk_actions.lua:606 lib/bookshelf_module_grid_editor.lua:275
-#: lib/bookshelf_module_grid_session.lua:385 lib/bookshelf_widget.lua:7750
+#: lib/bookshelf_module_grid_session.lua:385 lib/bookshelf_widget.lua:7751
 #: lib/bookshelf_widget_book_popup.lua:4031
 msgid "Remove"
 msgstr "Kaldır"
@@ -432,12 +435,12 @@ msgstr "Uygula'da ayrıca"
 msgid "Right away"
 msgstr "Hemen"
 
-#: lib/bookshelf_bulk_actions.lua:623 lib/bookshelf_curated_ui.lua:224
+#: lib/bookshelf_bulk_actions.lua:623 lib/bookshelf_curated_ui.lua:239
 msgid "Add to shelf"
 msgstr "Rafa ekle"
 
 #: lib/bookshelf_bulk_actions.lua:640 lib/bookshelf_ornament_browser.lua:316
-#: lib/bookshelf_widget.lua:20754
+#: lib/bookshelf_widget.lua:20763
 msgid "Delete…"
 msgstr "Sil…"
 
@@ -470,502 +473,507 @@ msgstr "Değişiklik günlüğü (%1 / %2)"
 msgid "Could not fetch the changelog."
 msgstr "Değişiklik günlüğü alınamadı."
 
-#: lib/bookshelf_chip_editor.lua:95 lib/bookshelf_chip_editor.lua:2710
-#: lib/bookshelf_chip_editor.lua:2753 lib/bookshelf_chip_editor.lua:2773
-#: lib/bookshelf_widget.lua:6248 lib/bookshelf_widget.lua:6258
+#: lib/bookshelf_chip_editor.lua:97 lib/bookshelf_chip_editor.lua:2712
+#: lib/bookshelf_chip_editor.lua:2755 lib/bookshelf_chip_editor.lua:2775
+#: lib/bookshelf_widget.lua:6249 lib/bookshelf_widget.lua:6259
 msgid "List"
 msgstr "Liste"
 
-#: lib/bookshelf_chip_editor.lua:96 lib/bookshelf_chip_editor.lua:1584
-#: lib/bookshelf_chip_editor.lua:2709 lib/bookshelf_chip_editor.lua:2752
-#: lib/bookshelf_chip_editor.lua:2774 lib/bookshelf_widget.lua:6247
-#: lib/bookshelf_widget.lua:6257
+#: lib/bookshelf_chip_editor.lua:98 lib/bookshelf_chip_editor.lua:1586
+#: lib/bookshelf_chip_editor.lua:2711 lib/bookshelf_chip_editor.lua:2754
+#: lib/bookshelf_chip_editor.lua:2776 lib/bookshelf_widget.lua:6248
+#: lib/bookshelf_widget.lua:6258
 msgid "Covers"
 msgstr "Kapaklar"
 
-#: lib/bookshelf_chip_editor.lua:97 lib/bookshelf_chip_editor.lua:2463
-#: lib/bookshelf_chip_editor.lua:2466 lib/bookshelf_chip_editor.lua:2708
+#: lib/bookshelf_chip_editor.lua:99 lib/bookshelf_chip_editor.lua:2465
+#: lib/bookshelf_chip_editor.lua:2468 lib/bookshelf_chip_editor.lua:2710
 #: lib/bookshelf_module_card_menu.lua:45 lib/bookshelf_settings.lua:2288
-#: lib/bookshelf_settings.lua:4781 lib/bookshelf_settings.lua:4784
-#: lib/bookshelf_settings.lua:4816 lib/bookshelf_start_menu_edit.lua:318
-#: lib/bookshelf_widget.lua:6256 lib/bookshelf_widget.lua:6271
+#: lib/bookshelf_settings.lua:4801 lib/bookshelf_settings.lua:4804
+#: lib/bookshelf_settings.lua:4836 lib/bookshelf_start_menu_edit.lua:318
+#: lib/bookshelf_widget.lua:6257 lib/bookshelf_widget.lua:6272
 msgid "Auto"
 msgstr "Oto"
 
-#: lib/bookshelf_chip_editor.lua:98 lib/bookshelf_chip_editor.lua:2587
-#: lib/bookshelf_chip_editor.lua:2714 lib/bookshelf_chip_editor.lua:2755
-#: lib/bookshelf_chip_editor.lua:2772 lib/bookshelf_widget.lua:6249
-#: lib/bookshelf_widget.lua:6259 lib/bookshelf_widget.lua:20700
+#: lib/bookshelf_chip_editor.lua:100 lib/bookshelf_chip_editor.lua:2589
+#: lib/bookshelf_chip_editor.lua:2716 lib/bookshelf_chip_editor.lua:2757
+#: lib/bookshelf_chip_editor.lua:2774 lib/bookshelf_widget.lua:6250
+#: lib/bookshelf_widget.lua:6260 lib/bookshelf_widget.lua:20709
 msgid "Spines"
 msgstr "Sırtlar"
 
-#: lib/bookshelf_chip_editor.lua:303 lib/bookshelf_chip_editor.lua:1849
-#: lib/bookshelf_chip_editor.lua:1878 lib/bookshelf_curated_ui.lua:162
-#: lib/bookshelf_settings.lua:6398 lib/bookshelf_widget.lua:21132
-#: lib/bookshelf_widget.lua:21184
+#: lib/bookshelf_chip_editor.lua:305 lib/bookshelf_chip_editor.lua:1851
+#: lib/bookshelf_chip_editor.lua:1880 lib/bookshelf_curated_ui.lua:177
+#: lib/bookshelf_settings.lua:6418 lib/bookshelf_widget.lua:21141
+#: lib/bookshelf_widget.lua:21193
 msgid "New shelf"
 msgstr "Yeni raf"
 
-#: lib/bookshelf_chip_editor.lua:377
+#: lib/bookshelf_chip_editor.lua:379
 msgid "Full name"
 msgstr "Tam ad"
 
-#: lib/bookshelf_chip_editor.lua:383
+#: lib/bookshelf_chip_editor.lua:385
 msgid "Name"
 msgstr "Ad"
 
-#: lib/bookshelf_chip_editor.lua:385 lib/bookshelf_sort_engine.lua:634
+#: lib/bookshelf_chip_editor.lua:387 lib/bookshelf_sort_engine.lua:634
 msgid "Surname"
 msgstr "Soyadı"
 
-#: lib/bookshelf_chip_editor.lua:386
+#: lib/bookshelf_chip_editor.lua:388
 msgid "Most recently read"
 msgstr "En son okunan"
 
-#: lib/bookshelf_chip_editor.lua:387
+#: lib/bookshelf_chip_editor.lua:389
 msgid "Most recently added"
 msgstr "En son eklenen"
 
-#: lib/bookshelf_chip_editor.lua:388 lib/bookshelf_sort_engine.lua:749
+#: lib/bookshelf_chip_editor.lua:390 lib/bookshelf_sort_engine.lua:749
 msgid "Book count"
 msgstr "Kitap sayısı"
 
-#: lib/bookshelf_chip_editor.lua:390 lib/bookshelf_chip_editor.lua:423
-#: lib/bookshelf_chip_editor.lua:3559 lib/bookshelf_chip_editor.lua:3587
+#: lib/bookshelf_chip_editor.lua:392 lib/bookshelf_chip_editor.lua:425
+#: lib/bookshelf_chip_editor.lua:3561 lib/bookshelf_chip_editor.lua:3589
 msgid "Decade"
 msgstr "Onyıl"
 
-#: lib/bookshelf_chip_editor.lua:398 lib/bookshelf_chip_editor.lua:3527
+#: lib/bookshelf_chip_editor.lua:400 lib/bookshelf_chip_editor.lua:3529
 msgid "Home (folders)"
 msgstr "Giriş (klasörler)"
 
-#: lib/bookshelf_chip_editor.lua:399 lib/bookshelf_chip_editor.lua:3524
+#: lib/bookshelf_chip_editor.lua:401 lib/bookshelf_chip_editor.lua:3526
 msgid "Home (flattened)"
 msgstr "Giriş (düzleştirilmiş)"
 
-#: lib/bookshelf_chip_editor.lua:400 lib/bookshelf_chip_editor.lua:3544
+#: lib/bookshelf_chip_editor.lua:402 lib/bookshelf_chip_editor.lua:3546
 #: micromodules/last_books.lua:107
 msgid "Recently read"
 msgstr "Son okunanlar"
 
-#: lib/bookshelf_chip_editor.lua:401 lib/bookshelf_chip_editor.lua:3545
+#: lib/bookshelf_chip_editor.lua:403 lib/bookshelf_chip_editor.lua:3547
 msgid "Latest added"
 msgstr "Son eklenenler"
 
-#: lib/bookshelf_chip_editor.lua:402 lib/bookshelf_chip_editor.lua:418
-#: lib/bookshelf_chip_editor.lua:2922 lib/bookshelf_chip_editor.lua:3052
-#: lib/bookshelf_chip_editor.lua:3203 lib/bookshelf_chip_editor.lua:3553
-#: lib/bookshelf_chip_editor.lua:3566 lib/bookshelf_chip_editor.lua:3581
-#: lib/bookshelf_chip_editor.lua:3751 lib/bookshelf_chip_editor.lua:4160
-#: lib/bookshelf_filter.lua:37 lib/bookshelf_settings.lua:661
-#: lib/bookshelf_settings.lua:952 lib/bookshelf_sort_engine.lua:636
-#: lib/bookshelf_tab_model.lua:82 lib/bookshelf_widget.lua:1675
-#: lib/bookshelf_widget_book_popup.lua:3570
+#: lib/bookshelf_chip_editor.lua:404 lib/bookshelf_chip_editor.lua:2924
+#: lib/bookshelf_chip_editor.lua:3054 lib/bookshelf_chip_editor.lua:3205
+#: lib/bookshelf_chip_editor.lua:3568 lib/bookshelf_chip_editor.lua:3753
+#: lib/bookshelf_chip_editor.lua:4168 lib/bookshelf_filter.lua:37
+#: lib/bookshelf_settings.lua:661 lib/bookshelf_settings.lua:952
+#: lib/bookshelf_sort_engine.lua:636 lib/bookshelf_tab_model.lua:82
+#: lib/bookshelf_widget.lua:1675 lib/bookshelf_widget_book_popup.lua:3570
 #: lib/bookshelf_widget_book_popup.lua:4157
 msgid "Series"
 msgstr "Diziler"
 
-#: lib/bookshelf_chip_editor.lua:403 lib/bookshelf_chip_editor.lua:3567
+#: lib/bookshelf_chip_editor.lua:405 lib/bookshelf_chip_editor.lua:3569
 #: lib/bookshelf_settings.lua:156 lib/bookshelf_tab_model.lua:86
 #: lib/bookshelf_tokens.lua:30 lib/bookshelf_widget.lua:1674
 msgid "Authors"
 msgstr "Yazarlar"
 
-#: lib/bookshelf_chip_editor.lua:404 lib/bookshelf_chip_editor.lua:3568
+#: lib/bookshelf_chip_editor.lua:406 lib/bookshelf_chip_editor.lua:3570
 #: lib/bookshelf_settings.lua:663 lib/bookshelf_tab_model.lua:94
 #: lib/bookshelf_widget.lua:1676 lib/bookshelf_widget_book_popup.lua:3572
 msgid "Genres"
 msgstr "Türler"
 
-#: lib/bookshelf_chip_editor.lua:406 lib/bookshelf_chip_editor.lua:3570
+#: lib/bookshelf_chip_editor.lua:408 lib/bookshelf_chip_editor.lua:3572
 msgid "Formats"
 msgstr "Biçimler"
 
-#: lib/bookshelf_chip_editor.lua:407 lib/bookshelf_chip_editor.lua:3571
+#: lib/bookshelf_chip_editor.lua:409 lib/bookshelf_chip_editor.lua:3573
 #: lib/bookshelf_widget.lua:1679 lib/bookshelf_widget_book_popup.lua:2493
 #: lib/bookshelf_widget_book_popup.lua:2499
 msgid "Ratings"
 msgstr "Puanlar"
 
-#: lib/bookshelf_chip_editor.lua:408 lib/bookshelf_chip_editor.lua:3572
+#: lib/bookshelf_chip_editor.lua:410 lib/bookshelf_chip_editor.lua:3574
 #: lib/bookshelf_tab_model.lua:99
 msgid "Languages"
 msgstr "Diller"
 
-#: lib/bookshelf_chip_editor.lua:409 lib/bookshelf_chip_editor.lua:3573
+#: lib/bookshelf_chip_editor.lua:411 lib/bookshelf_chip_editor.lua:3575
 msgid "Decades"
 msgstr "Onyıllar"
 
-#: lib/bookshelf_chip_editor.lua:410 lib/bookshelf_chip_editor.lua:2802
-#: lib/bookshelf_chip_editor.lua:3546 lib/bookshelf_collection_manager.lua:100
-#: lib/bookshelf_tab_model.lua:101 lib/bookshelf_widget_book_popup.lua:974
+#: lib/bookshelf_chip_editor.lua:412 lib/bookshelf_chip_editor.lua:2804
+#: lib/bookshelf_chip_editor.lua:3548 lib/bookshelf_collection_manager.lua:100
+#: lib/bookshelf_curated_ui.lua:55 lib/bookshelf_tab_model.lua:101
+#: lib/bookshelf_widget_book_popup.lua:974
 #: lib/bookshelf_widget_book_popup.lua:1012
 msgid "Favorites"
 msgstr "Sık Kullanılanlar"
 
-#: lib/bookshelf_chip_editor.lua:412 lib/bookshelf_chip_editor.lua:3205
-#: lib/bookshelf_chip_editor.lua:3579 lib/bookshelf_settings.lua:664
+#: lib/bookshelf_chip_editor.lua:414 lib/bookshelf_chip_editor.lua:3207
+#: lib/bookshelf_chip_editor.lua:3581 lib/bookshelf_settings.lua:664
 #: lib/bookshelf_widget.lua:1678 lib/bookshelf_widget_book_popup.lua:3573
 msgid "Folder"
 msgstr "Klasör"
 
-#: lib/bookshelf_chip_editor.lua:413
+#: lib/bookshelf_chip_editor.lua:415
 msgid "Folder (flattened)"
 msgstr "Klasör (düzleştirilmiş)"
 
-#: lib/bookshelf_chip_editor.lua:414 lib/bookshelf_chip_editor.lua:415
-#: lib/bookshelf_chip_editor.lua:2946 lib/bookshelf_chip_editor.lua:3205
-#: lib/bookshelf_chip_editor.lua:4139 lib/bookshelf_filter.lua:36
+#: lib/bookshelf_chip_editor.lua:416 lib/bookshelf_chip_editor.lua:417
+#: lib/bookshelf_chip_editor.lua:2948 lib/bookshelf_chip_editor.lua:3207
+#: lib/bookshelf_chip_editor.lua:4143 lib/bookshelf_filter.lua:36
 msgid "Collection"
 msgstr "Derme"
 
-#: lib/bookshelf_chip_editor.lua:416 lib/bookshelf_chip_editor.lua:3203
-#: lib/bookshelf_chip_editor.lua:3555 lib/bookshelf_chip_editor.lua:3583
+#: lib/bookshelf_chip_editor.lua:418 lib/bookshelf_chip_editor.lua:3205
+#: lib/bookshelf_chip_editor.lua:3557 lib/bookshelf_chip_editor.lua:3585
 #: lib/bookshelf_filter.lua:32
 msgid "Genre"
 msgstr "Tür"
 
-#: lib/bookshelf_chip_editor.lua:417 lib/bookshelf_chip_editor.lua:3051
-#: lib/bookshelf_chip_editor.lua:3203 lib/bookshelf_chip_editor.lua:3554
-#: lib/bookshelf_chip_editor.lua:3582 lib/bookshelf_settings.lua:458
+#: lib/bookshelf_chip_editor.lua:419 lib/bookshelf_chip_editor.lua:3053
+#: lib/bookshelf_chip_editor.lua:3205 lib/bookshelf_chip_editor.lua:3556
+#: lib/bookshelf_chip_editor.lua:3584 lib/bookshelf_settings.lua:458
 #: lib/bookshelf_settings.lua:660 lib/bookshelf_settings.lua:951
 #: lib/bookshelf_sort_engine.lua:632
 msgid "Author"
 msgstr "Yazar"
 
-#: lib/bookshelf_chip_editor.lua:419 lib/bookshelf_chip_editor.lua:4165
+#: lib/bookshelf_chip_editor.lua:420 lib/bookshelf_chip_editor.lua:3555
+#: lib/bookshelf_chip_editor.lua:3583
+msgctxt "one series"
+msgid "Series"
+msgstr "Dizi"
+
+#: lib/bookshelf_chip_editor.lua:421 lib/bookshelf_chip_editor.lua:4173
 #: lib/bookshelf_filter.lua:31
 msgid "Status"
 msgstr "Durum"
 
-#: lib/bookshelf_chip_editor.lua:420 lib/bookshelf_chip_editor.lua:3204
-#: lib/bookshelf_chip_editor.lua:3556 lib/bookshelf_chip_editor.lua:3584
+#: lib/bookshelf_chip_editor.lua:422 lib/bookshelf_chip_editor.lua:3206
+#: lib/bookshelf_chip_editor.lua:3558 lib/bookshelf_chip_editor.lua:3586
 #: lib/bookshelf_filter.lua:34
 msgid "Format"
 msgstr "Biçim"
 
-#: lib/bookshelf_chip_editor.lua:422 lib/bookshelf_chip_editor.lua:3204
-#: lib/bookshelf_chip_editor.lua:3558 lib/bookshelf_chip_editor.lua:3586
+#: lib/bookshelf_chip_editor.lua:424 lib/bookshelf_chip_editor.lua:3206
+#: lib/bookshelf_chip_editor.lua:3560 lib/bookshelf_chip_editor.lua:3588
 #: lib/bookshelf_filter.lua:33 lib/bookshelf_tokens.lua:98
 #: micromodules/trivia.lua:476
 msgid "Language"
 msgstr "Dil"
 
-#: lib/bookshelf_chip_editor.lua:427 lib/bookshelf_chip_editor.lua:3206
-#: lib/bookshelf_chip_editor.lua:3595
+#: lib/bookshelf_chip_editor.lua:429 lib/bookshelf_chip_editor.lua:3208
+#: lib/bookshelf_chip_editor.lua:3597
 msgid "OPDS catalog"
 msgstr "OPDS kataloğu"
 
-#: lib/bookshelf_chip_editor.lua:429 lib/bookshelf_chip_editor.lua:3594
+#: lib/bookshelf_chip_editor.lua:431 lib/bookshelf_chip_editor.lua:3596
 msgid "Shelf of shelves"
 msgstr "Raflar rafı"
 
-#: lib/bookshelf_chip_editor.lua:431 lib/bookshelf_chip_editor.lua:446
-#: lib/bookshelf_settings.lua:4888
+#: lib/bookshelf_chip_editor.lua:433 lib/bookshelf_chip_editor.lua:448
+#: lib/bookshelf_settings.lua:4908
 msgid "(none)"
 msgstr "(yok)"
 
-#: lib/bookshelf_chip_editor.lua:453
+#: lib/bookshelf_chip_editor.lua:455
 msgid "OPDS: %1"
 msgstr "OPDS: %1"
 
-#: lib/bookshelf_chip_editor.lua:531 lib/bookshelf_chip_editor.lua:1208
+#: lib/bookshelf_chip_editor.lua:533 lib/bookshelf_chip_editor.lua:1210
 #: lib/bookshelf_library_modal.lua:652 lib/bookshelf_menu_host.lua:135
 #: lib/bookshelf_popup_kit.lua:972 lib/bookshelf_widget.lua:1698
 #: micromodules/quote_of_day.lua:86
 msgid "Back"
 msgstr "Geri"
 
-#: lib/bookshelf_chip_editor.lua:746
+#: lib/bookshelf_chip_editor.lua:748
 msgid "%1 (copy)"
 msgstr "%1 (kopya)"
 
-#: lib/bookshelf_chip_editor.lua:800
+#: lib/bookshelf_chip_editor.lua:802
 msgid "Move to"
 msgstr "Şuraya taşı"
 
-#: lib/bookshelf_chip_editor.lua:806 lib/bookshelf_settings.lua:5895
-#: lib/bookshelf_widget.lua:20657
+#: lib/bookshelf_chip_editor.lua:808 lib/bookshelf_settings.lua:5915
+#: lib/bookshelf_widget.lua:20666
 msgid "Shelf menu"
 msgstr "Raf menüsü"
 
-#: lib/bookshelf_chip_editor.lua:809
+#: lib/bookshelf_chip_editor.lua:811
 msgid "the shelf menu"
 msgstr "raf menüsü"
 
-#: lib/bookshelf_chip_editor.lua:818
+#: lib/bookshelf_chip_editor.lua:820
 msgid "Into a shelf of shelves"
 msgstr "Bir raflar rafının içine"
 
-#: lib/bookshelf_chip_editor.lua:822
+#: lib/bookshelf_chip_editor.lua:824
 msgid "Now in %1. Tap where it should go."
 msgstr "Artık %1 içinde. Gideceği yere dokunun."
 
-#: lib/bookshelf_chip_editor.lua:823
+#: lib/bookshelf_chip_editor.lua:825
 msgid "Tap where it should go."
 msgstr "Gideceği yere dokunun."
 
-#: lib/bookshelf_chip_editor.lua:859
+#: lib/bookshelf_chip_editor.lua:861
 msgid "Changing this shelf's source deletes the shelves inside it. This cannot be undone."
 msgstr "Bu rafın kaynağını değiştirmek içindeki rafları siler. Bu işlem geri alınamaz."
 
-#: lib/bookshelf_chip_editor.lua:860
+#: lib/bookshelf_chip_editor.lua:862
 msgid "Change"
 msgstr "Değiştir"
 
-#: lib/bookshelf_chip_editor.lua:1176 lib/bookshelf_chip_editor.lua:1216
+#: lib/bookshelf_chip_editor.lua:1178 lib/bookshelf_chip_editor.lua:1218
 #: micromodules/shelf.lua:41 micromodules/shelf.lua:364
 #: micromodules/shelf.lua:567
 msgid "Shelf"
 msgstr "Raf"
 
-#: lib/bookshelf_chip_editor.lua:1287
+#: lib/bookshelf_chip_editor.lua:1289
 msgid "Insert icon…"
 msgstr "Simge ekle…"
 
-#: lib/bookshelf_chip_editor.lua:1335
+#: lib/bookshelf_chip_editor.lua:1337
 msgid "OK"
 msgstr "Tamam"
 
-#: lib/bookshelf_chip_editor.lua:1347 lib/bookshelf_curated_ui.lua:210
+#: lib/bookshelf_chip_editor.lua:1349 lib/bookshelf_curated_ui.lua:225
 msgid "Shelf name"
 msgstr "Raf adı"
 
-#: lib/bookshelf_chip_editor.lua:1377
+#: lib/bookshelf_chip_editor.lua:1379
 msgid "%1 (%2)"
 msgstr "%1 (%2)"
 
-#: lib/bookshelf_chip_editor.lua:1381
+#: lib/bookshelf_chip_editor.lua:1383
 msgid "Sort: (none)"
 msgstr "Sıralama: (yok)"
 
-#: lib/bookshelf_chip_editor.lua:1383
+#: lib/bookshelf_chip_editor.lua:1385
 msgid "Sort: %1"
 msgstr "Sıralama: %1"
 
-#: lib/bookshelf_chip_editor.lua:1429
+#: lib/bookshelf_chip_editor.lua:1431
 msgid "Server order"
 msgstr "Sunucu sırası"
 
-#: lib/bookshelf_chip_editor.lua:1435
+#: lib/bookshelf_chip_editor.lua:1437
 msgid "Shelves stand in the order you arrange them"
 msgstr "Raflar, sizin yerleştirdiğiniz sırada durur"
 
-#: lib/bookshelf_chip_editor.lua:1495
+#: lib/bookshelf_chip_editor.lua:1497
 msgid "Source: "
 msgstr "Kaynak: "
 
-#: lib/bookshelf_chip_editor.lua:1497
+#: lib/bookshelf_chip_editor.lua:1499
 msgid "Source / grouping: "
 msgstr "Kaynak / gruplama: "
 
-#: lib/bookshelf_chip_editor.lua:1517
+#: lib/bookshelf_chip_editor.lua:1519
 msgid "Add shelf tile: %1"
 msgstr "Raf kutucuğu ekle: %1"
 
-#: lib/bookshelf_chip_editor.lua:1517 lib/bookshelf_chip_editor.lua:2427
-#: lib/bookshelf_chip_editor.lua:2584 lib/bookshelf_module_card_menu.lua:41
+#: lib/bookshelf_chip_editor.lua:1519 lib/bookshelf_chip_editor.lua:2429
+#: lib/bookshelf_chip_editor.lua:2586 lib/bookshelf_module_card_menu.lua:41
 #: lib/bookshelf_ornament_menu.lua:482 lib/bookshelf_settings.lua:781
 #: lib/bookshelf_settings.lua:841 lib/bookshelf_settings.lua:914
 #: lib/bookshelf_settings.lua:1445 lib/bookshelf_settings.lua:3590
-#: lib/bookshelf_settings.lua:4377 lib/bookshelf_settings.lua:4404
-#: lib/bookshelf_settings.lua:5599 lib/bookshelf_widget.lua:20126
+#: lib/bookshelf_settings.lua:4397 lib/bookshelf_settings.lua:4424
+#: lib/bookshelf_settings.lua:5619 lib/bookshelf_widget.lua:20135
 msgid "Off"
 msgstr "Kapalı"
 
-#: lib/bookshelf_chip_editor.lua:1517 lib/bookshelf_chip_editor.lua:2427
-#: lib/bookshelf_module_card_menu.lua:41 lib/bookshelf_widget.lua:20126
+#: lib/bookshelf_chip_editor.lua:1519 lib/bookshelf_chip_editor.lua:2429
+#: lib/bookshelf_module_card_menu.lua:41 lib/bookshelf_widget.lua:20135
 msgid "On"
 msgstr "Açık"
 
-#: lib/bookshelf_chip_editor.lua:1530
+#: lib/bookshelf_chip_editor.lua:1532
 msgid "Filters: %1"
 msgstr "Süzgeçler: %1"
 
-#: lib/bookshelf_chip_editor.lua:1545 lib/bookshelf_chip_editor.lua:2312
+#: lib/bookshelf_chip_editor.lua:1547 lib/bookshelf_chip_editor.lua:2314
 msgid "Catalog settings"
 msgstr "Katalog ayarları"
 
-#: lib/bookshelf_chip_editor.lua:1581
+#: lib/bookshelf_chip_editor.lua:1583
 msgid "Spines, face out"
 msgstr "Sırtlar, kapağı önde"
 
-#: lib/bookshelf_chip_editor.lua:1584
+#: lib/bookshelf_chip_editor.lua:1586
 msgid "View mode: %1"
 msgstr "Görünüm: %1"
 
-#: lib/bookshelf_chip_editor.lua:1632 lib/bookshelf_theme_library.lua:659
+#: lib/bookshelf_chip_editor.lua:1634 lib/bookshelf_theme_library.lua:659
 msgid "Theme: %1"
 msgstr "Tema: %1"
 
-#: lib/bookshelf_chip_editor.lua:1639
+#: lib/bookshelf_chip_editor.lua:1641
 msgid "Theme"
 msgstr "Tema"
 
-#: lib/bookshelf_chip_editor.lua:1659
+#: lib/bookshelf_chip_editor.lua:1661
 msgid "Off in Settings"
 msgstr "Ayarlarda kapalı"
 
-#: lib/bookshelf_chip_editor.lua:1661
+#: lib/bookshelf_chip_editor.lua:1663
 msgid "Not in List view"
 msgstr "Liste görünümünde yok"
 
-#: lib/bookshelf_chip_editor.lua:1665
+#: lib/bookshelf_chip_editor.lua:1667
 msgid "%1 on this shelf"
 msgstr "bu rafta %1"
 
-#: lib/bookshelf_chip_editor.lua:1667
+#: lib/bookshelf_chip_editor.lua:1669
 msgid "Modules: %1"
 msgstr "Modüller: %1"
 
-#: lib/bookshelf_chip_editor.lua:1667
+#: lib/bookshelf_chip_editor.lua:1669
 msgid "Modules: Add to this shelf…"
 msgstr "Modüller: Bu rafa ekle…"
 
-#: lib/bookshelf_chip_editor.lua:1679 lib/bookshelf_chip_editor.lua:1688
+#: lib/bookshelf_chip_editor.lua:1681 lib/bookshelf_chip_editor.lua:1690
 #: lib/bookshelf_module_picker.lua:281 lib/bookshelf_settings.lua:3590
-#: lib/bookshelf_settings.lua:3592 lib/bookshelf_settings.lua:4427
-#: lib/bookshelf_settings.lua:5913 lib/bookshelf_widget.lua:18708
+#: lib/bookshelf_settings.lua:3592 lib/bookshelf_settings.lua:4447
+#: lib/bookshelf_settings.lua:5933 lib/bookshelf_widget.lua:18717
 msgid "Modules"
 msgstr "Modüller"
 
-#: lib/bookshelf_chip_editor.lua:1702
+#: lib/bookshelf_chip_editor.lua:1704
 msgid "Add module…"
 msgstr "Modül ekle…"
 
-#: lib/bookshelf_chip_editor.lua:1705
+#: lib/bookshelf_chip_editor.lua:1707
 msgid "Modules stand among this shelf's books. Tap one to move, size or remove it."
 msgstr "Modüller bu rafın kitapları arasında durur. Taşımak, boyutlandırmak ya da kaldırmak için birine dokunun."
 
-#: lib/bookshelf_chip_editor.lua:1745
+#: lib/bookshelf_chip_editor.lua:1747
 msgid "Edit shelf name"
 msgstr "Raf adını düzenle"
 
-#: lib/bookshelf_chip_editor.lua:1749
+#: lib/bookshelf_chip_editor.lua:1751
 msgid "Shelf order…"
 msgstr "Raf sırası…"
 
-#: lib/bookshelf_chip_editor.lua:1786
+#: lib/bookshelf_chip_editor.lua:1788
 msgid "Delete this shelf and the shelves inside it? This cannot be undone."
 msgstr "Bu raf ve içindeki raflar silinsin mi? Bu işlem geri alınamaz."
 
-#: lib/bookshelf_chip_editor.lua:1787
+#: lib/bookshelf_chip_editor.lua:1789
 msgid "Delete this shelf? This cannot be undone."
 msgstr "Bu raf silinsin mi? Bu işlem geri alınamaz."
 
-#: lib/bookshelf_chip_editor.lua:1826
+#: lib/bookshelf_chip_editor.lua:1828
 msgid "Copy"
 msgstr "Kopyala"
 
-#: lib/bookshelf_chip_editor.lua:1832 lib/bookshelf_folder_picker.lua:140
+#: lib/bookshelf_chip_editor.lua:1834 lib/bookshelf_folder_picker.lua:140
 msgid "Move to…"
 msgstr "Taşı…"
 
-#: lib/bookshelf_chip_editor.lua:1841
+#: lib/bookshelf_chip_editor.lua:1843
 msgid "There is no shelf of shelves to move this shelf into yet. Make one with New shelf > Shelf of shelves."
 msgstr "Bu rafı içine taşıyabileceğiniz bir raflar rafı henüz yok. Yeni raf > Raflar rafı ile bir tane oluşturun."
 
-#: lib/bookshelf_chip_editor.lua:1915 lib/bookshelf_widget.lua:2877
+#: lib/bookshelf_chip_editor.lua:1917 lib/bookshelf_widget.lua:2877
 msgid "Choose a source to keep this new shelf."
 msgstr "Bu yeni rafı tutmak için bir kaynak seçin."
 
-#: lib/bookshelf_chip_editor.lua:2035 lib/bookshelf_widget.lua:7767
+#: lib/bookshelf_chip_editor.lua:2037 lib/bookshelf_widget.lua:7769
 #: lib/bookshelf_widget_curated.lua:787
 msgid "Edit shelf"
 msgstr "Rafı düzenle"
 
-#: lib/bookshelf_chip_editor.lua:2037
+#: lib/bookshelf_chip_editor.lua:2039
 msgid "Editing shelf: %1"
 msgstr "Düzenlenen raf: %1"
 
-#: lib/bookshelf_chip_editor.lua:2241
+#: lib/bookshelf_chip_editor.lua:2243
 msgid "Shelf order"
 msgstr "Raf sırası"
 
-#: lib/bookshelf_chip_editor.lua:2267
+#: lib/bookshelf_chip_editor.lua:2269
 msgid "Starts at"
 msgstr "Başlangıç noktası"
 
-#: lib/bookshelf_chip_editor.lua:2269
+#: lib/bookshelf_chip_editor.lua:2271
 msgid "The top of the catalog"
 msgstr "Kataloğun en üstü"
 
-#: lib/bookshelf_chip_editor.lua:2269
+#: lib/bookshelf_chip_editor.lua:2271
 msgid "a subcatalog"
 msgstr "bir alt katalog"
 
-#: lib/bookshelf_chip_editor.lua:2270
+#: lib/bookshelf_chip_editor.lua:2272
 msgid "Long-press a subcatalog on the shelf to start there."
 msgstr "Oradan başlamak için raftaki bir alt kataloğa uzun basın."
 
-#: lib/bookshelf_chip_editor.lua:2271 lib/bookshelf_widget_opds.lua:3460
+#: lib/bookshelf_chip_editor.lua:2273 lib/bookshelf_widget_opds.lua:3460
 msgid "Back to the top"
 msgstr "En üste dön"
 
-#: lib/bookshelf_chip_editor.lua:2280 lib/bookshelf_chip_editor.lua:2290
+#: lib/bookshelf_chip_editor.lua:2282 lib/bookshelf_chip_editor.lua:2292
 msgid "Saves downloads to"
 msgstr "İndirmelerin kaydedildiği yer"
 
-#: lib/bookshelf_chip_editor.lua:2281
+#: lib/bookshelf_chip_editor.lua:2283
 msgid "KOReader's download folder"
 msgstr "KOReader'ın indirme klasörü"
 
-#: lib/bookshelf_chip_editor.lua:2284
+#: lib/bookshelf_chip_editor.lua:2286
 msgid "A folder of your own"
 msgstr "Kendi seçtiğiniz bir klasör"
 
-#: lib/bookshelf_chip_editor.lua:2289
+#: lib/bookshelf_chip_editor.lua:2291
 msgid "Save downloads to…"
 msgstr "İndirmeleri şuraya kaydet…"
 
-#: lib/bookshelf_chip_editor.lua:2303
+#: lib/bookshelf_chip_editor.lua:2305
 msgid "Refresh this catalog"
 msgstr "Bu kataloğu yenile"
 
-#: lib/bookshelf_chip_editor.lua:2341
+#: lib/bookshelf_chip_editor.lua:2343
 msgid "No collections yet. Make one from a book's menu."
 msgstr "Henüz derme yok. Bir kitabın menüsünden oluşturun."
 
-#: lib/bookshelf_chip_editor.lua:2356
+#: lib/bookshelf_chip_editor.lua:2358
 msgid "Books in this collection stand face out."
 msgstr "Bu dermedeki kitaplar kapağı önde durur."
 
-#: lib/bookshelf_chip_editor.lua:2361 lib/bookshelf_chip_editor.lua:2811
+#: lib/bookshelf_chip_editor.lua:2363 lib/bookshelf_chip_editor.lua:2813
 msgid "In a collection"
 msgstr "Bir dermede"
 
-#: lib/bookshelf_chip_editor.lua:2435 lib/bookshelf_chip_editor.lua:2583
+#: lib/bookshelf_chip_editor.lua:2437 lib/bookshelf_chip_editor.lua:2585
 msgid "Series boxes"
 msgstr "Dizi kutuları"
 
-#: lib/bookshelf_chip_editor.lua:2440
+#: lib/bookshelf_chip_editor.lua:2442
 msgid "On a shelf of books, and inside an author or other group, a series' books share one tile."
 msgstr "Bir kitap rafında ve bir yazarın ya da başka bir grubun içinde, bir dizinin kitapları tek bir kutucuğu paylaşır."
 
-#: lib/bookshelf_chip_editor.lua:2478
+#: lib/bookshelf_chip_editor.lua:2480
 msgid "Columns"
 msgstr "Sütunlar"
 
-#: lib/bookshelf_chip_editor.lua:2481 lib/bookshelf_chip_editor.lua:2539
+#: lib/bookshelf_chip_editor.lua:2483 lib/bookshelf_chip_editor.lua:2541
 msgid "Rows"
 msgstr "Satırlar"
 
-#: lib/bookshelf_chip_editor.lua:2500
+#: lib/bookshelf_chip_editor.lua:2502
 msgid "columns: %1, rows: %2"
 msgstr "sütun: %1, satır: %2"
 
-#: lib/bookshelf_chip_editor.lua:2508 lib/bookshelf_chip_editor.lua:2625
-#: lib/bookshelf_chip_editor.lua:2675
+#: lib/bookshelf_chip_editor.lua:2510 lib/bookshelf_chip_editor.lua:2627
+#: lib/bookshelf_chip_editor.lua:2677
 msgid "series boxes"
 msgstr "dizi kutuları"
 
-#: lib/bookshelf_chip_editor.lua:2518 lib/bookshelf_ornament_menu.lua:482
+#: lib/bookshelf_chip_editor.lua:2520 lib/bookshelf_ornament_menu.lua:482
 #: lib/bookshelf_settings.lua:1339
 msgid "Always"
 msgstr "Her zaman"
 
-#: lib/bookshelf_chip_editor.lua:2518 lib/bookshelf_chip_editor.lua:2801
-#: lib/bookshelf_chip_editor.lua:3054 lib/bookshelf_filter.lua:431
+#: lib/bookshelf_chip_editor.lua:2520 lib/bookshelf_chip_editor.lua:2803
+#: lib/bookshelf_chip_editor.lua:3056 lib/bookshelf_filter.lua:431
 #: lib/bookshelf_ornament_menu.lua:494 lib/bookshelf_settings.lua:954
 #: lib/bookshelf_settings.lua:1220 lib/bookshelf_settings.lua:1280
 #: lib/bookshelf_settings.lua:1866 lib/bookshelf_settings.lua:1896
@@ -974,306 +982,306 @@ msgstr "Her zaman"
 msgid "None"
 msgstr "Yok"
 
-#: lib/bookshelf_chip_editor.lua:2518
+#: lib/bookshelf_chip_editor.lua:2520
 msgid "Often"
 msgstr "Sık sık"
 
-#: lib/bookshelf_chip_editor.lua:2518
+#: lib/bookshelf_chip_editor.lua:2520
 msgid "Rarely"
 msgstr "Nadiren"
 
-#: lib/bookshelf_chip_editor.lua:2536 lib/bookshelf_chip_editor.lua:2970
+#: lib/bookshelf_chip_editor.lua:2538 lib/bookshelf_chip_editor.lua:2972
 #: lib/bookshelf_widget_curated.lua:860
 msgid "Face out"
 msgstr "Kapağı önde"
 
-#: lib/bookshelf_chip_editor.lua:2555
+#: lib/bookshelf_chip_editor.lua:2557
 msgid "Thickness"
 msgstr "Kalınlık"
 
-#: lib/bookshelf_chip_editor.lua:2563
+#: lib/bookshelf_chip_editor.lua:2565
 msgid "Book sizes"
 msgstr "Kitap boyutları"
 
-#: lib/bookshelf_chip_editor.lua:2564
+#: lib/bookshelf_chip_editor.lua:2566
 msgid "Varied"
 msgstr "Çeşitli"
 
-#: lib/bookshelf_chip_editor.lua:2565
+#: lib/bookshelf_chip_editor.lua:2567
 msgid "Equal height"
 msgstr "Eşit yükseklik"
 
-#: lib/bookshelf_chip_editor.lua:2566
+#: lib/bookshelf_chip_editor.lua:2568
 msgid "Same"
 msgstr "Aynı"
 
-#: lib/bookshelf_chip_editor.lua:2572 lib/bookshelf_widget.lua:20703
+#: lib/bookshelf_chip_editor.lua:2574 lib/bookshelf_widget.lua:20712
 msgid "Book binding"
 msgstr "Kitap cildi"
 
-#: lib/bookshelf_chip_editor.lua:2585 lib/bookshelf_widget.lua:20174
+#: lib/bookshelf_chip_editor.lua:2587 lib/bookshelf_widget.lua:20183
 #: lib/bookshelf_widget_book_popup.lua:4363
 msgid "Cover"
 msgstr "Kapak"
 
-#: lib/bookshelf_chip_editor.lua:2586 lib/bookshelf_theme_pack.lua:343
+#: lib/bookshelf_chip_editor.lua:2588 lib/bookshelf_theme_pack.lua:343
 msgid "Plain"
 msgstr "Sade"
 
-#: lib/bookshelf_chip_editor.lua:2597
+#: lib/bookshelf_chip_editor.lua:2599
 msgid "Author on spine"
 msgstr "Sırtta yazar"
 
-#: lib/bookshelf_chip_editor.lua:2603
+#: lib/bookshelf_chip_editor.lua:2605
 msgid "Ornaments"
 msgstr "Süsler"
 
-#: lib/bookshelf_chip_editor.lua:2608 lib/bookshelf_chip_editor.lua:3018
+#: lib/bookshelf_chip_editor.lua:2610 lib/bookshelf_chip_editor.lua:3020
 #: lib/bookshelf_plank_browser.lua:230
 msgid "Plank"
 msgstr "Raf tahtası"
 
-#: lib/bookshelf_chip_editor.lua:2617
+#: lib/bookshelf_chip_editor.lua:2619
 msgid "face out: %1"
 msgstr "kapağı önde: %1"
 
-#: lib/bookshelf_chip_editor.lua:2618
+#: lib/bookshelf_chip_editor.lua:2620
 msgid "rows: %1"
 msgstr "satır: %1"
 
-#: lib/bookshelf_chip_editor.lua:2619
+#: lib/bookshelf_chip_editor.lua:2621
 msgid "%1% thick"
 msgstr "kalınlık %1%"
 
-#: lib/bookshelf_chip_editor.lua:2620
+#: lib/bookshelf_chip_editor.lua:2622
 msgid "equal height books"
 msgstr "eşit yükseklikte kitaplar"
 
-#: lib/bookshelf_chip_editor.lua:2621
+#: lib/bookshelf_chip_editor.lua:2623
 msgid "same size books"
 msgstr "aynı boyutta kitaplar"
 
-#: lib/bookshelf_chip_editor.lua:2622
+#: lib/bookshelf_chip_editor.lua:2624
 msgid "paperbacks"
 msgstr "karton kapaklar"
 
-#: lib/bookshelf_chip_editor.lua:2623
+#: lib/bookshelf_chip_editor.lua:2625
 msgid "plain series boxes"
 msgstr "sade dizi kutuları"
 
-#: lib/bookshelf_chip_editor.lua:2624
+#: lib/bookshelf_chip_editor.lua:2626
 msgid "series boxes of spines"
 msgstr "sırtlardan dizi kutuları"
 
-#: lib/bookshelf_chip_editor.lua:2626
+#: lib/bookshelf_chip_editor.lua:2628
 msgid "no author on spines"
 msgstr "sırtlarda yazar yok"
 
-#: lib/bookshelf_chip_editor.lua:2628
+#: lib/bookshelf_chip_editor.lua:2630
 msgid "ornaments: %1"
 msgstr "süsler: %1"
 
-#: lib/bookshelf_chip_editor.lua:2653
+#: lib/bookshelf_chip_editor.lua:2655
 msgid "Folder tiles"
 msgstr "Klasör kutucukları"
 
-#: lib/bookshelf_chip_editor.lua:2656 lib/bookshelf_chip_editor.lua:3112
+#: lib/bookshelf_chip_editor.lua:2658 lib/bookshelf_chip_editor.lua:3114
 #: lib/bookshelf_cover_label_editor.lua:60 lib/bookshelf_settings.lua:1011
-#: lib/bookshelf_settings.lua:5891
+#: lib/bookshelf_settings.lua:5911
 msgid "Cover captions"
 msgstr "Kapak altyazıları"
 
-#: lib/bookshelf_chip_editor.lua:2671 lib/bookshelf_chip_editor.lua:3059
+#: lib/bookshelf_chip_editor.lua:2673 lib/bookshelf_chip_editor.lua:3061
 #: lib/bookshelf_color_palette.lua:527 lib/bookshelf_font_picker.lua:192
 #: lib/bookshelf_font_picker.lua:278 lib/bookshelf_line_editor.lua:173
 #: lib/bookshelf_line_editor.lua:578 lib/bookshelf_settings.lua:2410
 #: lib/bookshelf_settings.lua:2416 lib/bookshelf_settings.lua:3439
-#: lib/bookshelf_settings.lua:5780 lib/bookshelf_slider.lua:186
+#: lib/bookshelf_settings.lua:5800 lib/bookshelf_slider.lua:186
 #: lib/bookshelf_stack_display.lua:194
 msgid "Default"
 msgstr "Varsayılan"
 
-#: lib/bookshelf_chip_editor.lua:2672
+#: lib/bookshelf_chip_editor.lua:2674
 msgid "folder tiles: %1"
 msgstr "klasör kutucukları: %1"
 
-#: lib/bookshelf_chip_editor.lua:2674
+#: lib/bookshelf_chip_editor.lua:2676
 msgid "captions: %1"
 msgstr "altyazılar: %1"
 
-#: lib/bookshelf_chip_editor.lua:2689
+#: lib/bookshelf_chip_editor.lua:2691
 msgid "View mode"
 msgstr "Görünüm"
 
-#: lib/bookshelf_chip_editor.lua:2718 lib/bookshelf_widget.lua:6254
+#: lib/bookshelf_chip_editor.lua:2720 lib/bookshelf_widget.lua:6255
 msgid "Show as"
 msgstr "Şöyle göster"
 
-#: lib/bookshelf_chip_editor.lua:2759 lib/bookshelf_chip_editor.lua:2783
-#: lib/bookshelf_widget.lua:6272
+#: lib/bookshelf_chip_editor.lua:2761 lib/bookshelf_chip_editor.lua:2785
+#: lib/bookshelf_widget.lua:6273
 msgid "Inside folders and stacks"
 msgstr "Klasörlerin ve yığınların içinde"
 
-#: lib/bookshelf_chip_editor.lua:2759 lib/bookshelf_chip_editor.lua:2783
+#: lib/bookshelf_chip_editor.lua:2761 lib/bookshelf_chip_editor.lua:2785
 msgid "Top level"
 msgstr "En üst düzey"
 
-#: lib/bookshelf_chip_editor.lua:2777 lib/bookshelf_module_grid_editor.lua:268
-#: lib/bookshelf_module_grid_session.lua:383 lib/bookshelf_widget.lua:7730
-#: main.lua:892
+#: lib/bookshelf_chip_editor.lua:2779 lib/bookshelf_module_grid_editor.lua:268
+#: lib/bookshelf_module_grid_session.lua:383 lib/bookshelf_widget.lua:7731
+#: main.lua:925
 msgid "Settings"
 msgstr "Ayarlar"
 
-#: lib/bookshelf_chip_editor.lua:2782 lib/bookshelf_module_card_menu.lua:49
+#: lib/bookshelf_chip_editor.lua:2784 lib/bookshelf_module_card_menu.lua:49
 #: lib/bookshelf_theme_menu.lua:221
 msgid "%1: %2"
 msgstr "%1: %2"
 
-#: lib/bookshelf_chip_editor.lua:2803
+#: lib/bookshelf_chip_editor.lua:2805
 msgid "First in series"
 msgstr "Dizideki ilk kitap"
 
-#: lib/bookshelf_chip_editor.lua:2804
+#: lib/bookshelf_chip_editor.lua:2806
 msgid "First unread in series"
 msgstr "Dizide okunmamış ilk kitap"
 
-#: lib/bookshelf_chip_editor.lua:2809 lib/bookshelf_filter.lua:298
+#: lib/bookshelf_chip_editor.lua:2811 lib/bookshelf_filter.lua:298
 #: lib/bookshelf_filter.lua:329 lib/bookshelf_tokens.lua:262
 #: micromodules/random_unread.lua:309 micromodules/shelf_size.lua:24
 msgid "Unread"
 msgstr "Okunmamış"
 
-#: lib/bookshelf_chip_editor.lua:2810
+#: lib/bookshelf_chip_editor.lua:2812
 msgid "Unread standalone"
 msgstr "Okunmamış tekil kitaplar"
 
-#: lib/bookshelf_chip_editor.lua:2812
+#: lib/bookshelf_chip_editor.lua:2814
 msgid "Recently added"
 msgstr "Son eklenenler"
 
-#: lib/bookshelf_chip_editor.lua:2813 micromodules/random_unread.lua:308
+#: lib/bookshelf_chip_editor.lua:2815 micromodules/random_unread.lua:308
 msgid "All books"
 msgstr "Tüm kitaplar"
 
-#: lib/bookshelf_chip_editor.lua:2814
+#: lib/bookshelf_chip_editor.lua:2816
 msgid "Choose for each book"
 msgstr "Her kitap için seç"
 
-#: lib/bookshelf_chip_editor.lua:2830
+#: lib/bookshelf_chip_editor.lua:2832
 msgid "Newest %1"
 msgstr "En yeni %1"
 
-#: lib/bookshelf_chip_editor.lua:2838
+#: lib/bookshelf_chip_editor.lua:2840
 msgid "%1 + %2 more"
 msgstr "%1 + %2 tane daha"
 
-#: lib/bookshelf_chip_editor.lua:2906
+#: lib/bookshelf_chip_editor.lua:2908
 msgid "Choose which books show their cover facing out on this shelf. The rest show their spines."
 msgstr "Bu rafta hangi kitapların kapağının önde duracağını seçin. Diğerleri sırtlarını gösterir."
 
-#: lib/bookshelf_chip_editor.lua:2924
+#: lib/bookshelf_chip_editor.lua:2926
 msgid "Other"
 msgstr "Diğer"
 
-#: lib/bookshelf_chip_editor.lua:2933
+#: lib/bookshelf_chip_editor.lua:2935
 msgid "How many of the newest"
 msgstr "En yenilerden kaç tane"
 
-#: lib/bookshelf_chip_editor.lua:2944
+#: lib/bookshelf_chip_editor.lua:2946
 msgid "%1 (not found)"
 msgstr "%1 (bulunamadı)"
 
-#: lib/bookshelf_chip_editor.lua:2949
+#: lib/bookshelf_chip_editor.lua:2951
 msgid "Whole shelf"
 msgstr "Tüm raf"
 
-#: lib/bookshelf_chip_editor.lua:2965
-msgid "Every book faces out until you turn it. Long-press a book on the shelf, tap 'Arrange', then 'Face out'."
-msgstr "Siz çevirene kadar her kitap kapağı önde durur. Raftaki bir kitaba uzun basın, önce 'Yerleştir'e, sonra 'Kapağı önde'ye dokunun."
+#: lib/bookshelf_chip_editor.lua:2967
+msgid "Every book faces out until you turn it. Long-press a book on the shelf, then tap 'Face out'."
+msgstr "Siz çevirene kadar her kitap kapağı önde durur. Raftaki bir kitaba uzun basın, ardından 'Kapağı önde' seçeneğine dokunun."
 
-#: lib/bookshelf_chip_editor.lua:2979
+#: lib/bookshelf_chip_editor.lua:2981
 msgid "Same as main shelf"
 msgstr "Ana rafla aynı"
 
-#: lib/bookshelf_chip_editor.lua:2980 lib/bookshelf_plank_browser.lua:118
+#: lib/bookshelf_chip_editor.lua:2982 lib/bookshelf_plank_browser.lua:118
 #: lib/bookshelf_theme_library.lua:134
 msgid "Plain color"
 msgstr "Düz renk"
 
-#: lib/bookshelf_chip_editor.lua:2981 lib/bookshelf_plank_browser.lua:119
+#: lib/bookshelf_chip_editor.lua:2983 lib/bookshelf_plank_browser.lua:119
 #: lib/bookshelf_theme_library.lua:137
 msgid "Oak"
 msgstr "Meşe"
 
-#: lib/bookshelf_chip_editor.lua:2984 lib/bookshelf_plank_browser.lua:154
+#: lib/bookshelf_chip_editor.lua:2986 lib/bookshelf_plank_browser.lua:154
 #: lib/bookshelf_theme_pack.lua:912
 msgid "%1 (%2 pack)"
 msgstr "%1 (%2 paketi)"
 
-#: lib/bookshelf_chip_editor.lua:3013
+#: lib/bookshelf_chip_editor.lua:3015
 msgid "The plank this module's shelf stands on."
 msgstr "Bu modülün rafının üzerinde durduğu raf tahtası."
 
-#: lib/bookshelf_chip_editor.lua:3031
+#: lib/bookshelf_chip_editor.lua:3033
 msgid "Cover captions: %1"
 msgstr "Kapak altyazıları: %1"
 
-#: lib/bookshelf_chip_editor.lua:3050 lib/bookshelf_settings.lua:457
+#: lib/bookshelf_chip_editor.lua:3052 lib/bookshelf_settings.lua:457
 #: lib/bookshelf_settings.lua:950 lib/bookshelf_sort_engine.lua:621
 #: lib/bookshelf_tokens.lua:68
 msgid "Title"
 msgstr "Başlık"
 
-#: lib/bookshelf_chip_editor.lua:3053 lib/bookshelf_settings.lua:953
+#: lib/bookshelf_chip_editor.lua:3055 lib/bookshelf_settings.lua:953
 msgid "Custom"
 msgstr "Özel"
 
-#: lib/bookshelf_chip_editor.lua:3057 lib/bookshelf_theme_pack.lua:485
+#: lib/bookshelf_chip_editor.lua:3059 lib/bookshelf_theme_pack.lua:485
 msgid "Same as %1"
 msgstr "%1 ile aynı"
 
-#: lib/bookshelf_chip_editor.lua:3092
+#: lib/bookshelf_chip_editor.lua:3094
 msgid "The text under each cover on this shelf."
 msgstr "Bu raftaki her kapağın altındaki yazı."
 
-#: lib/bookshelf_chip_editor.lua:3094
+#: lib/bookshelf_chip_editor.lua:3096
 msgid "A line of your own"
 msgstr "Kendi satırınız"
 
-#: lib/bookshelf_chip_editor.lua:3095
+#: lib/bookshelf_chip_editor.lua:3097
 msgid "Choose what it shows, from the book's details."
 msgstr "Ne göstereceğini kitabın ayrıntılarından seçin."
 
-#: lib/bookshelf_chip_editor.lua:3153 lib/bookshelf_collection_manager.lua:574
+#: lib/bookshelf_chip_editor.lua:3155 lib/bookshelf_collection_manager.lua:574
 #: lib/bookshelf_folder_picker.lua:142 lib/bookshelf_library_modal.lua:771
-#: lib/bookshelf_widget.lua:10466 lib/bookshelf_widget_book_popup.lua:3900
+#: lib/bookshelf_widget.lua:10468 lib/bookshelf_widget_book_popup.lua:3900
 msgid "Search…"
 msgstr "Ara…"
 
-#: lib/bookshelf_chip_editor.lua:3216 lib/bookshelf_chip_editor.lua:3322
-#: lib/bookshelf_chip_editor.lua:3636
+#: lib/bookshelf_chip_editor.lua:3218 lib/bookshelf_chip_editor.lua:3324
+#: lib/bookshelf_chip_editor.lua:3638
 msgid "Shelf module source"
 msgstr "Raf modülü kaynağı"
 
-#: lib/bookshelf_chip_editor.lua:3216 lib/bookshelf_chip_editor.lua:3322
-#: lib/bookshelf_chip_editor.lua:3636
+#: lib/bookshelf_chip_editor.lua:3218 lib/bookshelf_chip_editor.lua:3324
+#: lib/bookshelf_chip_editor.lua:3638
 msgid "Source"
 msgstr "Kaynak"
 
-#: lib/bookshelf_chip_editor.lua:3323 lib/bookshelf_chip_editor.lua:3537
+#: lib/bookshelf_chip_editor.lua:3325 lib/bookshelf_chip_editor.lua:3539
 msgid "Your own collection"
 msgstr "Kendi dermeniz"
 
-#: lib/bookshelf_chip_editor.lua:3371
+#: lib/bookshelf_chip_editor.lua:3373
 msgid "Choose OPDS catalog"
 msgstr "OPDS kataloğu seçin"
 
-#: lib/bookshelf_chip_editor.lua:3373
+#: lib/bookshelf_chip_editor.lua:3375
 msgid "Add catalog…"
 msgstr "Katalog ekle…"
 
-#: lib/bookshelf_chip_editor.lua:3390 lib/bookshelf_line_editor.lua:596
-#: lib/bookshelf_widget.lua:7768 lib/bookshelf_widget_book_popup.lua:2677
+#: lib/bookshelf_chip_editor.lua:3392 lib/bookshelf_line_editor.lua:596
+#: lib/bookshelf_widget.lua:7770 lib/bookshelf_widget_book_popup.lua:2677
 #: lib/bookshelf_widget_book_popup.lua:3049
 #: lib/bookshelf_widget_book_popup.lua:3558
 #: lib/bookshelf_widget_book_popup.lua:3634
@@ -1281,285 +1289,285 @@ msgstr "Katalog ekle…"
 msgid "Edit"
 msgstr "Düzenle"
 
-#: lib/bookshelf_chip_editor.lua:3465
+#: lib/bookshelf_chip_editor.lua:3467
 msgid "Choose folder within home folder"
 msgstr "Başlangıç klasöründen bir klasör seçin"
 
-#: lib/bookshelf_chip_editor.lua:3467 lib/bookshelf_folder_picker.lua:116
+#: lib/bookshelf_chip_editor.lua:3469 lib/bookshelf_folder_picker.lua:116
 msgid "Browse device…"
 msgstr "Aygıta göz at…"
 
-#: lib/bookshelf_chip_editor.lua:3481
+#: lib/bookshelf_chip_editor.lua:3483
 msgid "Every book, ungrouped."
 msgstr "Her kitap, gruplanmadan."
 
-#: lib/bookshelf_chip_editor.lua:3482
+#: lib/bookshelf_chip_editor.lua:3484
 msgid "Grouped by folder."
 msgstr "Klasöre göre gruplanmış."
 
-#: lib/bookshelf_chip_editor.lua:3483
+#: lib/bookshelf_chip_editor.lua:3485
 msgid "Every book in one folder and its subfolders."
 msgstr "Bir klasördeki ve alt klasörlerindeki her kitap."
 
-#: lib/bookshelf_chip_editor.lua:3502
+#: lib/bookshelf_chip_editor.lua:3504
 msgid "Pick one"
 msgstr "Birini seçin"
 
-#: lib/bookshelf_chip_editor.lua:3514 lib/bookshelf_sort_engine.lua:749
-#: lib/bookshelf_widget.lua:20696 micromodules/shelf_size.lua:254
+#: lib/bookshelf_chip_editor.lua:3516 lib/bookshelf_sort_engine.lua:749
+#: lib/bookshelf_widget.lua:20705 micromodules/shelf_size.lua:254
 #: micromodules/trivia.lua:44
 msgid "Books"
 msgstr "Kitaplar"
 
-#: lib/bookshelf_chip_editor.lua:3519 lib/bookshelf_tab_model.lua:61
+#: lib/bookshelf_chip_editor.lua:3521 lib/bookshelf_tab_model.lua:61
 msgid "Home"
 msgstr "Giriş"
 
-#: lib/bookshelf_chip_editor.lua:3521
+#: lib/bookshelf_chip_editor.lua:3523
 msgid "A folder"
 msgstr "Bir klasör"
 
-#: lib/bookshelf_chip_editor.lua:3539
+#: lib/bookshelf_chip_editor.lua:3541
 msgid "Books you pick, in the order you place them. Add a book from its long-press menu."
 msgstr "Seçtiğiniz kitaplar, yerleştirdiğiniz sırayla. Bir kitabı uzun basma menüsünden ekleyin."
 
-#: lib/bookshelf_chip_editor.lua:3552 lib/bookshelf_chip_editor.lua:3577
+#: lib/bookshelf_chip_editor.lua:3554 lib/bookshelf_chip_editor.lua:3579
 msgid "Just one"
 msgstr "Yalnızca bir tane"
 
-#: lib/bookshelf_chip_editor.lua:3564
+#: lib/bookshelf_chip_editor.lua:3566
 msgid "Grouped: a stack for each"
 msgstr "Gruplanmış: her biri için bir yığın"
 
-#: lib/bookshelf_chip_editor.lua:3580
+#: lib/bookshelf_chip_editor.lua:3582
 msgid "Flattened folder"
 msgstr "Düzleştirilmiş klasör"
 
-#: lib/bookshelf_chip_editor.lua:3589 lib/bookshelf_chip_editor.lua:3627
+#: lib/bookshelf_chip_editor.lua:3591 lib/bookshelf_chip_editor.lua:3629
 msgid "More"
 msgstr "Daha fazla"
 
-#: lib/bookshelf_chip_editor.lua:3696
+#: lib/bookshelf_chip_editor.lua:3698
 msgid "Books matching the filters you choose below will show in this shelf."
 msgstr "Aşağıda seçtiğiniz süzgeçlere uyan kitaplar bu rafta görünür."
 
-#: lib/bookshelf_chip_editor.lua:3698
+#: lib/bookshelf_chip_editor.lua:3700
 msgid "Clear all filters"
 msgstr "Tüm süzgeçleri temizle"
 
-#: lib/bookshelf_chip_editor.lua:3704
+#: lib/bookshelf_chip_editor.lua:3706
 msgid "Filters"
 msgstr "Süzgeçler"
 
-#: lib/bookshelf_chip_editor.lua:3768
+#: lib/bookshelf_chip_editor.lua:3770
 msgid "Reading status filter"
 msgstr "Okuma durumu süzgeci"
 
-#: lib/bookshelf_chip_editor.lua:3769
+#: lib/bookshelf_chip_editor.lua:3771
 msgid "Genre filter"
 msgstr "Tür süzgeci"
 
-#: lib/bookshelf_chip_editor.lua:3770
+#: lib/bookshelf_chip_editor.lua:3772
 msgid "Language filter"
 msgstr "Dil süzgeci"
 
-#: lib/bookshelf_chip_editor.lua:3771
+#: lib/bookshelf_chip_editor.lua:3773
 msgid "Format filter"
 msgstr "Biçim süzgeci"
 
-#: lib/bookshelf_chip_editor.lua:3772
+#: lib/bookshelf_chip_editor.lua:3774
 msgid "Rating filter"
 msgstr "Puan süzgeci"
 
-#: lib/bookshelf_chip_editor.lua:3773
+#: lib/bookshelf_chip_editor.lua:3775
 msgid "Collection filter"
 msgstr "Derme süzgeci"
 
-#: lib/bookshelf_chip_editor.lua:3775
+#: lib/bookshelf_chip_editor.lua:3777
 msgid "Filter"
 msgstr "Süzgeç"
 
-#: lib/bookshelf_chip_editor.lua:3856
+#: lib/bookshelf_chip_editor.lua:3858
 msgid "Any of these genres"
 msgstr "Bu türlerden herhangi biri"
 
-#: lib/bookshelf_chip_editor.lua:3856 lib/bookshelf_chip_editor.lua:3863
-#: lib/bookshelf_chip_editor.lua:3960
+#: lib/bookshelf_chip_editor.lua:3858 lib/bookshelf_chip_editor.lua:3865
+#: lib/bookshelf_chip_editor.lua:3962
 msgid "OR"
 msgstr "VEYA"
 
-#: lib/bookshelf_chip_editor.lua:3857
+#: lib/bookshelf_chip_editor.lua:3859
 msgid "AND"
 msgstr "VE"
 
-#: lib/bookshelf_chip_editor.lua:3857
+#: lib/bookshelf_chip_editor.lua:3859
 msgid "All of these genres"
 msgstr "Bu türlerin tümü"
 
-#: lib/bookshelf_chip_editor.lua:3858
+#: lib/bookshelf_chip_editor.lua:3860
 msgid "Leave out these genres"
 msgstr "Bu türleri dışarıda bırak"
 
-#: lib/bookshelf_chip_editor.lua:3858 lib/bookshelf_chip_editor.lua:3864
-#: lib/bookshelf_chip_editor.lua:3961
+#: lib/bookshelf_chip_editor.lua:3860 lib/bookshelf_chip_editor.lua:3866
+#: lib/bookshelf_chip_editor.lua:3963
 msgid "NOT"
 msgstr "DEĞİL"
 
-#: lib/bookshelf_chip_editor.lua:3859
+#: lib/bookshelf_chip_editor.lua:3861
 msgid "Add genres"
 msgstr "Tür ekle"
 
-#: lib/bookshelf_chip_editor.lua:3860
+#: lib/bookshelf_chip_editor.lua:3862
 msgid "A book needs one genre from the first list, every genre in the second and none from the third. An empty list is ignored."
 msgstr "Bir kitapta ilk listeden bir tür, ikinci listedeki her tür bulunmalı, üçüncüden hiçbiri bulunmamalı. Boş liste yok sayılır."
 
-#: lib/bookshelf_chip_editor.lua:3863
+#: lib/bookshelf_chip_editor.lua:3865
 msgid "In any of these collections"
 msgstr "Bu dermelerden herhangi birinde"
 
-#: lib/bookshelf_chip_editor.lua:3864
+#: lib/bookshelf_chip_editor.lua:3866
 msgid "Leave out these collections"
 msgstr "Bu dermeleri dışarıda bırak"
 
-#: lib/bookshelf_chip_editor.lua:3865
+#: lib/bookshelf_chip_editor.lua:3867
 msgid "Add collections"
 msgstr "Derme ekle"
 
-#: lib/bookshelf_chip_editor.lua:3866
+#: lib/bookshelf_chip_editor.lua:3868
 msgid "A book needs to be in one collection from the first list and in none from the second. An empty list is ignored."
 msgstr "Bir kitap ilk listedeki dermelerden birinde olmalı, ikinci listedekilerin hiçbirinde olmamalı. Boş liste yok sayılır."
 
-#: lib/bookshelf_chip_editor.lua:3960
+#: lib/bookshelf_chip_editor.lua:3962
 msgid "Add a folder"
 msgstr "Klasör ekle"
 
-#: lib/bookshelf_chip_editor.lua:3960
+#: lib/bookshelf_chip_editor.lua:3962
 msgid "Only books in these folders"
 msgstr "Yalnızca bu klasörlerdeki kitaplar"
 
-#: lib/bookshelf_chip_editor.lua:3961
+#: lib/bookshelf_chip_editor.lua:3963
 msgid "Add a folder to leave out"
 msgstr "Dışarıda bırakılacak klasör ekle"
 
-#: lib/bookshelf_chip_editor.lua:3961
+#: lib/bookshelf_chip_editor.lua:3963
 msgid "Leave out these folders"
 msgstr "Bu klasörleri dışarıda bırak"
 
-#: lib/bookshelf_chip_editor.lua:3963
+#: lib/bookshelf_chip_editor.lua:3965
 msgid "Leave the first list empty to include every folder except those left out."
 msgstr "Dışarıda bırakılanlar dışındaki tüm klasörleri dahil etmek için ilk listeyi boş bırakın."
 
-#: lib/bookshelf_chip_editor.lua:3967 lib/bookshelf_filter.lua:38
+#: lib/bookshelf_chip_editor.lua:3969 lib/bookshelf_filter.lua:38
 msgid "Folders"
 msgstr "Klasörler"
 
-#: lib/bookshelf_chip_editor.lua:3993
+#: lib/bookshelf_chip_editor.lua:3995
 msgid "Newest first"
 msgstr "Önce en yeni"
 
-#: lib/bookshelf_chip_editor.lua:3993
+#: lib/bookshelf_chip_editor.lua:3995
 msgid "Oldest first"
 msgstr "Önce en eski"
 
-#: lib/bookshelf_chip_editor.lua:3995
+#: lib/bookshelf_chip_editor.lua:3997
 msgid "Least read first"
 msgstr "Önce en az okunan"
 
-#: lib/bookshelf_chip_editor.lua:3995
+#: lib/bookshelf_chip_editor.lua:3997
 msgid "Most read first"
 msgstr "Önce en çok okunan"
 
-#: lib/bookshelf_chip_editor.lua:3996
+#: lib/bookshelf_chip_editor.lua:3998
 msgid "Highest first"
 msgstr "Önce en yüksek"
 
-#: lib/bookshelf_chip_editor.lua:3996
+#: lib/bookshelf_chip_editor.lua:3998
 msgid "Lowest first"
 msgstr "Önce en düşük"
 
-#: lib/bookshelf_chip_editor.lua:3997
+#: lib/bookshelf_chip_editor.lua:3999
 msgid "Largest first"
 msgstr "Önce en büyük"
 
-#: lib/bookshelf_chip_editor.lua:3997
+#: lib/bookshelf_chip_editor.lua:3999
 msgid "Smallest first"
 msgstr "Önce en küçük"
 
-#: lib/bookshelf_chip_editor.lua:3998
+#: lib/bookshelf_chip_editor.lua:4000
 msgid "Longest first"
 msgstr "Önce en uzun"
 
-#: lib/bookshelf_chip_editor.lua:3998
+#: lib/bookshelf_chip_editor.lua:4000
 msgid "Shortest first"
 msgstr "Önce en kısa"
 
-#: lib/bookshelf_chip_editor.lua:3999
+#: lib/bookshelf_chip_editor.lua:4001
 msgid "Fewest first"
 msgstr "Önce en az"
 
-#: lib/bookshelf_chip_editor.lua:3999
+#: lib/bookshelf_chip_editor.lua:4001
 msgid "Most first"
 msgstr "Önce en çok"
 
-#: lib/bookshelf_chip_editor.lua:4001 lib/bookshelf_chip_editor.lua:4002
+#: lib/bookshelf_chip_editor.lua:4003 lib/bookshelf_chip_editor.lua:4004
 msgid "Finished first"
 msgstr "Önce tamamlananlar"
 
-#: lib/bookshelf_chip_editor.lua:4001
+#: lib/bookshelf_chip_editor.lua:4003
 msgid "Unread first"
 msgstr "Önce okunmamışlar"
 
-#: lib/bookshelf_chip_editor.lua:4002
+#: lib/bookshelf_chip_editor.lua:4004
 msgid "Reading first"
 msgstr "Önce okunmakta olanlar"
 
-#: lib/bookshelf_chip_editor.lua:4003 lib/bookshelf_sort_engine.lua:705
+#: lib/bookshelf_chip_editor.lua:4005 lib/bookshelf_sort_engine.lua:705
 msgid "Favorites first"
 msgstr "Önce sık kullanılanlar"
 
-#: lib/bookshelf_chip_editor.lua:4003
+#: lib/bookshelf_chip_editor.lua:4005
 msgid "Favorites last"
 msgstr "Sık kullanılanlar sonda"
 
-#: lib/bookshelf_chip_editor.lua:4004
+#: lib/bookshelf_chip_editor.lua:4006
 msgid "Reversed"
 msgstr "Ters"
 
-#: lib/bookshelf_chip_editor.lua:4004
+#: lib/bookshelf_chip_editor.lua:4006
 msgid "Your order"
 msgstr "Sizin sıranız"
 
-#: lib/bookshelf_chip_editor.lua:4115
+#: lib/bookshelf_chip_editor.lua:4117
 msgid "Add a sort"
 msgstr "Sıralama ekle"
 
-#: lib/bookshelf_chip_editor.lua:4116
+#: lib/bookshelf_chip_editor.lua:4118
 msgid "Sort the books inside each"
 msgstr "Her birinin içindeki kitapları sırala"
 
-#: lib/bookshelf_chip_editor.lua:4117
+#: lib/bookshelf_chip_editor.lua:4119
 msgid "Add a tie-breaker"
 msgstr "İkincil sıralama ekle"
 
-#: lib/bookshelf_chip_editor.lua:4126
+#: lib/bookshelf_chip_editor.lua:4128
 msgid "Order the groups by"
 msgstr "Grupları şuna göre sırala"
 
-#: lib/bookshelf_chip_editor.lua:4150
+#: lib/bookshelf_chip_editor.lua:4158
 msgid "Edit collection order"
 msgstr "Derme sırasını düzenle"
 
-#: lib/bookshelf_chip_editor.lua:4158 lib/bookshelf_settings.lua:155
+#: lib/bookshelf_chip_editor.lua:4166 lib/bookshelf_settings.lua:155
 #: lib/bookshelf_tokens.lua:31 lib/bookshelf_widget_curated.lua:742
 msgid "Book"
 msgstr "Kitap"
 
-#: lib/bookshelf_chip_editor.lua:4167 lib/bookshelf_line_editor.lua:428
+#: lib/bookshelf_chip_editor.lua:4175 lib/bookshelf_line_editor.lua:428
 #: lib/bookshelf_ornament_menu.lua:501
 msgid "Size"
 msgstr "Boyut"
 
-#: lib/bookshelf_chip_editor.lua:4174
+#: lib/bookshelf_chip_editor.lua:4182
 msgid "Sort"
 msgstr "Sırala"
 
@@ -1614,7 +1622,7 @@ msgstr "Yeni derme"
 msgid "Collection name"
 msgstr "Derme adı"
 
-#: lib/bookshelf_collection_manager.lua:400 lib/bookshelf_curated_ui.lua:217
+#: lib/bookshelf_collection_manager.lua:400 lib/bookshelf_curated_ui.lua:232
 #: lib/bookshelf_folder_picker.lua:68
 msgid "Create"
 msgstr "Oluştur"
@@ -1639,8 +1647,8 @@ msgstr "Tümünde"
 #: lib/bookshelf_hardcover_key_ui.lua:77 lib/bookshelf_line_editor.lua:582
 #: lib/bookshelf_opds_catalog_editor.lua:50
 #: lib/bookshelf_widget_book_popup.lua:1414
-#: lib/bookshelf_widget_book_popup.lua:3929 main.lua:2453
-#: micromodules/action.lua:243 micromodules/countdown.lua:146
+#: lib/bookshelf_widget_book_popup.lua:3929 main.lua:2552
+#: micromodules/action.lua:243 micromodules/countdown.lua:159
 #: micromodules/reading_goal.lua:503 micromodules/reading_goal.lua:548
 #: micromodules/shelf.lua:397 micromodules/weather.lua:261
 msgid "Save"
@@ -1713,7 +1721,7 @@ msgid "Previous cover"
 msgstr "Önceki kapak"
 
 #: lib/bookshelf_cover_apply.lua:231 lib/bookshelf_cover_sources.lua:298
-#: lib/bookshelf_widget.lua:20205 lib/bookshelf_widget_book_popup.lua:1534
+#: lib/bookshelf_widget.lua:20214 lib/bookshelf_widget_book_popup.lua:1534
 #: lib/bookshelf_widget_book_popup.lua:2243
 #: lib/bookshelf_widget_book_popup.lua:2326
 #: lib/bookshelf_widget_book_popup.lua:2473
@@ -1761,71 +1769,71 @@ msgstr "Open Library'de aranıyor…"
 msgid "Searching Wikidata…"
 msgstr "Wikidata'da aranıyor…"
 
-#: lib/bookshelf_cover_sources.lua:445 lib/bookshelf_hardcover_picker.lua:232
+#: lib/bookshelf_cover_sources.lua:445 lib/bookshelf_hardcover_picker.lua:234
 msgid "Searching Hardcover…"
 msgstr "Hardcover'da aranıyor…"
 
-#: lib/bookshelf_curated_ui.lua:84 lib/bookshelf_curated_ui.lua:212
+#: lib/bookshelf_curated_ui.lua:99 lib/bookshelf_curated_ui.lua:227
 msgid "My shelf"
 msgstr "Rafım"
 
-#: lib/bookshelf_curated_ui.lua:86
+#: lib/bookshelf_curated_ui.lua:101
 msgid "My shelf %1"
 msgstr "Rafım %1"
 
-#: lib/bookshelf_curated_ui.lua:125
+#: lib/bookshelf_curated_ui.lua:140
 msgid "Taken off %1"
 msgstr "Şuradan çıkarıldı: %1"
 
-#: lib/bookshelf_curated_ui.lua:126
+#: lib/bookshelf_curated_ui.lua:141
 msgid "%1 books taken off %2"
 msgstr "%1 kitap şuradan çıkarıldı: %2"
 
-#: lib/bookshelf_curated_ui.lua:128
+#: lib/bookshelf_curated_ui.lua:143
 msgid "Added to %1"
 msgstr "Şuraya eklendi: %1"
 
-#: lib/bookshelf_curated_ui.lua:129
+#: lib/bookshelf_curated_ui.lua:144
 msgid "%1 books added to %2"
 msgstr "%1 kitap şuraya eklendi: %2"
 
-#: lib/bookshelf_curated_ui.lua:146
+#: lib/bookshelf_curated_ui.lua:161
 msgid "This book is on it. Tap to take it off."
 msgstr "Bu kitap bu rafta. Çıkarmak için dokunun."
 
-#: lib/bookshelf_curated_ui.lua:147
+#: lib/bookshelf_curated_ui.lua:162
 msgid "These books are on it. Tap to take them off."
 msgstr "Bu kitaplar bu rafta. Çıkarmak için dokunun."
 
-#: lib/bookshelf_curated_ui.lua:148
+#: lib/bookshelf_curated_ui.lua:163
 msgid "Some of these books are on it. Tap to add the rest."
 msgstr "Bu kitapların bazıları bu rafta. Kalanları eklemek için dokunun."
 
-#: lib/bookshelf_curated_ui.lua:149
+#: lib/bookshelf_curated_ui.lua:164
 msgid "Empty. Tap to add."
 msgstr "Boş. Eklemek için dokunun."
 
-#: lib/bookshelf_curated_ui.lua:150
+#: lib/bookshelf_curated_ui.lua:165
 msgid "1 book. Tap to add."
 msgstr "1 kitap. Eklemek için dokunun."
 
-#: lib/bookshelf_curated_ui.lua:151
+#: lib/bookshelf_curated_ui.lua:166
 msgid "%1 books. Tap to add."
 msgstr "%1 kitap. Eklemek için dokunun."
 
-#: lib/bookshelf_curated_ui.lua:160
+#: lib/bookshelf_curated_ui.lua:175
 msgid "No shelves of your own yet"
 msgstr "Henüz kendi rafınız yok"
 
-#: lib/bookshelf_curated_ui.lua:164
+#: lib/bookshelf_curated_ui.lua:179
 msgid "A shelf of books you pick, in the order you place them: a home shelf, a to-be-read pile. Kept as a KOReader collection."
 msgstr "Seçtiğiniz kitaplardan, yerleştirdiğiniz sırayla oluşan bir raf: bir ev rafı, bir okunacaklar yığını. KOReader dermesi olarak saklanır."
 
-#: lib/bookshelf_curated_ui.lua:201
+#: lib/bookshelf_curated_ui.lua:216
 msgid "That name cannot be used for a shelf of your own."
 msgstr "Bu ad kendi rafınız için kullanılamaz."
 
-#: lib/bookshelf_curated_ui.lua:224
+#: lib/bookshelf_curated_ui.lua:239
 msgid "Add %1 books to shelf"
 msgstr "%1 kitabı rafa ekle"
 
@@ -2071,7 +2079,7 @@ msgid "Restart KOReader to see the Hardcover menu."
 msgstr "Hardcover menüsünü görmek için KOReader'ı yeniden başlatın."
 
 #: lib/bookshelf_hardcover_key_ui.lua:72 lib/bookshelf_hardcover_key_ui.lua:168
-#: lib/bookshelf_widget.lua:20152
+#: lib/bookshelf_widget.lua:20161
 msgid "Hardcover API key"
 msgstr "Hardcover API anahtarı"
 
@@ -2100,7 +2108,7 @@ msgid "The key was not accepted: %1"
 msgstr "Anahtar kabul edilmedi: %1"
 
 #: lib/bookshelf_hardcover_key_ui.lua:101
-#: lib/bookshelf_hardcover_picker.lua:267
+#: lib/bookshelf_hardcover_picker.lua:269
 msgid "no reply"
 msgstr "yanıt yok"
 
@@ -2120,7 +2128,9 @@ msgstr "Bookshelf, Hardcover API anahtarını kullanıyor (%1). Anahtar her sefe
 msgid ""
 "No Hardcover API key. Get one at hardcover.app/account/api, then enter it here, or save it in a text file at:\n"
 "%1"
-msgstr "Hardcover API anahtarı yok. hardcover.app/account/api adresinden bir tane alın, sonra buraya girin ya da şu konumdaki bir metin dosyasına kaydedin:\n%1"
+msgstr ""
+"Hardcover API anahtarı yok. hardcover.app/account/api adresinden bir tane alın, sonra buraya girin ya da şu konumdaki bir metin dosyasına kaydedin:\n"
+"%1"
 
 #: lib/bookshelf_hardcover_key_ui.lua:131
 msgid "Enter key…"
@@ -2138,7 +2148,9 @@ msgstr "Anahtar okundu ve bu aygıta kaydedildi. Dosya kaldırıldı."
 msgid ""
 "No key found. Save the key in a text file at:\n"
 "%1"
-msgstr "Anahtar bulunamadı. Anahtarı şu konumdaki bir metin dosyasına kaydedin:\n%1"
+msgstr ""
+"Anahtar bulunamadı. Anahtarı şu konumdaki bir metin dosyasına kaydedin:\n"
+"%1"
 
 #: lib/bookshelf_hardcover_key_ui.lua:145
 msgid "Copying the key is only needed to use Hardcover without that plugin."
@@ -2176,53 +2188,53 @@ msgstr "%1, %2 ve diğerleri"
 msgid "Untitled"
 msgstr "Başlıksız"
 
-#: lib/bookshelf_hardcover_picker.lua:91
+#: lib/bookshelf_hardcover_picker.lua:93
 #: lib/bookshelf_widget_book_popup.lua:502 micromodules/reading_stats.lua:106
 #: micromodules/reading_stats.lua:117
 msgid "%1 pages"
 msgstr "%1 sayfa"
 
-#: lib/bookshelf_hardcover_picker.lua:91
+#: lib/bookshelf_hardcover_picker.lua:93
 msgid "1 page"
 msgstr "1 sayfa"
 
-#: lib/bookshelf_hardcover_picker.lua:96
+#: lib/bookshelf_hardcover_picker.lua:98
 msgid "%1 readers"
 msgstr "%1 okur"
 
-#: lib/bookshelf_hardcover_picker.lua:96
+#: lib/bookshelf_hardcover_picker.lua:98
 msgid "1 reader"
 msgstr "1 okur"
 
-#: lib/bookshelf_hardcover_picker.lua:98
+#: lib/bookshelf_hardcover_picker.lua:100
 msgid "%1 reads"
 msgstr "%1 okuma"
 
-#: lib/bookshelf_hardcover_picker.lua:98
+#: lib/bookshelf_hardcover_picker.lua:100
 msgid "1 read"
 msgstr "1 okuma"
 
-#: lib/bookshelf_hardcover_picker.lua:229
+#: lib/bookshelf_hardcover_picker.lua:231
 msgid "Search Hardcover…"
 msgstr "Hardcover'da ara…"
 
-#: lib/bookshelf_hardcover_picker.lua:238
+#: lib/bookshelf_hardcover_picker.lua:240
 msgid "Hardcover could not be searched. The list is unchanged."
 msgstr "Hardcover'da arama yapılamadı. Liste değişmedi."
 
-#: lib/bookshelf_hardcover_picker.lua:240
+#: lib/bookshelf_hardcover_picker.lua:242
 msgid "Nothing on Hardcover matches “%1”."
 msgstr "Hardcover'da “%1” ile eşleşen bir şey yok."
 
-#: lib/bookshelf_hardcover_picker.lua:255
+#: lib/bookshelf_hardcover_picker.lua:257
 msgid "Asking Hardcover…"
 msgstr "Hardcover'a soruluyor…"
 
-#: lib/bookshelf_hardcover_picker.lua:267
+#: lib/bookshelf_hardcover_picker.lua:269
 msgid "Hardcover could not be reached: %1"
 msgstr "Hardcover'a ulaşılamadı: %1"
 
-#: lib/bookshelf_hardcover_picker.lua:269
+#: lib/bookshelf_hardcover_picker.lua:271
 msgid "Nothing found on Hardcover."
 msgstr "Hardcover'da hiçbir şey bulunamadı."
 
@@ -2245,7 +2257,7 @@ msgstr "Kullanılabilir modül yok"
 #: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_ornament_browser.lua:274
 #: lib/bookshelf_plank_browser.lua:217 lib/bookshelf_settings.lua:154
 #: lib/bookshelf_start_menu_modules.lua:595
-#: lib/bookshelf_wallpaper_browser.lua:336
+#: lib/bookshelf_wallpaper_browser.lua:336 micromodules/vocab_word.lua:1023
 msgid "All"
 msgstr "Tümü"
 
@@ -2717,7 +2729,7 @@ msgid "Drop .svg or .png files in koreader/icons/"
 msgstr ".svg veya .png dosyalarını koreader/icons/ klasörüne bırakın"
 
 #: lib/bookshelf_library_modal.lua:807 lib/bookshelf_library_modal.lua:889
-#: lib/bookshelf_widget.lua:21690 lib/bookshelf_widget_opds.lua:2131
+#: lib/bookshelf_widget.lua:21699 lib/bookshelf_widget_opds.lua:2131
 msgid "Search"
 msgstr "Ara"
 
@@ -2806,7 +2818,7 @@ msgid "Link copied to clipboard"
 msgstr "Bağlantı panoya kopyalandı"
 
 #: lib/bookshelf_list_group.lua:123 lib/bookshelf_list_group.lua:152
-#: lib/bookshelf_move_flow.lua:422 lib/bookshelf_widget.lua:20575
+#: lib/bookshelf_move_flow.lua:422 lib/bookshelf_widget.lua:20584
 msgid "1 book"
 msgstr "1 kitap"
 
@@ -2887,7 +2899,7 @@ msgstr "Açık"
 
 #: lib/bookshelf_module_grid_editor.lua:243
 #: lib/bookshelf_module_grid_session.lua:369
-#: lib/bookshelf_module_grid_session.lua:370 lib/bookshelf_widget.lua:7798
+#: lib/bookshelf_module_grid_session.lua:370 lib/bookshelf_widget.lua:7800
 msgid "Width"
 msgstr "Genişlik"
 
@@ -2900,12 +2912,12 @@ msgstr "Yükseklik"
 
 #: lib/bookshelf_module_grid_editor.lua:272
 #: lib/bookshelf_module_grid_session.lua:384 lib/bookshelf_settings.lua:161
-#: lib/bookshelf_tokens.lua:35 lib/bookshelf_widget.lua:7740
+#: lib/bookshelf_tokens.lua:35 lib/bookshelf_widget.lua:7741
 msgid "Style"
 msgstr "Biçem"
 
-#: lib/bookshelf_module_grid_editor.lua:313 lib/bookshelf_widget.lua:7782
-#: lib/bookshelf_widget.lua:7788 lib/bookshelf_widget_curated.lua:819
+#: lib/bookshelf_module_grid_editor.lua:313 lib/bookshelf_widget.lua:7784
+#: lib/bookshelf_widget.lua:7790 lib/bookshelf_widget_curated.lua:819
 #: lib/bookshelf_widget_curated.lua:820
 msgid "Page"
 msgstr "Sayfa"
@@ -3088,7 +3100,7 @@ msgstr "Bu klasör silinemez: içindeki bir kitap şu anda açık."
 msgid "Failed to delete folder."
 msgstr "Klasör silinemedi."
 
-#: lib/bookshelf_move_flow.lua:422 lib/bookshelf_widget.lua:20576
+#: lib/bookshelf_move_flow.lua:422 lib/bookshelf_widget.lua:20585
 msgid "%1 books"
 msgstr "%1 kitap"
 
@@ -3101,7 +3113,10 @@ msgid ""
 "%1 and everything in it, including %2.\n"
 "\n"
 "This cannot be undone."
-msgstr "%1 ve içindeki her şey, %2 dahil.\n\nBu işlem geri alınamaz."
+msgstr ""
+"%1 ve içindeki her şey, %2 dahil.\n"
+"\n"
+"Bu işlem geri alınamaz."
 
 #: lib/bookshelf_move_flow.lua:432
 msgid "Deleted %1."
@@ -3212,19 +3227,23 @@ msgid ""
 "Delete %1?\n"
 "\n"
 "The file is removed from the ornaments folder."
-msgstr "%1 silinsin mi?\n\nDosya süsler klasöründen kaldırılır."
+msgstr ""
+"%1 silinsin mi?\n"
+"\n"
+"Dosya süsler klasöründen kaldırılır."
 
 #: lib/bookshelf_ornament_browser.lua:296
 msgid "Could not delete the file."
 msgstr "Dosya silinemedi."
 
 #: lib/bookshelf_ornament_browser.lua:308 lib/bookshelf_ornament_menu.lua:362
-#: lib/bookshelf_settings.lua:4565 lib/bookshelf_widget_book_popup.lua:2733
+#: lib/bookshelf_settings.lua:4585 lib/bookshelf_widget_book_popup.lua:2733
 msgid "Hide"
 msgstr "Gizle"
 
 #: lib/bookshelf_ornament_browser.lua:308 lib/bookshelf_ornament_menu.lua:362
-#: lib/bookshelf_settings.lua:4565 lib/bookshelf_widget_book_popup.lua:2733
+#: lib/bookshelf_settings.lua:4585 lib/bookshelf_widget_book_popup.lua:2733
+#: micromodules/vocab_word.lua:1024
 msgid "Show"
 msgstr "Göster"
 
@@ -3242,7 +3261,11 @@ msgid ""
 "%1\n"
 "\n"
 "A folder of them inside it becomes a pack, with its own tab here."
-msgstr "PNG veya SVG dosyalarını şuraya koyun:\n%1\n\nİçindeki bir klasör, burada kendi sekmesi olan bir paket olur."
+msgstr ""
+"PNG veya SVG dosyalarını şuraya koyun:\n"
+"%1\n"
+"\n"
+"İçindeki bir klasör, burada kendi sekmesi olan bir paket olur."
 
 #: lib/bookshelf_ornament_browser.lua:343
 msgid "Ready-made packs"
@@ -3275,7 +3298,12 @@ msgid ""
 "Drop PNG or SVG files into\n"
 "%1\n"
 "or a folder of them, which becomes a pack."
-msgstr "Burada süs yok.\n\nPNG veya SVG dosyalarını şuraya bırakın:\n%1\nya da bunlardan oluşan bir klasörü; o klasör bir paket olur."
+msgstr ""
+"Burada süs yok.\n"
+"\n"
+"PNG veya SVG dosyalarını şuraya bırakın:\n"
+"%1\n"
+"ya da bunlardan oluşan bir klasörü; o klasör bir paket olur."
 
 #: lib/bookshelf_ornament_menu.lua:209
 msgid "hidden"
@@ -3305,7 +3333,7 @@ msgstr "Bir yere sabitle"
 msgid "%1 of %2"
 msgstr "%1 / %2"
 
-#: lib/bookshelf_ornament_menu.lua:462 main.lua:1137
+#: lib/bookshelf_ornament_menu.lua:462 main.lua:1170
 msgid "off"
 msgstr "kapalı"
 
@@ -3391,7 +3419,10 @@ msgid ""
 "Delete %1 page counts found by earlier scans?\n"
 "\n"
 "Counts for books you have opened, and page counts in file names, are kept."
-msgstr "Önceki taramalarda bulunan %1 sayfa sayısı silinsin mi?\n\nAçtığınız kitapların sayıları ve dosya adlarındaki sayfa sayıları korunur."
+msgstr ""
+"Önceki taramalarda bulunan %1 sayfa sayısı silinsin mi?\n"
+"\n"
+"Açtığınız kitapların sayıları ve dosya adlarındaki sayfa sayıları korunur."
 
 #: lib/bookshelf_page_count_dialog.lua:78
 msgid "Deleted %1 page counts."
@@ -3401,100 +3432,108 @@ msgstr "%1 sayfa sayısı silindi."
 msgid "Delete scanned page counts…"
 msgstr "Taranmış sayfa sayılarını sil…"
 
-#: lib/bookshelf_page_count_dialog.lua:190 lib/bookshelf_widget.lua:7780
+#: lib/bookshelf_page_count_dialog.lua:190 lib/bookshelf_widget.lua:7782
 #: lib/bookshelf_widget_curated.lua:819
 msgid "Start"
 msgstr "Başlat"
 
-#: lib/bookshelf_page_count_dialog.lua:215
-msgid "Publisher page numbers (fast)"
-msgstr "Yayıncı sayfa numaraları (hızlı)"
-
-#: lib/bookshelf_page_count_dialog.lua:216
-msgid "Printed page numbers that some books carry."
-msgstr "Bazı kitaplarda bulunan basılı sayfa numaraları."
+#: lib/bookshelf_page_count_dialog.lua:219
+msgid "Lays out each remaining book and counts it at %1 characters per page, your stable page numbers default, so the count matches what you see when reading."
+msgstr "Kalan her kitabı sayfalar ve varsayılan sabit sayfa numaralarınız olan sayfa başına %1 karakterle sayar; böylece sayı, okurken gördüğünüzle eşleşir."
 
 #: lib/bookshelf_page_count_dialog.lua:220
-msgid "Hardcover editions (fast)"
-msgstr "Hardcover baskıları (hızlı)"
-
-#: lib/bookshelf_page_count_dialog.lua:221
-msgid "The page count of the edition each linked book is matched to."
-msgstr "Bağlı her kitabın eşleştiği baskının sayfa sayısı."
-
-#: lib/bookshelf_page_count_dialog.lua:222
-msgid "No books are linked to Hardcover."
-msgstr "Hardcover'a bağlı kitap yok."
-
-#: lib/bookshelf_page_count_dialog.lua:227
-msgid "The #%1 column in your Calibre metadata, as the Count Pages plugin fills in. Often an estimate."
-msgstr "Calibre üst verilerindeki #%1 sütunu; Count Pages eklentisinin doldurduğu gibi. Çoğu zaman tahminidir."
-
-#: lib/bookshelf_page_count_dialog.lua:229
-msgid "Needs Calibre metadata, which is off."
-msgstr "Kapalı olan Calibre üst verileri gerekir."
-
-#: lib/bookshelf_page_count_dialog.lua:231
-msgid "No page count column in your Calibre metadata."
-msgstr "Calibre üst verilerinde sayfa sayısı sütunu yok."
-
-#: lib/bookshelf_page_count_dialog.lua:234
-msgid "Calibre page column (fast)"
-msgstr "Calibre sayfa sütunu (hızlı)"
-
-#: lib/bookshelf_page_count_dialog.lua:239
-msgid "Page counts in file names (fastest)"
-msgstr "Dosya adlarındaki sayfa sayıları (en hızlı)"
-
-#: lib/bookshelf_page_count_dialog.lua:240
-msgid "A count in the file name, like p(320), as some Calibre setups add. Often an estimate."
-msgstr "Dosya adındaki bir sayı, örneğin p(320); bazı Calibre kurulumları ekler. Çoğu zaman tahminidir."
-
-#: lib/bookshelf_page_count_dialog.lua:244
-msgid "Your reading settings (slow)"
-msgstr "Okuma ayarlarınız (yavaş)"
-
-#: lib/bookshelf_page_count_dialog.lua:245
 msgid "Lays out each remaining book in your font and margins, so the count matches what you see when reading."
 msgstr "Kalan her kitabı yazı tipiniz ve kenar boşluklarınızla dizer; böylece sayı, okurken gördüğünüzle eşleşir."
 
-#: lib/bookshelf_page_count_dialog.lua:262
+#: lib/bookshelf_page_count_dialog.lua:222
+msgid "Printed page numbers that some books carry. Not used while your stable page numbers default overrides them."
+msgstr "Bazı kitaplarda bulunan basılı sayfa numaraları. Varsayılan sabit sayfa numaralarınız bunları geçersiz kıldığı sürece kullanılmaz."
+
+#: lib/bookshelf_page_count_dialog.lua:223
+msgid "Printed page numbers that some books carry."
+msgstr "Bazı kitaplarda bulunan basılı sayfa numaraları."
+
+#: lib/bookshelf_page_count_dialog.lua:225
+msgid "Publisher page numbers (fast)"
+msgstr "Yayıncı sayfa numaraları (hızlı)"
+
+#: lib/bookshelf_page_count_dialog.lua:230
+msgid "Hardcover editions (fast)"
+msgstr "Hardcover baskıları (hızlı)"
+
+#: lib/bookshelf_page_count_dialog.lua:231
+msgid "The page count of the edition each linked book is matched to."
+msgstr "Bağlı her kitabın eşleştiği baskının sayfa sayısı."
+
+#: lib/bookshelf_page_count_dialog.lua:232
+msgid "No books are linked to Hardcover."
+msgstr "Hardcover'a bağlı kitap yok."
+
+#: lib/bookshelf_page_count_dialog.lua:237
+msgid "The #%1 column in your Calibre metadata, as the Count Pages plugin fills in. Often an estimate."
+msgstr "Calibre üst verilerindeki #%1 sütunu; Count Pages eklentisinin doldurduğu gibi. Çoğu zaman tahminidir."
+
+#: lib/bookshelf_page_count_dialog.lua:239
+msgid "Needs Calibre metadata, which is off."
+msgstr "Kapalı olan Calibre üst verileri gerekir."
+
+#: lib/bookshelf_page_count_dialog.lua:241
+msgid "No page count column in your Calibre metadata."
+msgstr "Calibre üst verilerinde sayfa sayısı sütunu yok."
+
+#: lib/bookshelf_page_count_dialog.lua:244
+msgid "Calibre page column (fast)"
+msgstr "Calibre sayfa sütunu (hızlı)"
+
+#: lib/bookshelf_page_count_dialog.lua:249
+msgid "Page counts in file names (fastest)"
+msgstr "Dosya adlarındaki sayfa sayıları (en hızlı)"
+
+#: lib/bookshelf_page_count_dialog.lua:250
+msgid "A count in the file name, like p(320), as some Calibre setups add. Often an estimate."
+msgstr "Dosya adındaki bir sayı, örneğin p(320); bazı Calibre kurulumları ekler. Çoğu zaman tahminidir."
+
+#: lib/bookshelf_page_count_dialog.lua:254
+msgid "Your reading settings (slow)"
+msgstr "Okuma ayarlarınız (yavaş)"
+
+#: lib/bookshelf_page_count_dialog.lua:272
 msgid "Only books without a page count"
 msgstr "Yalnızca sayfa sayısı olmayan kitaplar"
 
-#: lib/bookshelf_page_count_dialog.lua:266
+#: lib/bookshelf_page_count_dialog.lua:276
 msgid "Every book, replacing earlier counts"
 msgstr "Tüm kitaplar, önceki sayıların yerine"
 
-#: lib/bookshelf_page_count_dialog.lua:274
+#: lib/bookshelf_page_count_dialog.lua:284
 msgid "Finds how long each book in %1 is (%2 books), for spine thickness, page count badges, sorting and the page count token."
 msgstr "%1 içindeki her kitabın uzunluğunu bulur (%2 kitap); sırt kalınlığı, sayfa sayısı rozetleri, sıralama ve sayfa sayısı belirteci için."
 
-#: lib/bookshelf_page_count_dialog.lua:276
+#: lib/bookshelf_page_count_dialog.lua:286
 msgid "Finds how long each book is, for spine thickness, page count badges, sorting and the page count token."
 msgstr "Her kitabın uzunluğunu bulur; sırt kalınlığı, sayfa sayısı rozetleri, sıralama ve sayfa sayısı belirteci için."
 
-#: lib/bookshelf_page_count_dialog.lua:279
+#: lib/bookshelf_page_count_dialog.lua:289
 msgid "Use page counts from, in this order"
 msgstr "Sayfa sayılarını bu sırayla şuralardan al"
 
-#: lib/bookshelf_page_count_dialog.lua:283
+#: lib/bookshelf_page_count_dialog.lua:293
 msgid "Which books"
 msgstr "Hangi kitaplar"
 
-#: lib/bookshelf_page_count_dialog.lua:297
+#: lib/bookshelf_page_count_dialog.lua:307
 msgid "Extract page counts"
 msgstr "Sayfa sayılarını çıkar"
 
-#: lib/bookshelf_page_count_dialog.lua:398
+#: lib/bookshelf_page_count_dialog.lua:408
 msgid "No books to count here."
 msgstr "Burada sayılacak kitap yok."
 
-#: lib/bookshelf_pagination.lua:85 lib/bookshelf_widget.lua:9401
+#: lib/bookshelf_pagination.lua:85 lib/bookshelf_widget.lua:9403
 msgid "Page %1 of %2+"
 msgstr "Sayfa %1 / %2+"
 
-#: lib/bookshelf_pagination.lua:86 lib/bookshelf_widget.lua:9402
+#: lib/bookshelf_pagination.lua:86 lib/bookshelf_widget.lua:9404
 msgid "Page %1 of %2"
 msgstr "Sayfa %1 / %2"
 
@@ -3525,8 +3564,8 @@ msgstr "Paketlerle daha fazla raf tahtası gelir: Süs koleksiyonundaki \"Süs e
 msgid "Built-in"
 msgstr "Yerleşik"
 
-#: lib/bookshelf_reader_park.lua:437 lib/bookshelf_widget.lua:21889
-#: main.lua:1400
+#: lib/bookshelf_reader_park.lua:452 lib/bookshelf_widget.lua:21898
+#: main.lua:1433
 msgid "Closing book…"
 msgstr "Kitap kapatılıyor…"
 
@@ -3567,7 +3606,16 @@ msgid ""
 "\n"
 "  [if:series]Book %series_num of %series_name[/if]\n"
 "  [if:batt<20]LOW %batt[/if]"
-msgstr "Belirteçler, üst panel ya da durum satırı çizildiğinde canlı verilerle değiştirilen yer tutuculardır.\n\n  %title - %book_pct\n  → Dune - 36%\n\nBir içeriği yalnızca belirtecin bir değeri olduğunda göstermek için [if:foo]…[/if] içine alın. Yedek için [else]…[/if] ekleyin.\n\n  [if:series]%series_name, %series_num. kitap[/if]\n  [if:batt<20]DÜŞÜK %batt[/if]"
+msgstr ""
+"Belirteçler, üst panel ya da durum satırı çizildiğinde canlı verilerle değiştirilen yer tutuculardır.\n"
+"\n"
+"  %title - %book_pct\n"
+"  → Dune - 36%\n"
+"\n"
+"Bir içeriği yalnızca belirtecin bir değeri olduğunda göstermek için [if:foo]…[/if] içine alın. Yedek için [else]…[/if] ekleyin.\n"
+"\n"
+"  [if:series]%series_name, %series_num. kitap[/if]\n"
+"  [if:batt<20]DÜŞÜK %batt[/if]"
 
 #: lib/bookshelf_settings.lua:255
 msgid "Search tokens…"
@@ -3589,7 +3637,7 @@ msgstr "Puan (etkileşimli)"
 msgid "Metadata"
 msgstr "Üst veri"
 
-#: lib/bookshelf_settings.lua:461 lib/bookshelf_widget.lua:20180
+#: lib/bookshelf_settings.lua:461 lib/bookshelf_widget.lua:20189
 #: lib/bookshelf_widget_book_popup.lua:1523
 #: lib/bookshelf_widget_book_popup.lua:4194
 #: lib/bookshelf_widget_book_popup.lua:4204 lib/bookshelf_widget_opds.lua:2769
@@ -3633,13 +3681,13 @@ msgid "Center"
 msgstr "Ortada"
 
 #: lib/bookshelf_settings.lua:693 lib/bookshelf_settings.lua:698
-#: lib/bookshelf_settings.lua:5597 lib/bookshelf_widget.lua:7784
+#: lib/bookshelf_settings.lua:5617 lib/bookshelf_widget.lua:7786
 #: lib/bookshelf_widget_curated.lua:819
 msgid "Left"
 msgstr "Sol"
 
 #: lib/bookshelf_settings.lua:693 lib/bookshelf_settings.lua:700
-#: lib/bookshelf_settings.lua:5598 lib/bookshelf_widget.lua:7787
+#: lib/bookshelf_settings.lua:5618 lib/bookshelf_widget.lua:7789
 #: lib/bookshelf_widget_curated.lua:820
 msgid "Right"
 msgstr "Sağ"
@@ -3706,8 +3754,8 @@ msgstr "Yalnızca sayı"
 msgid "Show \"220\" rather than \"220 p\"."
 msgstr "\"220 s\" yerine \"220\" gösterin."
 
-#: lib/bookshelf_settings.lua:863 lib/bookshelf_settings.lua:4705
-#: lib/bookshelf_widget.lua:20689
+#: lib/bookshelf_settings.lua:863 lib/bookshelf_settings.lua:4725
+#: lib/bookshelf_widget.lua:20698
 msgid "Extract page counts…"
 msgstr "Sayfa sayılarını çıkar…"
 
@@ -4120,7 +4168,10 @@ msgid ""
 "Small pieces that stand in the gaps on a spine shelf. Drop PNG or SVG files into %1 and they appear there; a folder of them there is a pack, switched on and off as one.\n"
 "\n"
 "Tap to browse them, hide or show them, or delete them. How often they appear is set per shelf: long-press a shelf, then View mode."
-msgstr "Bir sırt rafındaki boşluklarda duran küçük parçalar. PNG veya SVG dosyalarını %1 içine bırakın, orada görünürler; oradaki bir klasör bir pakettir ve tek parça olarak açılıp kapatılır.\n\nGöz atmak, gizlemek, göstermek ya da silmek için dokunun. Ne sıklıkta görünecekleri her raf için ayrı ayarlanır: rafa uzun basın, sonra Görünüm."
+msgstr ""
+"Bir sırt rafındaki boşluklarda duran küçük parçalar. PNG veya SVG dosyalarını %1 içine bırakın, orada görünürler; oradaki bir klasör bir pakettir ve tek parça olarak açılıp kapatılır.\n"
+"\n"
+"Göz atmak, gizlemek, göstermek ya da silmek için dokunun. Ne sıklıkta görünecekleri her raf için ayrı ayarlanır: rafa uzun basın, sonra Görünüm."
 
 #: lib/bookshelf_settings.lua:2804
 msgid "New ornaments go: %1"
@@ -4307,7 +4358,7 @@ msgstr "Kapak görünümü"
 msgid "List view"
 msgstr "Liste"
 
-#: lib/bookshelf_settings.lua:3536 lib/bookshelf_settings.lua:5522
+#: lib/bookshelf_settings.lua:3536 lib/bookshelf_settings.lua:5542
 msgid "Text size"
 msgstr "Metin boyutu"
 
@@ -4351,8 +4402,8 @@ msgstr "Tam ekran düğmesi"
 msgid "On the shelf"
 msgstr "Rafta"
 
-#: lib/bookshelf_settings.lua:3669 lib/bookshelf_settings.lua:5622
-#: lib/bookshelf_settings.lua:5918
+#: lib/bookshelf_settings.lua:3669 lib/bookshelf_settings.lua:5642
+#: lib/bookshelf_settings.lua:5938
 msgid "Start menu"
 msgstr "Başlangıç menüsü"
 
@@ -4373,7 +4424,7 @@ msgid "never"
 msgstr "hiçbir zaman"
 
 #: lib/bookshelf_settings.lua:3740 lib/bookshelf_settings.lua:3852
-#: main.lua:3057
+#: main.lua:3179
 msgid "Not connected to Hardcover"
 msgstr "Hardcover'a bağlı değil"
 
@@ -4398,7 +4449,10 @@ msgid ""
 "Auto-link %1 unlinked book(s)?\n"
 "\n"
 "Contacts Hardcover (rate-limited), up to ~%2 min. Progress shows in the status line, with Stop, and a report follows."
-msgstr "Bağlantısız %1 kitap otomatik bağlansın mı?\n\nHardcover'a bağlanılır (hız sınırlı), en fazla ~%2 dk sürer. İlerleme durum satırında Durdur seçeneğiyle gösterilir, ardından bir rapor gelir."
+msgstr ""
+"Bağlantısız %1 kitap otomatik bağlansın mı?\n"
+"\n"
+"Hardcover'a bağlanılır (hız sınırlı), en fazla ~%2 dk sürer. İlerleme durum satırında Durdur seçeneğiyle gösterilir, ardından bir rapor gelir."
 
 #: lib/bookshelf_settings.lua:3827
 msgid "Exact match (ISBN / Hardcover id)"
@@ -4501,7 +4555,7 @@ msgstr "Yalnızca puanları yenile"
 msgid "Fetch up-to-date public ratings and review counts for every linked book in one quick batched request -- seconds, even for a large library. Ratings drift daily; for the rarely-changing details (author, genres, series, description, pages) use Refresh linked book details instead."
 msgstr "Tüm bağlı kitapların güncel herkese açık puanlarını ve inceleme sayılarını tek, hızlı bir toplu istekle getirir; büyük bir kitaplıkta bile saniyeler sürer. Puanlar her gün değişir; nadiren değişen ayrıntılar (yazar, türler, dizi, açıklama, sayfa) için bunun yerine Bağlı kitap ayrıntılarını yenile'yi kullanın."
 
-#: lib/bookshelf_settings.lua:4019 lib/bookshelf_widget.lua:19947
+#: lib/bookshelf_settings.lua:4019 lib/bookshelf_widget.lua:19956
 msgid "Hardcover integration could not be loaded"
 msgstr "Hardcover entegrasyonu yüklenemedi"
 
@@ -4550,7 +4604,10 @@ msgid ""
 "Remove all downloaded Hardcover covers?\n"
 "\n"
 "Each book's original cover is restored; links, descriptions and ratings are kept."
-msgstr "İndirilen tüm Hardcover kapakları kaldırılsın mı?\n\nHer kitabın özgün kapağı geri yüklenir; bağlantılar, açıklamalar ve puanlar korunur."
+msgstr ""
+"İndirilen tüm Hardcover kapakları kaldırılsın mı?\n"
+"\n"
+"Her kitabın özgün kapağı geri yüklenir; bağlantılar, açıklamalar ve puanlar korunur."
 
 #: lib/bookshelf_settings.lua:4089
 msgid "Remove covers"
@@ -4575,7 +4632,12 @@ msgid ""
 "This unlinks every book and deletes all cached Hardcover covers, descriptions, ratings and reviews. Covers Hardcover saved into book folders are removed and any cover you had before is put back.\n"
 "\n"
 "This cannot be undone."
-msgstr "TÜM Hardcover verileri kaldırılsın mı?\n\nBu, tüm kitapların bağlantısını kaldırır ve önbellekteki tüm Hardcover kapaklarını, açıklamalarını, puanlarını ve incelemelerini siler. Hardcover'ın kitap klasörlerine kaydettiği kapaklar kaldırılır ve önceden var olan kapak geri konur.\n\nBu işlem geri alınamaz."
+msgstr ""
+"TÜM Hardcover verileri kaldırılsın mı?\n"
+"\n"
+"Bu, tüm kitapların bağlantısını kaldırır ve önbellekteki tüm Hardcover kapaklarını, açıklamalarını, puanlarını ve incelemelerini siler. Hardcover'ın kitap klasörlerine kaydettiği kapaklar kaldırılır ve önceden var olan kapak geri konur.\n"
+"\n"
+"Bu işlem geri alınamaz."
 
 #: lib/bookshelf_settings.lua:4118
 msgid "Remove all"
@@ -4625,586 +4687,604 @@ msgstr "Raf sayfaları için E-mürekkep yenileme hızını kullan"
 msgid "Flash the shelf clean on page turns as often as KOReader's own Full refresh rate (Screen > E-ink settings) does for book pages, to clear ghosting. A page that flashes skips its animation and takes a little longer. E-ink only."
 msgstr "Gölgelenmeyi temizlemek için sayfa çevirirken rafı, KOReader'ın kitap sayfalarındaki kendi Tam yenileme hızı (Ekran > E-mürekkep ayarları) kadar sık yanıp sönerek temizler. Yanıp sönen bir sayfa animasyonunu atlar ve biraz daha uzun sürer. Yalnızca E-mürekkep."
 
-#: lib/bookshelf_settings.lua:4263
+#: lib/bookshelf_settings.lua:4266
+msgid "Compiled code cache"
+msgstr "Derlenmiş kod önbelleği"
+
+#: lib/bookshelf_settings.lua:4267
+msgid "Keep a compiled copy of Bookshelf's code, so KOReader starts faster (about half a second on a Kindle Paperwhite). Turn it off if Bookshelf has trouble starting on your device. Bookshelf also turns it off by itself if it fails to start twice in a short time. Takes effect when KOReader restarts."
+msgstr "KOReader'ın daha hızlı açılması için Bookshelf kodunun derlenmiş bir kopyasını saklar (Kindle Paperwhite'ta yaklaşık yarım saniye). Bookshelf cihazınızda açılırken sorun yaşıyorsa kapatın. Bookshelf kısa sürede iki kez açılamazsa bunu kendisi de kapatır. KOReader yeniden başlatıldığında etkili olur."
+
+#: lib/bookshelf_settings.lua:4283
 msgid "Pre-warm shelf cache"
 msgstr "Raf önbelleğini önceden hazırla"
 
-#: lib/bookshelf_settings.lua:4264
+#: lib/bookshelf_settings.lua:4284
 msgid "Warms each shelf's data in the background shortly after launch so switching shelves is instant. On a large library with many shelves this adds a few seconds of work after startup; turn it off for a quicker, lighter launch (shelves then load on first use)."
 msgstr "Raflar arasında geçiş anında olsun diye, açılıştan kısa süre sonra her rafın verilerini arka planda hazırlar. Çok raflı büyük bir kitaplıkta bu, açılıştan sonra birkaç saniyelik iş ekler; daha hızlı ve hafif bir açılış için kapatın (raflar o zaman ilk kullanımda yüklenir)."
 
-#: lib/bookshelf_settings.lua:4279
+#: lib/bookshelf_settings.lua:4299
 msgid "\"Latest\" walk depth"
 msgstr "\"En yeni\" tarama derinliği"
 
-#: lib/bookshelf_settings.lua:4285
+#: lib/bookshelf_settings.lua:4305
 msgid "Cover cache"
 msgstr "Kapak önbelleği"
 
-#: lib/bookshelf_settings.lua:4292
+#: lib/bookshelf_settings.lua:4312
 msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default %1 MB on this device. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or color ones.)"
 msgstr "Hazır ölçeklenmiş kitap kapakları için ne kadar bellek kullanılacağı. Daha büyük bir önbellek daha çok kapağı hazır tutar (daha akıcı sayfa çevirme ve önyükleme), karşılığında RAM harcar. Bu aygıtta varsayılan %1 MB. Bellek kısıtlıysa düşürün; bol RAM'li bir aygıtta yükseltin. (Bunun kaç kapak tuttuğu boyutlarına bağlıdır: kabaca 200-400 küçük gri tonlamalı kapak, büyük ya da renkli olanlardan daha azı.)"
 
-#: lib/bookshelf_settings.lua:4305
+#: lib/bookshelf_settings.lua:4325
 msgid "Clear cover cache"
 msgstr "Kapak önbelleğini temizle"
 
-#: lib/bookshelf_settings.lua:4306
+#: lib/bookshelf_settings.lua:4326
 msgid "Drop all cached scaled covers, in memory and on disk. Use this when a book's cover has been updated outside KOReader (e.g. a metadata-enrichment tool rewrote the EPUB) and the old cover is still showing on the shelf. The next render fetches fresh covers from the EPUBs."
 msgstr "Bellekte ve diskte önbelleğe alınmış tüm ölçeklenmiş kapakları siler. Bir kitabın kapağı KOReader dışında güncellendiyse (ör. bir üst veri zenginleştirme aracı EPUB'u yeniden yazdıysa) ve rafta hâlâ eski kapak görünüyorsa bunu kullanın. Bir sonraki çizimde kapaklar EPUB'lardan yeniden alınır."
 
-#: lib/bookshelf_settings.lua:4323
+#: lib/bookshelf_settings.lua:4343
 msgid "Cover cache cleared"
 msgstr "Kapak önbelleği temizlendi"
 
-#: lib/bookshelf_settings.lua:4336
+#: lib/bookshelf_settings.lua:4356
 msgid "Color panel dithering"
 msgstr "Renkli panel titreklemesi"
 
-#: lib/bookshelf_settings.lua:4337
+#: lib/bookshelf_settings.lua:4357
 msgid "Applies the color-dither waveform when redrawing book covers so they keep their full saturation on color e-ink panels. Turn it off to compare; with it off, covers can look washed out until a full-screen refresh. Color panels only."
 msgstr "Renkli e-mürekkep panellerde kitap kapakları tam doygunluklarını korusun diye, yeniden çizerken renk titrekleme dalga biçimini uygular. Karşılaştırmak için kapatın; kapalıyken kapaklar tam ekran yenilemeye kadar soluk görünebilir. Yalnızca renkli paneller."
 
-#: lib/bookshelf_settings.lua:4378 lib/bookshelf_settings.lua:4405
+#: lib/bookshelf_settings.lua:4398 lib/bookshelf_settings.lua:4425
 msgid "Fast"
 msgstr "Hızlı"
 
-#: lib/bookshelf_settings.lua:4379 lib/bookshelf_settings.lua:4406
+#: lib/bookshelf_settings.lua:4399 lib/bookshelf_settings.lua:4426
 msgid "Normal"
 msgstr "Normal"
 
-#: lib/bookshelf_settings.lua:4380 lib/bookshelf_settings.lua:4407
+#: lib/bookshelf_settings.lua:4400 lib/bookshelf_settings.lua:4427
 msgid "Slow"
 msgstr "Yavaş"
 
-#: lib/bookshelf_settings.lua:4426
+#: lib/bookshelf_settings.lua:4446
 msgid "Currently reading"
 msgstr "Şu an okunan"
 
-#: lib/bookshelf_settings.lua:4461
+#: lib/bookshelf_settings.lua:4481
 msgid "Top panel starts with"
 msgstr "Üst panel şununla başlar"
 
-#: lib/bookshelf_settings.lua:4463
+#: lib/bookshelf_settings.lua:4483
 msgid "What the top panel above the shelf shows when it opens: the book you're currently reading, or a grid of modules (clock, quote, random book, reading goals…). You can also switch between them from the shelf menu."
 msgstr "Rafın üstündeki üst panelin açıldığında ne gösterdiği: şu an okuduğunuz kitap ya da modüllerden oluşan bir ızgara (saat, alıntı, rastgele kitap, okuma hedefleri…). Raf menüsünden de ikisi arasında geçiş yapabilirsiniz."
 
-#: lib/bookshelf_settings.lua:4482
+#: lib/bookshelf_settings.lua:4502
 msgid "Show the book's details"
 msgstr "Kitabın ayrıntılarını göster"
 
-#: lib/bookshelf_settings.lua:4483
+#: lib/bookshelf_settings.lua:4503
 msgid "Open with a single tap"
 msgstr "Tek dokunuşla aç"
 
-#: lib/bookshelf_settings.lua:4484
+#: lib/bookshelf_settings.lua:4504
 msgid "Open with a double tap"
 msgstr "Çift dokunuşla aç"
 
-#: lib/bookshelf_settings.lua:4506
+#: lib/bookshelf_settings.lua:4526
 msgid "Tap a book in full screen shelves"
 msgstr "Tam ekran raflarda kitaba dokunma"
 
-#: lib/bookshelf_settings.lua:4509
+#: lib/bookshelf_settings.lua:4529
 msgid "What tapping a book does in full screen shelves: show that book's detail in the top panel, open it with a single tap, or open it with a double tap (first tap selects). The top panel's own double-tap-to-open is the next row."
 msgstr "Tam ekran raflarda bir kitaba dokunmanın ne yaptığı: kitabın ayrıntısını üst panelde gösterir, tek dokunuşla açar ya da çift dokunuşla açar (ilk dokunuş seçer). Üst panelin kendi çift dokunuşla açma ayarı bir sonraki satırdadır."
 
-#: lib/bookshelf_settings.lua:4527
+#: lib/bookshelf_settings.lua:4547
 msgid "Bookshelf gestures"
 msgstr "Bookshelf hareketleri"
 
-#: lib/bookshelf_settings.lua:4528
+#: lib/bookshelf_settings.lua:4548
 msgid "Switch off any of Bookshelf's own gestures. A gesture switched off does nothing on the shelf. Tapping a book and swiping between pages always work."
 msgstr "Bookshelf'in kendi hareketlerinden istediğinizi kapatın. Kapatılan bir hareket rafta hiçbir şey yapmaz. Kitaba dokunmak ve sayfalar arasında kaydırmak her zaman çalışır."
 
-#: lib/bookshelf_settings.lua:4536
+#: lib/bookshelf_settings.lua:4556
 msgid "Double tap to open books"
 msgstr "Kitapları çift dokunuşla aç"
 
-#: lib/bookshelf_settings.lua:4537
+#: lib/bookshelf_settings.lua:4557
 msgid "When enabled, opening a book from the top panel card or from a shelf cover in full screen shelves requires two taps -- the first selects the cover (focus ring), the second commits. Useful if you tend to open books accidentally while browsing. Regular shelf covers (with the top panel visible) already work this way -- tap stages the book in the top panel, tapping that opens it -- and are unaffected by this setting."
 msgstr "Açıkken, üst panel kartından ya da tam ekran raflardaki bir kapaktan kitap açmak iki dokunuş gerektirir: ilki kapağı seçer (odak halkası), ikincisi açar. Gezinirken yanlışlıkla kitap açıyorsanız işe yarar. Normal raf kapakları (üst panel görünürken) zaten böyle çalışır: dokunmak kitabı üst panele alır, oraya dokunmak açar; bu ayardan etkilenmezler."
 
-#: lib/bookshelf_settings.lua:4565
+#: lib/bookshelf_settings.lua:4585
 msgid "Invisible buttons"
 msgstr "Görünmez düğmeler"
 
-#: lib/bookshelf_settings.lua:4588
+#: lib/bookshelf_settings.lua:4608
 msgid "Footer bar"
 msgstr "Alt çubuk"
 
-#: lib/bookshelf_settings.lua:4590
+#: lib/bookshelf_settings.lua:4610
 msgid "The bar along the bottom of the shelf, with the menu button and the page arrows."
 msgstr "Rafın altındaki, menü düğmesi ve sayfa oklarının bulunduğu çubuk."
 
-#: lib/bookshelf_settings.lua:4593
+#: lib/bookshelf_settings.lua:4613
 msgid "The bar with the menu button and the page arrows."
 msgstr "Menü düğmesi ve sayfa oklarının bulunduğu çubuk."
 
-#: lib/bookshelf_settings.lua:4594
+#: lib/bookshelf_settings.lua:4614
 msgid "No bar: the shelf uses its space. Swipe to turn pages; open the menu from KOReader's menu or a gesture. The bar comes back while you select books."
 msgstr "Çubuk yok: alanı raf kullanır. Sayfa çevirmek için kaydırın; menüyü KOReader'ın menüsünden ya da bir hareketle açın. Kitap seçerken çubuk geri gelir."
 
-#: lib/bookshelf_settings.lua:4595
+#: lib/bookshelf_settings.lua:4615
 msgid "The bar is not drawn, but its buttons still work where they were: the menu in its corner and the arrows to turn pages. Moving into it with the keys shows it."
 msgstr "Çubuk çizilmez ama düğmeleri yerlerinde çalışmaya devam eder: köşesindeki menü ve sayfa çeviren oklar. Tuşlarla üzerine gelince görünür."
 
-#: lib/bookshelf_settings.lua:4600
+#: lib/bookshelf_settings.lua:4620
 msgid "Page turn animation"
 msgstr "Sayfa çevirme animasyonu"
 
-#: lib/bookshelf_settings.lua:4601
+#: lib/bookshelf_settings.lua:4621
 msgid "Animate shelf page turns and shelf-menu paging with a wipe effect. E-ink only (the effect relies on the panel's refresh, so it does nothing on LCD screens). Fast / Medium / Slow trade snappiness for smoothness. Slow looks smoothest but takes longer on older panels."
 msgstr "Raf sayfası çevirmeyi ve raf menüsü sayfalamasını silme efektiyle canlandırır. Yalnızca E-mürekkep (efekt panelin yenilemesine dayanır, LCD ekranlarda bir şey yapmaz). Hızlı / Orta / Yavaş, çeviklikle akıcılık arasında denge kurar. Yavaş en akıcı görünür ama eski panellerde daha uzun sürer."
 
-#: lib/bookshelf_settings.lua:4606
+#: lib/bookshelf_settings.lua:4626
 msgid "Start menu animation"
 msgstr "Başlangıç menüsü animasyonu"
 
-#: lib/bookshelf_settings.lua:4607
+#: lib/bookshelf_settings.lua:4627
 msgid "Animate the start menu opening and closing. Separate from the page-turn wipe, so you can keep one and turn off the other - the menu reveal repaints a taller area and can look choppy on some screens, particularly while reading. E-ink only."
 msgstr "Başlangıç menüsünün açılıp kapanmasını canlandırır. Sayfa çevirme silmesinden ayrıdır, böylece birini tutup diğerini kapatabilirsiniz; menünün açılışı daha uzun bir alanı yeniden çizer ve bazı ekranlarda, özellikle okurken, kesik kesik görünebilir. Yalnızca E-mürekkep."
 
-#: lib/bookshelf_settings.lua:4613
+#: lib/bookshelf_settings.lua:4633
 msgid "Closing book notification"
 msgstr "Kitap kapatma bildirimi"
 
-#: lib/bookshelf_settings.lua:4614
+#: lib/bookshelf_settings.lua:4634
 msgid "Show a 'Closing book…' message in the center of the screen while a book is being closed back to Bookshelf. The book-close work takes a moment, so the message confirms your gesture landed during the wait. Some users on color e-ink panels see a brief flash from the message appearing. Turn it off here if you prefer no message and no flash."
 msgstr "Bir kitap kapatılıp Bookshelf'e dönülürken ekranın ortasında 'Kitap kapatılıyor…' iletisi gösterir. Kitabı kapatmak biraz zaman alır, bu yüzden ileti beklerken hareketinizin algılandığını doğrular. Renkli e-mürekkep panelli bazı kullanıcılar iletinin belirmesiyle kısa bir yanıp sönme görür. İleti ve yanıp sönme istemiyorsanız buradan kapatın."
 
-#: lib/bookshelf_settings.lua:4696
+#: lib/bookshelf_settings.lua:4716
 msgid "Scan all library metadata"
 msgstr "Tüm kitaplık üst verilerini tara"
 
-#: lib/bookshelf_settings.lua:4706
+#: lib/bookshelf_settings.lua:4726
 msgid "Find page counts for your books, so spines, page count badges and tokens reflect their length. Publisher page numbers and Hardcover editions are used where a book has them; the rest are rendered in the background at your reading settings, which can take a while on a large library."
 msgstr "Kitaplarınızın sayfa sayılarını bulur; böylece sırtlar, sayfa sayısı rozetleri ve belirteçler uzunluklarını yansıtır. Kitapta varsa yayıncı sayfa numaraları ve Hardcover baskıları kullanılır; geri kalanlar okuma ayarlarınızla arka planda işlenir, bu da büyük bir kitaplıkta biraz zaman alabilir."
 
-#: lib/bookshelf_settings.lua:4731
+#: lib/bookshelf_settings.lua:4751
 msgid "Manage collections…"
 msgstr "Dermeleri yönet…"
 
-#: lib/bookshelf_settings.lua:4732
+#: lib/bookshelf_settings.lua:4752
 msgid "Create, rename, reorder and delete collections. Also reachable from collection shelves and stacks."
 msgstr "Dermeleri oluşturun, yeniden adlandırın, sıralayın ve silin. Derme raflarından ve yığınlarından da erişilebilir."
 
-#: lib/bookshelf_settings.lua:4756 lib/bookshelf_settings.lua:4758
+#: lib/bookshelf_settings.lua:4776 lib/bookshelf_settings.lua:4778
 msgid "Bulk selection mode"
 msgstr "Toplu seçim kipi"
 
-#: lib/bookshelf_settings.lua:4760
+#: lib/bookshelf_settings.lua:4780
 msgid "Select several books at once to move or delete them or add them to a collection. Also available from a book's Edit tab (Select), the stack menus (Select N), or as a gesture. Not available in remote catalog views."
 msgstr "Taşımak, silmek ya da bir dermeye eklemek için aynı anda birkaç kitap seçin. Ayrıca bir kitabın Düzenle sekmesinden (Seç), yığın menülerinden (N tane seç) ya da bir hareketle de kullanılabilir. Uzak katalog görünümlerinde kullanılamaz."
 
-#: lib/bookshelf_settings.lua:4782 lib/bookshelf_settings.lua:4817
+#: lib/bookshelf_settings.lua:4802 lib/bookshelf_settings.lua:4837
 msgid "First Last"
 msgstr "Ad Soyad"
 
-#: lib/bookshelf_settings.lua:4783 lib/bookshelf_settings.lua:4818
+#: lib/bookshelf_settings.lua:4803 lib/bookshelf_settings.lua:4838
 msgid "Last, First"
 msgstr "Soyad, Ad"
 
-#: lib/bookshelf_settings.lua:4785
+#: lib/bookshelf_settings.lua:4805
 msgid "Author name formatting"
 msgstr "Yazar adı biçimi"
 
-#: lib/bookshelf_settings.lua:4787
+#: lib/bookshelf_settings.lua:4807
 msgid "How author names are displayed on the Authors shelf. Auto keeps whichever form was first found (\"Richard Osman\" or \"Osman, Richard\"). First Last and Last, First force every author card into the same shape regardless of how each book stored the name."
 msgstr "Yazarlar rafında yazar adlarının nasıl gösterileceği. Oto, ilk bulunan biçimi korur (\"Richard Osman\" ya da \"Osman, Richard\"). Ad Soyad ve Soyad, Ad, her kitap adı nasıl saklamış olursa olsun tüm yazar kartlarını aynı biçime zorlar."
 
-#: lib/bookshelf_settings.lua:4826
+#: lib/bookshelf_settings.lua:4846
 msgid "Spine text direction"
 msgstr "Sırt yazısı yönü"
 
-#: lib/bookshelf_settings.lua:4827
+#: lib/bookshelf_settings.lua:4847
 msgid "Which way a title runs down a spine. British and American books are printed to read downwards; Continental European printing runs the other way. Spines only."
 msgstr "Başlığın sırt boyunca hangi yöne aktığı. İngiliz ve Amerikan kitapları yukarıdan aşağı okunacak şekilde basılır; Kıta Avrupası baskıları ters yöndedir. Yalnızca sırtlar."
 
-#: lib/bookshelf_settings.lua:4833
+#: lib/bookshelf_settings.lua:4853
 msgid "Top to bottom"
 msgstr "Yukarıdan aşağı"
 
-#: lib/bookshelf_settings.lua:4834
+#: lib/bookshelf_settings.lua:4854
 msgid "Bottom to top"
 msgstr "Aşağıdan yukarı"
 
-#: lib/bookshelf_settings.lua:4848
+#: lib/bookshelf_settings.lua:4868
 msgid "Hide single-book series and genres"
 msgstr "Tek kitaplık dizi ve türleri gizle"
 
-#: lib/bookshelf_settings.lua:4849
+#: lib/bookshelf_settings.lua:4869
 msgid "When a series or genre contains only one book, hide it from the Series and Genres tabs. Useful when a book carries a one-off series name, or its own title as the series. Off by default."
 msgstr "Bir dizi ya da tür yalnızca bir kitap içeriyorsa onu Diziler ve Türler sekmelerinde gizler. Bir kitap tek seferlik bir dizi adı ya da dizi olarak kendi başlığını taşıyorsa işe yarar. Varsayılan olarak kapalı."
 
-#: lib/bookshelf_settings.lua:4888
+#: lib/bookshelf_settings.lua:4908
 msgid "Image library"
 msgstr "Görsel kitaplığı"
 
-#: lib/bookshelf_settings.lua:4891
+#: lib/bookshelf_settings.lua:4911
 msgid "Where Bookshelf looks for custom cover images. For stacks, place files like authors/author-name.jpg into the matching subfolder (authors, series, genres, collections). For folders, drop a cover.jpg into the folder itself. See the README for more matching options."
 msgstr "Bookshelf'in özel kapak görsellerini nerede aradığı. Yığınlar için authors/author-name.jpg gibi dosyaları eşleşen alt klasöre (authors, series, genres, collections) koyun. Klasörler için klasörün içine bir cover.jpg bırakın. Diğer eşleştirme seçenekleri için README'ye bakın."
 
-#: lib/bookshelf_settings.lua:4897
+#: lib/bookshelf_settings.lua:4917
 msgid "Find author images online…"
 msgstr "Yazar görsellerini çevrimiçi bul…"
 
-#: lib/bookshelf_settings.lua:4898
+#: lib/bookshelf_settings.lua:4918
 msgid "Looks up a photo of every author on your shelves that has no image yet, from Open Library, or Wikipedia when it has none, and saves it in the image library's authors folder. Images you already have are kept. To replace one author's image, long-press the author and choose Find author image online."
 msgstr "Raflarınızdaki henüz görseli olmayan her yazarın fotoğrafını Open Library'den, orada yoksa Wikipedia'dan arar ve görsel kitaplığının authors klasörüne kaydeder. Zaten var olan görseller korunur. Bir yazarın görselini değiştirmek için yazara uzun basıp Yazar görselini çevrimiçi bul'u seçin."
 
-#: lib/bookshelf_settings.lua:4911
+#: lib/bookshelf_settings.lua:4931
 msgid "Include folder names in search results"
 msgstr "Arama sonuçlarına klasör adlarını dahil et"
 
-#: lib/bookshelf_settings.lua:4912
+#: lib/bookshelf_settings.lua:4932
 msgid "When searching, also match the names of folders in your library and list them as folder results. Off by default: most libraries file books into author, series or genre folders, so a matching folder just duplicates the author / series / genre result of the same name. Turn on if you navigate by folder and want folders in search."
 msgstr "Ararken kitaplığınızdaki klasörlerin adlarını da eşleştirir ve bunları klasör sonucu olarak listeler. Varsayılan olarak kapalı: çoğu kitaplık kitapları yazar, dizi ya da tür klasörlerine yerleştirir, bu yüzden eşleşen bir klasör aynı adlı yazar / dizi / tür sonucunu tekrar etmekten öteye geçmez. Klasörlerle geziniyorsanız ve aramada klasör istiyorsanız açın."
 
-#: lib/bookshelf_settings.lua:4930
+#: lib/bookshelf_settings.lua:4950
 msgid "Include genres and tags in search results"
 msgstr "Arama sonuçlarına türleri ve etiketleri dahil et"
 
-#: lib/bookshelf_settings.lua:4931
+#: lib/bookshelf_settings.lua:4951
 msgid "When searching, also match books by their genres and tags, and list matching genres as results. Turn off if you search by title, author or series and the genre matches get in the way."
 msgstr "Ararken kitapları türlerine ve etiketlerine göre de eşleştirir ve eşleşen türleri sonuç olarak listeler. Başlık, yazar ya da diziye göre arıyorsanız ve tür eşleşmeleri işinizi zorlaştırıyorsa kapatın."
 
-#: lib/bookshelf_settings.lua:4949
+#: lib/bookshelf_settings.lua:4969
 msgid "Show each book in one group only"
 msgstr "Her kitabı yalnızca bir grupta göster"
 
-#: lib/bookshelf_settings.lua:4950
+#: lib/bookshelf_settings.lua:4970
 msgid "On Authors, Genres and Collections shelves, a book with several authors, genres or collections appears under its first one only: the first listed in the book, or the collection highest in KOReader's collection list. Search and filters still find it under all of them."
 msgstr "Yazarlar, Türler ve Dermeler raflarında, birden çok yazarı, türü ya da dermesi olan bir kitap yalnızca ilkinin altında görünür: kitapta ilk listelenen ya da KOReader'ın derme listesinde en üstteki derme. Arama ve süzgeçler onu yine hepsinin altında bulur."
 
-#: lib/bookshelf_settings.lua:4973
+#: lib/bookshelf_settings.lua:4993
 msgid "Ignore The, A, An when sorting"
 msgstr "Sıralarken The, A, An'ı yok say"
 
-#: lib/bookshelf_settings.lua:4974
+#: lib/bookshelf_settings.lua:4994
 msgid "Sorts titles and series names by the word after a leading The, A or An, and uses Calibre's title sort where a book has one. Turn off to sort them exactly as written."
 msgstr "Başlıkları ve dizi adlarını baştaki The, A ya da An'dan sonraki sözcüğe göre sıralar ve kitapta varsa Calibre'nin başlık sıralamasını kullanır. Tam yazıldığı gibi sıralamak için kapatın."
 
-#: lib/bookshelf_settings.lua:4994
+#: lib/bookshelf_settings.lua:5014
 msgid "Sort Chinese text by pinyin"
 msgstr "Çince metni pinyine göre sırala"
 
-#: lib/bookshelf_settings.lua:4995
+#: lib/bookshelf_settings.lua:5015
 msgid "Sorts Chinese characters by their Mandarin pinyin reading, so Chinese titles and authors file alphabetically alongside Latin names. When off, Chinese text sorts in Unicode order (roughly by radical and stroke count), after Latin names. Japanese kanji are also affected, so leave this off for Japanese-language libraries."
 msgstr "Çince karakterleri Mandarin pinyin okunuşlarına göre sıralar, böylece Çince başlıklar ve yazarlar Latin adlarla birlikte alfabetik dizilir. Kapalıyken Çince metin Unicode sırasına göre (kabaca kök ve çizgi sayısına göre), Latin adlardan sonra sıralanır. Japonca kanjiler de etkilenir, bu yüzden Japonca kitaplıklarda bunu kapalı bırakın."
 
-#: lib/bookshelf_settings.lua:5045
+#: lib/bookshelf_settings.lua:5065
 msgid "Show status line"
 msgstr "Durum satırını göster"
 
-#: lib/bookshelf_settings.lua:5046
+#: lib/bookshelf_settings.lua:5066
 msgid "Puts Bookshelf's status line across the top of the reader, drawn by the same code that draws it on the shelf, so it reads the same in both. Edit the line itself under Settings > Status line. If you also use Bookends, its top row and any top-anchored progress bar move down to make space."
 msgstr "Bookshelf'in durum satırını okuyucunun üstüne yerleştirir; rafta çizen kodla aynı kod çizdiği için ikisinde de aynı görünür. Satırın kendisini Ayarlar > Durum satırı altında düzenleyin. Bookends da kullanıyorsanız onun üst satırı ve üste sabitlenmiş ilerleme çubukları yer açmak için aşağı kayar."
 
-#: lib/bookshelf_settings.lua:5068
+#: lib/bookshelf_settings.lua:5088
 msgid "Show menu button"
 msgstr "Menü düğmesini göster"
 
-#: lib/bookshelf_settings.lua:5069
+#: lib/bookshelf_settings.lua:5089
 msgid "Adds the Bookshelf menu button to the reader. Takes effect the next time you open a book."
 msgstr "Okuyucuya Bookshelf menü düğmesini ekler. Bir sonraki kitap açışında etkili olur."
 
-#: lib/bookshelf_settings.lua:5078
+#: lib/bookshelf_settings.lua:5098
 msgid "Show modules button"
 msgstr "Modüller düğmesini göster"
 
-#: lib/bookshelf_settings.lua:5079
+#: lib/bookshelf_settings.lua:5099
 msgid "Adds the modules button to the reader, in the corner opposite the menu button. Takes effect the next time you open a book."
 msgstr "Okuyucuya, menü düğmesinin karşı köşesine modüller düğmesini ekler. Bir sonraki kitap açışında etkili olur."
 
-#: lib/bookshelf_settings.lua:5089
+#: lib/bookshelf_settings.lua:5109
 msgid "Launcher button position and size"
 msgstr "Başlatıcı düğmesi konumu ve boyutu"
 
-#: lib/bookshelf_settings.lua:5090
+#: lib/bookshelf_settings.lua:5110
 msgid "Position, size, side and which edge the in-reader launcher buttons sit on. Opens a blank screen showing just the buttons, so you can see them move as you adjust."
 msgstr "Okuyucu içi başlatıcı düğmelerinin konumu, boyutu, tarafı ve hangi kenarda durduğu. Yalnızca düğmeleri gösteren boş bir ekran açar, böylece ayarladıkça hareketlerini görürsünüz."
 
-#: lib/bookshelf_settings.lua:5108
+#: lib/bookshelf_settings.lua:5128
 msgid "Performance tweaks"
 msgstr "Performans ayarları"
 
-#: lib/bookshelf_settings.lua:5114
+#: lib/bookshelf_settings.lua:5134
 msgid "While reading"
 msgstr "Okurken"
 
-#: lib/bookshelf_settings.lua:5122
+#: lib/bookshelf_settings.lua:5142
 msgid "Reset shelf menu to defaults"
 msgstr "Raf menüsünü varsayılana sıfırla"
 
-#: lib/bookshelf_settings.lua:5123
+#: lib/bookshelf_settings.lua:5143
 msgid "Clears your custom shelf menu (which shelves are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install set: Home / Recent / Series / Favorites enabled, the rest available to toggle on. Also returns the active shelf to Home and the page indicator to 1. Other settings (top-panel text, fonts, colors) are unaffected."
 msgstr "Özel raf menünüzü (hangi rafların gösterildiği, sıraları, etiketleri ve simgeleri, kaynakları, süzgeçleri ve sıralamaları) temizler ve ilk kurulumdaki düzeni geri yükler: Giriş / Son okunanlar / Diziler / Sık Kullanılanlar açık, gerisi açılabilir durumda. Ayrıca etkin rafı Giriş'e ve sayfa göstergesini 1'e döndürür. Diğer ayarlar (üst panel metni, yazı tipleri, renkler) etkilenmez."
 
-#: lib/bookshelf_settings.lua:5134
+#: lib/bookshelf_settings.lua:5154
 msgid ""
 "Reset the shelf menu to default settings?\n"
 "\n"
 "All custom shelves you have created or edited will be lost. Other Bookshelf settings (top panel text, fonts, colors) are unaffected."
-msgstr "Raf menüsü varsayılan ayarlara sıfırlansın mı?\n\nOluşturduğunuz ya da düzenlediğiniz tüm özel raflar kaybolacak. Diğer Bookshelf ayarları (üst panel metni, yazı tipleri, renkler) etkilenmez."
+msgstr ""
+"Raf menüsü varsayılan ayarlara sıfırlansın mı?\n"
+"\n"
+"Oluşturduğunuz ya da düzenlediğiniz tüm özel raflar kaybolacak. Diğer Bookshelf ayarları (üst panel metni, yazı tipleri, renkler) etkilenmez."
 
-#: lib/bookshelf_settings.lua:5170
+#: lib/bookshelf_settings.lua:5190
 msgid "Reset top panel content to defaults"
 msgstr "Üst panel içeriğini varsayılana sıfırla"
 
-#: lib/bookshelf_settings.lua:5171
+#: lib/bookshelf_settings.lua:5191
 msgid "Clears your top-panel customizations and restores the fresh-install detail layout, including the bundled title (Inter ExtraBold) and author (Caveat) fonts. The Bookshelf UI font and shelf menu are unaffected."
 msgstr "Üst panel özelleştirmelerinizi temizler ve ilk kurulumdaki ayrıntı düzenini, birlikte gelen başlık (Inter ExtraBold) ve yazar (Caveat) yazı tipleri dahil, geri yükler. Bookshelf arayüz yazı tipi ve raf menüsü etkilenmez."
 
-#: lib/bookshelf_settings.lua:5178
+#: lib/bookshelf_settings.lua:5198
 msgid ""
 "Reset the top panel's content to default settings?\n"
 "\n"
 "All top-panel text and font customizations will be lost. The Bookshelf UI font and shelf menu are unaffected."
-msgstr "Üst panelin içeriği varsayılan ayarlara sıfırlansın mı?\n\nTüm üst panel metni ve yazı tipi özelleştirmeleri kaybolacak. Bookshelf arayüz yazı tipi ve raf menüsü etkilenmez."
+msgstr ""
+"Üst panelin içeriği varsayılan ayarlara sıfırlansın mı?\n"
+"\n"
+"Tüm üst panel metni ve yazı tipi özelleştirmeleri kaybolacak. Bookshelf arayüz yazı tipi ve raf menüsü etkilenmez."
 
-#: lib/bookshelf_settings.lua:5198
+#: lib/bookshelf_settings.lua:5218
 msgid "Read calibre metadata.calibre"
 msgstr "Calibre metadata.calibre dosyasını oku"
 
-#: lib/bookshelf_settings.lua:5203
+#: lib/bookshelf_settings.lua:5223
 msgid "For users with a Calibre-managed library. Reads the metadata.calibre file in your home folder, or the folder above it, to fill in title, authors, series, tags, language and description for every book at once, with no per-book extraction. Calibre's values take priority over the metadata KOReader extracted from the book file itself. Anything you have edited in Book information still wins over both. Covers and page counts always come from KOReader."
 msgstr "Calibre ile yönetilen kitaplığı olan kullanıcılar için. Başlangıç klasöründeki ya da bir üstündeki metadata.calibre dosyasını okuyarak tüm kitapların başlık, yazar, dizi, etiket, dil ve açıklamasını kitap kitap ayıklamaya gerek kalmadan tek seferde doldurur. Calibre'nin değerleri, KOReader'ın kitap dosyasından ayıkladığı üst verilerin önüne geçer. Kitap bilgileri'nde düzenlediğiniz her şey yine ikisinden de üstündür. Kapaklar ve sayfa sayıları her zaman KOReader'dan gelir."
 
-#: lib/bookshelf_settings.lua:5231
+#: lib/bookshelf_settings.lua:5251
 msgid "Genres from calibre only"
 msgstr "Türler yalnızca Calibre'den"
 
-#: lib/bookshelf_settings.lua:5232
+#: lib/bookshelf_settings.lua:5252
 msgid "For a book that is in your calibre library, use only calibre's tags as its genres, even when calibre has none for it, never the tags stored in the book file. Useful after retagging in calibre, so the file's old tags don't come back as genres of their own. A book set to Embedded in its own Tags section still uses those."
 msgstr "Calibre kitaplığında bulunan bir kitap için, Calibre'de hiç etiketi olmasa bile, tür olarak yalnızca Calibre'nin etiketlerini kullanır, asla kitap dosyasında saklanan etiketleri kullanmaz. Calibre'de yeniden etiketledikten sonra, dosyanın eski etiketleri ayrı türler olarak geri gelmesin diye işe yarar. Kendi Etiketler bölümünde Gömülü olarak ayarlanmış bir kitap yine onları kullanır."
 
-#: lib/bookshelf_settings.lua:5413
+#: lib/bookshelf_settings.lua:5433
 msgid "Rows and columns set how much of the screen the shelf takes; the top panel above fills whatever is left. List and spine shelves use that same space with their own row counts, so covers are shown here while you adjust it."
 msgstr "Satırlar ve sütunlar rafın ekranın ne kadarını kaplayacağını belirler; üstteki üst panel kalan alanı doldurur. Liste ve sırt rafları aynı alanı kendi satır sayılarıyla kullanır, bu yüzden ayarlarken burada kapaklar gösterilir."
 
-#: lib/bookshelf_settings.lua:5421 main.lua:825
+#: lib/bookshelf_settings.lua:5441 main.lua:858
 msgid "Adjust shelf/top panel size"
 msgstr "Raf/üst panel boyutunu ayarla"
 
-#: lib/bookshelf_settings.lua:5435
+#: lib/bookshelf_settings.lua:5455
 msgid "Columns: "
 msgstr "Sütunlar: "
 
-#: lib/bookshelf_settings.lua:5443
+#: lib/bookshelf_settings.lua:5463
 msgid "Rows: "
 msgstr "Satırlar: "
 
-#: lib/bookshelf_settings.lua:5450
+#: lib/bookshelf_settings.lua:5470
 msgid "Accept"
 msgstr "Kabul et"
 
-#: lib/bookshelf_settings.lua:5473
+#: lib/bookshelf_settings.lua:5493
 msgid "Top panel font scale"
 msgstr "Üst panel yazı tipi ölçeği"
 
-#: lib/bookshelf_settings.lua:5484
+#: lib/bookshelf_settings.lua:5504
 msgid "Module font scale"
 msgstr "Modül yazı tipi ölçeği"
 
-#: lib/bookshelf_settings.lua:5492
+#: lib/bookshelf_settings.lua:5512
 msgid "Shelf menu font scale"
 msgstr "Raf menüsü yazı tipi ölçeği"
 
-#: lib/bookshelf_settings.lua:5533
+#: lib/bookshelf_settings.lua:5553
 msgid "Stack & folder label scale"
 msgstr "Yığın ve klasör etiketi ölçeği"
 
-#: lib/bookshelf_settings.lua:5542
+#: lib/bookshelf_settings.lua:5562
 msgid "Spine text size"
 msgstr "Sırt yazısı boyutu"
 
-#: lib/bookshelf_settings.lua:5577
+#: lib/bookshelf_settings.lua:5597
 msgid "Start menu font scale"
 msgstr "Başlangıç menüsü yazı tipi ölçeği"
 
-#: lib/bookshelf_settings.lua:5624
+#: lib/bookshelf_settings.lua:5644
 msgid "Where the start-menu button sits in the footer. Right moves the button and its menu to the bottom-right corner; Off hides the button entirely."
 msgstr "Başlangıç menüsü düğmesinin alt çubukta nerede durduğu. Sağ, düğmeyi ve menüsünü sağ alt köşeye taşır; Kapalı, düğmeyi tamamen gizler."
 
-#: lib/bookshelf_settings.lua:5642
+#: lib/bookshelf_settings.lua:5662
 msgid "Minimum start menu width: default"
 msgstr "En küçük başlangıç menüsü genişliği: varsayılan"
 
-#: lib/bookshelf_settings.lua:5643
+#: lib/bookshelf_settings.lua:5663
 msgid "Minimum start menu width: %1 dp"
 msgstr "En küçük başlangıç menüsü genişliği: %1 dp"
 
-#: lib/bookshelf_settings.lua:5645
+#: lib/bookshelf_settings.lua:5665
 msgid "The start menu is normally only as wide as its longest label, so short menu text also narrows the module cards. Raise this to widen the panel without lengthening the text."
 msgstr "Başlangıç menüsü normalde en uzun etiketi kadar geniştir, bu yüzden kısa menü metni modül kartlarını da daraltır. Metni uzatmadan paneli genişletmek için bunu artırın."
 
-#: lib/bookshelf_settings.lua:5732
+#: lib/bookshelf_settings.lua:5752
 msgid "Launcher buttons"
 msgstr "Başlatıcı düğmeleri"
 
-#: lib/bookshelf_settings.lua:5738
+#: lib/bookshelf_settings.lua:5758
 msgid "edge %1 dp"
 msgstr "kenar %1 dp"
 
-#: lib/bookshelf_settings.lua:5747
+#: lib/bookshelf_settings.lua:5767
 msgid "side %1 dp"
 msgstr "yan %1 dp"
 
-#: lib/bookshelf_settings.lua:5756
+#: lib/bookshelf_settings.lua:5776
 msgid "size %1%"
 msgstr "boyut %1%"
 
-#: lib/bookshelf_settings.lua:5764
+#: lib/bookshelf_settings.lua:5784
 msgid "Side: left"
 msgstr "Taraf: sol"
 
-#: lib/bookshelf_settings.lua:5764
+#: lib/bookshelf_settings.lua:5784
 msgid "Side: right"
 msgstr "Taraf: sağ"
 
-#: lib/bookshelf_settings.lua:5769
+#: lib/bookshelf_settings.lua:5789
 msgid "Edge: bottom"
 msgstr "Kenar: alt"
 
-#: lib/bookshelf_settings.lua:5769
+#: lib/bookshelf_settings.lua:5789
 msgid "Edge: top"
 msgstr "Kenar: üst"
 
-#: lib/bookshelf_settings.lua:5806
+#: lib/bookshelf_settings.lua:5826
 msgid "Minimum start menu width"
 msgstr "En küçük başlangıç menüsü genişliği"
 
-#: lib/bookshelf_settings.lua:5819
+#: lib/bookshelf_settings.lua:5839
 msgid "Modal tab label font scale"
 msgstr "Pencere sekmesi etiketi yazı tipi ölçeği"
 
-#: lib/bookshelf_settings.lua:5892
+#: lib/bookshelf_settings.lua:5912
 msgid "Cover badges"
 msgstr "Kapak rozetleri"
 
-#: lib/bookshelf_settings.lua:5893
+#: lib/bookshelf_settings.lua:5913
 msgid "Stack & folder labels"
 msgstr "Yığın ve klasör etiketleri"
 
-#: lib/bookshelf_settings.lua:5894
+#: lib/bookshelf_settings.lua:5914
 msgid "Spine text"
 msgstr "Sırt yazısı"
 
-#: lib/bookshelf_settings.lua:5906
+#: lib/bookshelf_settings.lua:5926
 msgid "List text"
 msgstr "Liste yazısı"
 
-#: lib/bookshelf_settings.lua:5911
+#: lib/bookshelf_settings.lua:5931
 msgid "Top panel"
 msgstr "Üst panel"
 
-#: lib/bookshelf_settings.lua:5919
+#: lib/bookshelf_settings.lua:5939
 msgid "Modal tabs"
 msgstr "Pencere sekmeleri"
 
-#: lib/bookshelf_settings.lua:5936
+#: lib/bookshelf_settings.lua:5956
 msgid "Choose image library folder"
 msgstr "Görsel kitaplığı klasörünü seç"
 
-#: lib/bookshelf_settings.lua:5962
+#: lib/bookshelf_settings.lua:5982
 msgid "\"Latest\" folder walk depth"
 msgstr "\"En yeni\" klasör tarama derinliği"
 
-#: lib/bookshelf_settings.lua:5963
+#: lib/bookshelf_settings.lua:5983
 msgid "How deep to scan your library folder for newly-added books. Higher values take longer on a cold start."
 msgstr "Yeni eklenen kitaplar için kitaplık klasörünün ne kadar derin taranacağı. Daha yüksek değerler soğuk başlatmada daha uzun sürer."
 
-#: lib/bookshelf_settings.lua:5981
+#: lib/bookshelf_settings.lua:6001
 msgid "MB"
 msgstr "MB"
 
-#: lib/bookshelf_settings.lua:5982
+#: lib/bookshelf_settings.lua:6002
 msgid "Cover cache budget"
 msgstr "Kapak önbelleği bütçesi"
 
-#: lib/bookshelf_settings.lua:5983
+#: lib/bookshelf_settings.lua:6003
 msgid "Memory budget for ready-scaled book covers (MB). Higher = smoother paging and preloading, more RAM. Default %1 MB on this device."
 msgstr "Hazır ölçeklenmiş kitap kapakları için bellek bütçesi (MB). Daha yüksek = daha akıcı sayfa çevirme ve önyükleme, daha çok RAM. Bu aygıtta varsayılan %1 MB."
 
-#: lib/bookshelf_settings.lua:6098
+#: lib/bookshelf_settings.lua:6118
 msgid ""
 "Another copy of Bookshelf is installed and is also being loaded:\n"
 "%1\n"
 "\n"
 "Remove it and restart, or updates may appear to do nothing."
-msgstr "Bookshelf'in başka bir kopyası kurulu ve o da yükleniyor:\n%1\n\nOnu kaldırıp yeniden başlatın, yoksa güncellemeler hiçbir şey yapmıyor gibi görünebilir."
+msgstr ""
+"Bookshelf'in başka bir kopyası kurulu ve o da yükleniyor:\n"
+"%1\n"
+"\n"
+"Onu kaldırıp yeniden başlatın, yoksa güncellemeler hiçbir şey yapmıyor gibi görünebilir."
 
-#: lib/bookshelf_settings.lua:6157 main.lua:910
+#: lib/bookshelf_settings.lua:6177 main.lua:943
 msgid "Update available"
 msgstr "Güncelleme var"
 
-#: lib/bookshelf_settings.lua:6160 lib/bookshelf_settings.lua:6217
+#: lib/bookshelf_settings.lua:6180 lib/bookshelf_settings.lua:6237
 msgid "Check for updates"
 msgstr "Güncellemeleri denetle"
 
-#: lib/bookshelf_settings.lua:6162
+#: lib/bookshelf_settings.lua:6182
 msgid "Checks GitHub for a newer Bookshelf release and offers to install it, with the release notes shown first. The version in brackets is what's installed."
 msgstr "Daha yeni bir Bookshelf sürümü için GitHub'ı denetler ve önce sürüm notlarını göstererek kurmayı önerir. Parantez içindeki sürüm kurulu olandır."
 
-#: lib/bookshelf_settings.lua:6169
+#: lib/bookshelf_settings.lua:6189
 msgid "View changelog"
 msgstr "Değişiklik günlüğünü görüntüle"
 
-#: lib/bookshelf_settings.lua:6170
+#: lib/bookshelf_settings.lua:6190
 msgid "Browse this and past releases' notes, newest first. Notes are cached, so anything fetched once stays readable offline; Refresh pulls the latest."
 msgstr "Bu ve önceki sürümlerin notlarına en yeniden başlayarak göz atın. Notlar önbelleğe alınır, bu yüzden bir kez getirilen her şey çevrimdışı da okunabilir; Yenile en sonuncuları çeker."
 
-#: lib/bookshelf_settings.lua:6180
+#: lib/bookshelf_settings.lua:6200
 msgid "Notify on wake when update available"
 msgstr "Güncelleme varsa uyanınca bildir"
 
-#: lib/bookshelf_settings.lua:6191 lib/bookshelf_settings.lua:6195
+#: lib/bookshelf_settings.lua:6211 lib/bookshelf_settings.lua:6215
 msgid "Developer updates"
 msgstr "Geliştirici güncellemeleri"
 
-#: lib/bookshelf_settings.lua:6201 lib/bookshelf_settings.lua:6202
-#: main.lua:2443
+#: lib/bookshelf_settings.lua:6221 lib/bookshelf_settings.lua:6222
+#: main.lua:2542
 msgid "Development branch"
 msgstr "Geliştirme dalı"
 
-#: lib/bookshelf_settings.lua:6218
+#: lib/bookshelf_settings.lua:6238
 msgid "Install branch"
 msgstr "Dalı kur"
 
-#: lib/bookshelf_settings.lua:6224
+#: lib/bookshelf_settings.lua:6244
 msgid "Reset to latest stable release"
 msgstr "En son kararlı sürüme dön"
 
-#: lib/bookshelf_settings.lua:6235 lib/bookshelf_settings.lua:6238
+#: lib/bookshelf_settings.lua:6255 lib/bookshelf_settings.lua:6258
 msgid "Installed: v"
 msgstr "Kurulu: v"
 
-#: lib/bookshelf_settings.lua:6247
+#: lib/bookshelf_settings.lua:6267
 msgid "Pack editor…"
 msgstr "Paket düzenleyici…"
 
-#: lib/bookshelf_settings.lua:6292
+#: lib/bookshelf_settings.lua:6312
 msgid "Flexible shelf widths"
 msgstr "Esnek raf genişlikleri"
 
-#: lib/bookshelf_settings.lua:6293
+#: lib/bookshelf_settings.lua:6313
 msgid "Off: every shelf gets the same width. On: each shelf is sized to its label, so single-icon shelves stay narrow and longer text labels get more room. Falls back to equal widths when natural sizes don't fit."
 msgstr "Kapalı: her raf aynı genişliği alır. Açık: her raf etiketine göre boyutlanır, böylece tek simgeli raflar dar kalır, uzun metin etiketleri daha çok yer alır. Doğal boyutlar sığmazsa eşit genişliklere döner."
 
-#: lib/bookshelf_settings.lua:6308
+#: lib/bookshelf_settings.lua:6328
 msgid "Uppercase labels"
 msgstr "Büyük harfli etiketler"
 
-#: lib/bookshelf_settings.lua:6309
+#: lib/bookshelf_settings.lua:6329
 msgid "On: shelf names and the drill breadcrumb are shown in capitals, the default look. Off: each label reads exactly as you typed it, so \"Sci-Fi\" stays \"Sci-Fi\"."
 msgstr "Açık: raf adları ve alt düzey gezinme yolu büyük harflerle gösterilir, varsayılan görünüm budur. Kapalı: her etiket tam yazdığınız gibi görünür, yani \"Bilim Kurgu\" \"Bilim Kurgu\" olarak kalır."
 
-#: lib/bookshelf_settings.lua:6388
+#: lib/bookshelf_settings.lua:6408
 msgid "Tap a shelf to edit it. Long-press to show or hide it."
 msgstr "Düzenlemek için bir rafa dokunun. Göstermek ya da gizlemek için uzun basın."
 
-#: lib/bookshelf_settings.lua:6393
+#: lib/bookshelf_settings.lua:6413
 msgid "+ Add new shelf"
 msgstr "+ Yeni raf ekle"
 
@@ -5547,7 +5627,12 @@ msgid ""
 "The rows here edit the theme of the shelf on screen. Your changes stay with that theme wherever it shows, and Reset in the Theme library brings back its original.\n"
 "\n"
 "Each shelf can have a theme of its own: choose it here, or long-press a shelf, then Theme."
-msgstr "Bir tema duvar kağıdı, raf tahtası, renkler, açık ya da koyu görünüm ve süsler getirebilir. Getirmediği her şey Sade'ninkidir: duvar kağıdı yok, yerleşik raf tahtası ve varsayılan renkler. Tema seçmek %1 ayarını asla değiştirmez.\n\nBuradaki satırlar ekrandaki rafın temasını düzenler. Değişiklikleriniz, tema nerede görünürse görünsün onunla kalır; Tema kitaplığındaki Sıfırla özgün hâlini geri getirir.\n\nHer rafın kendi teması olabilir: buradan seçin ya da bir rafa uzun basıp Tema'yı seçin."
+msgstr ""
+"Bir tema duvar kağıdı, raf tahtası, renkler, açık ya da koyu görünüm ve süsler getirebilir. Getirmediği her şey Sade'ninkidir: duvar kağıdı yok, yerleşik raf tahtası ve varsayılan renkler. Tema seçmek %1 ayarını asla değiştirmez.\n"
+"\n"
+"Buradaki satırlar ekrandaki rafın temasını düzenler. Değişiklikleriniz, tema nerede görünürse görünsün onunla kalır; Tema kitaplığındaki Sıfırla özgün hâlini geri getirir.\n"
+"\n"
+"Her rafın kendi teması olabilir: buradan seçin ya da bir rafa uzun basıp Tema'yı seçin."
 
 #: lib/bookshelf_theme_menu.lua:133
 msgid "This shelf: %1"
@@ -5588,7 +5673,12 @@ msgid ""
 "then open the Theme library again.\n"
 "\n"
 "You can edit any theme freely; your changes stay with it, and Reset brings back the original."
-msgstr "Bir tema paketi duvar kağıdı, raf tahtası, renkler ve süsleri bir araya getirir ve buradan seçilir. Eklemek için klasörünü şuraya kopyalayın:\n%1\nardından Tema kitaplığını yeniden açın.\n\nHerhangi bir temayı dilediğiniz gibi düzenleyebilirsiniz; değişiklikleriniz onunla kalır, Sıfırla da özgün hâlini geri getirir."
+msgstr ""
+"Bir tema paketi duvar kağıdı, raf tahtası, renkler ve süsleri bir araya getirir ve buradan seçilir. Eklemek için klasörünü şuraya kopyalayın:\n"
+"%1\n"
+"ardından Tema kitaplığını yeniden açın.\n"
+"\n"
+"Herhangi bir temayı dilediğiniz gibi düzenleyebilirsiniz; değişiklikleriniz onunla kalır, Sıfırla da özgün hâlini geri getirir."
 
 #: lib/bookshelf_theme_pack.lua:340
 msgid "Ready-made theme packs"
@@ -5970,26 +6060,26 @@ msgstr " ve "
 msgid ", et al."
 msgstr " ve diğerleri"
 
-#: lib/bookshelf_tokens.lua:695
+#: lib/bookshelf_tokens.lua:706
 #, lua-format
 msgid "%d likes"
 msgstr "%d beğeni"
 
-#: lib/bookshelf_tokens.lua:695
+#: lib/bookshelf_tokens.lua:706
 msgid "1 like"
 msgstr "1 beğeni"
 
-#: lib/bookshelf_tokens.lua:969
+#: lib/bookshelf_tokens.lua:986
 #, lua-format
 msgid "%dh %02dm"
 msgstr "%d sa %02d dk"
 
-#: lib/bookshelf_tokens.lua:1011
+#: lib/bookshelf_tokens.lua:1028
 #, lua-format
 msgid "%ds"
 msgstr "%d sn"
 
-#: lib/bookshelf_tokens.lua:1012
+#: lib/bookshelf_tokens.lua:1029
 #, lua-format
 msgid "%dm %02ds"
 msgstr "%d dk %02d sn"
@@ -6066,35 +6156,35 @@ msgstr "İndirme başarısız oldu."
 msgid "Installation failed: "
 msgstr "Kurulum başarısız oldu: "
 
-#: lib/bookshelf_updater.lua:706
+#: lib/bookshelf_updater.lua:712
 msgid "Bookshelf updated to v"
 msgstr "Bookshelf şu sürüme güncellendi: v"
 
-#: lib/bookshelf_updater.lua:707
+#: lib/bookshelf_updater.lua:713
 msgid "Restart KOReader now?"
 msgstr "KOReader şimdi yeniden başlatılsın mı?"
 
-#: lib/bookshelf_updater.lua
+#: lib/bookshelf_updater.lua:714
 msgid "Close KOReader now? Open it again to finish the update."
 msgstr "KOReader şimdi kapatılsın mı? Güncellemeyi tamamlamak için yeniden açın."
 
-#: lib/bookshelf_updater.lua:708
+#: lib/bookshelf_updater.lua:715
 msgid "Restart"
 msgstr "Yeniden başlat"
 
-#: lib/bookshelf_updater.lua:727
+#: lib/bookshelf_updater.lua:738
 msgid "Could not install branch:"
 msgstr "Dal kurulamadı:"
 
-#: lib/bookshelf_updater.lua:748
+#: lib/bookshelf_updater.lua:759
 msgid "Downloading latest release..."
 msgstr "En son sürüm indiriliyor..."
 
-#: lib/bookshelf_updater.lua:759
+#: lib/bookshelf_updater.lua:770
 msgid "Could not fetch latest release."
 msgstr "En son sürüm alınamadı."
 
-#: lib/bookshelf_updater.lua:772
+#: lib/bookshelf_updater.lua:783
 msgid "Latest release has no downloadable zip."
 msgstr "En son sürümde indirilebilir zip yok."
 
@@ -6138,7 +6228,7 @@ msgstr "Duvar kağıdı"
 msgid "No images in %1"
 msgstr "%1 içinde görsel yok"
 
-#: lib/bookshelf_widget.lua:1643 lib/bookshelf_widget.lua:6287
+#: lib/bookshelf_widget.lua:1643 lib/bookshelf_widget.lua:6288
 msgid "Search results"
 msgstr "Arama sonuçları"
 
@@ -6232,490 +6322,511 @@ msgstr "Başlangıç klasörünü ayarla"
 msgid "Current home folder:"
 msgstr "Geçerli başlangıç klasörü:"
 
-#: lib/bookshelf_widget.lua:5094 lib/bookshelf_widget_book_popup.lua:1730
+#: lib/bookshelf_widget.lua:5095 lib/bookshelf_widget_book_popup.lua:1730
 msgid "File no longer exists. The bookshelf entry is stale."
 msgstr "Dosya artık yok. Bu Bookshelf kaydı eskimiş."
 
-#: lib/bookshelf_widget.lua:5122
+#: lib/bookshelf_widget.lua:5123
 msgid "Couldn't open this Kobo book."
 msgstr "Bu Kobo kitabı açılamadı."
 
-#: lib/bookshelf_widget.lua:5169
+#: lib/bookshelf_widget.lua:5170
 msgid ""
 "This Kindle book has to be converted before KOReader can read it.\n"
 "\n"
 "The Kindle Virtual Library plugin does the conversion. It can take a few minutes, it can't be stopped once started, and the screen won't respond while it works.\n"
 "\n"
 "It only happens the first time you open a book."
-msgstr "KOReader'ın okuyabilmesi için bu Kindle kitabının dönüştürülmesi gerekiyor.\n\nDönüştürmeyi Kindle Virtual Library eklentisi yapar. Birkaç dakika sürebilir, başladıktan sonra durdurulamaz ve çalışırken ekran yanıt vermez.\n\nBu yalnızca bir kitabı ilk açışınızda olur."
+msgstr ""
+"KOReader'ın okuyabilmesi için bu Kindle kitabının dönüştürülmesi gerekiyor.\n"
+"\n"
+"Dönüştürmeyi Kindle Virtual Library eklentisi yapar. Birkaç dakika sürebilir, başladıktan sonra durdurulamaz ve çalışırken ekran yanıt vermez.\n"
+"\n"
+"Bu yalnızca bir kitabı ilk açışınızda olur."
 
-#: lib/bookshelf_widget.lua:5174
+#: lib/bookshelf_widget.lua:5175
 msgid "Convert"
 msgstr "Dönüştür"
 
-#: lib/bookshelf_widget.lua:5217
+#: lib/bookshelf_widget.lua:5218
 msgid ""
 "This is a protected %1 file, which can't be opened.\n"
 "\n"
 "The Kindle plugin can only unlock KFX books. Protected MOBI and AZW books can't be converted by any KOReader plugin, so those have to be read in the Kindle app.\n"
 "\n"
 "Your KFX books should open normally."
-msgstr "Bu korumalı bir %1 dosyası, açılamıyor.\n\nKindle eklentisi yalnızca KFX kitapların kilidini açabilir. Korumalı MOBI ve AZW kitapları hiçbir KOReader eklentisi dönüştüremez, bu yüzden bunların Kindle uygulamasında okunması gerekir.\n\nKFX kitaplarınız normal açılmalı."
+msgstr ""
+"Bu korumalı bir %1 dosyası, açılamıyor.\n"
+"\n"
+"Kindle eklentisi yalnızca KFX kitapların kilidini açabilir. Korumalı MOBI ve AZW kitapları hiçbir KOReader eklentisi dönüştüremez, bu yüzden bunların Kindle uygulamasında okunması gerekir.\n"
+"\n"
+"KFX kitaplarınız normal açılmalı."
 
-#: lib/bookshelf_widget.lua:5227
+#: lib/bookshelf_widget.lua:5228
 msgid ""
 "KOReader can't read %1 files.\n"
 "\n"
 "It reads KFX books (prepared by the Kindle plugin) and unprotected MOBI and AZW books.\n"
 "\n"
 "Your other Kindle books should open normally."
-msgstr "KOReader %1 dosyalarını okuyamaz.\n\nKFX kitapları (Kindle eklentisiyle hazırlanmış) ve korumasız MOBI ve AZW kitapları okur.\n\nDiğer Kindle kitaplarınız normal açılmalı."
+msgstr ""
+"KOReader %1 dosyalarını okuyamaz.\n"
+"\n"
+"KFX kitapları (Kindle eklentisiyle hazırlanmış) ve korumasız MOBI ve AZW kitapları okur.\n"
+"\n"
+"Diğer Kindle kitaplarınız normal açılmalı."
 
-#: lib/bookshelf_widget.lua:5232
+#: lib/bookshelf_widget.lua:5233
 msgid "The Kindle library isn't available right now."
 msgstr "Kindle kitaplığı şu anda kullanılamıyor."
 
-#: lib/bookshelf_widget.lua:5350
+#: lib/bookshelf_widget.lua:5351
 msgid "Preparing this book…"
 msgstr "Bu kitap hazırlanıyor…"
 
-#: lib/bookshelf_widget.lua:5364
+#: lib/bookshelf_widget.lua:5365
 msgid "This book is still being prepared. Please try again in a moment."
 msgstr "Bu kitap hâlâ hazırlanıyor. Lütfen birazdan yeniden deneyin."
 
-#: lib/bookshelf_widget.lua:6272
+#: lib/bookshelf_widget.lua:6273
 msgid "Results"
 msgstr "Sonuçlar"
 
-#: lib/bookshelf_widget.lua:6775
+#: lib/bookshelf_widget.lua:6776
 msgid "Catalog books can't be selected."
 msgstr "Katalog kitapları seçilemez."
 
-#: lib/bookshelf_widget.lua:7385
+#: lib/bookshelf_widget.lua:7386
 msgid "Modules can only go on shelves shown as covers or spines"
 msgstr "Modüller yalnızca kapak ya da sırt olarak gösterilen raflara konabilir"
 
-#: lib/bookshelf_widget.lua:7683 lib/bookshelf_widget.lua:7699
+#: lib/bookshelf_widget.lua:7684 lib/bookshelf_widget.lua:7700
 #: lib/bookshelf_widget_curated.lua:802 micromodules/ornament.lua:28
 #: micromodules/ornament.lua:88
 msgid "Choose an ornament"
 msgstr "Bir süs seç"
 
-#: lib/bookshelf_widget.lua:7725
+#: lib/bookshelf_widget.lua:7726
 msgid "Swap ornament"
 msgstr "Süsü değiştir"
 
-#: lib/bookshelf_widget.lua:7726
+#: lib/bookshelf_widget.lua:7727
 msgid "Remove ornament"
 msgstr "Süsü kaldır"
 
-#: lib/bookshelf_widget.lua:7727 lib/bookshelf_widget_curated.lua:853
+#: lib/bookshelf_widget.lua:7728 lib/bookshelf_widget_curated.lua:853
 msgid "Add ornament"
 msgstr "Süs ekle"
 
-#: lib/bookshelf_widget.lua:7764 lib/bookshelf_widget_curated.lua:782
+#: lib/bookshelf_widget.lua:7765 lib/bookshelf_widget_curated.lua:782
 msgid "This shelf uses the %1 collection."
 msgstr "Bu raf %1 dermesini kullanıyor."
 
-#: lib/bookshelf_widget.lua:7765
+#: lib/bookshelf_widget.lua:7767
 msgid "Ornament module, positioned manually"
 msgstr "Süs modülü, elle konumlandırılmış"
 
-#: lib/bookshelf_widget.lua:7790 lib/bookshelf_widget_curated.lua:820
+#: lib/bookshelf_widget.lua:7792 lib/bookshelf_widget_curated.lua:820
 msgid "End"
 msgstr "Son"
 
-#: lib/bookshelf_widget.lua:7794
+#: lib/bookshelf_widget.lua:7796
 msgid "Long-press a book or another ornament to swap their places."
 msgstr "Yerlerini değiştirmek için bir kitaba ya da başka bir süse uzun basın."
 
-#: lib/bookshelf_widget.lua:7795
+#: lib/bookshelf_widget.lua:7797
 msgid "Long-press another ornament to swap their places."
 msgstr "Yerlerini değiştirmek için başka bir süse uzun basın."
 
-#: lib/bookshelf_widget.lua:7810 lib/bookshelf_widget_curated.lua:748
+#: lib/bookshelf_widget.lua:7812 lib/bookshelf_widget_curated.lua:748
 msgid "Arrange: %1"
 msgstr "Yerleştir: %1"
 
-#: lib/bookshelf_widget.lua:9404
+#: lib/bookshelf_widget.lua:9406
 msgid "%1 - %2 of %3+"
 msgstr "%1 - %2 / %3+"
 
-#: lib/bookshelf_widget.lua:9405
+#: lib/bookshelf_widget.lua:9407
 msgid "%1 - %2 of %3"
 msgstr "%1 - %2 / %3"
 
-#: lib/bookshelf_widget.lua:10084 lib/bookshelf_widget.lua:15440
+#: lib/bookshelf_widget.lua:10086 lib/bookshelf_widget.lua:15449
 msgid "Selection cleared"
 msgstr "Seçim temizlendi"
 
-#: lib/bookshelf_widget.lua:10432
+#: lib/bookshelf_widget.lua:10434
 #, lua-format
 msgid "No items start with %q"
 msgstr "%q ile başlayan öğe yok"
 
-#: lib/bookshelf_widget.lua:10477
+#: lib/bookshelf_widget.lua:10479
 msgid "Go to letter"
 msgstr "Harfe git"
 
-#: lib/bookshelf_widget.lua:10488
+#: lib/bookshelf_widget.lua:10490
 msgid "Enter text, letter or book number"
 msgstr "Metin, harf ya da kitap numarası girin"
 
-#: lib/bookshelf_widget.lua:10489
+#: lib/bookshelf_widget.lua:10491
 msgid "Enter text, letter or page number"
 msgstr "Metin, harf ya da sayfa numarası girin"
 
-#: lib/bookshelf_widget.lua:10496
+#: lib/bookshelf_widget.lua:10498
 #, lua-format
 msgid "(a - z) or (1 - %d)"
 msgstr "(a - z) ya da (1 - %d)"
 
-#: lib/bookshelf_widget.lua:10506
+#: lib/bookshelf_widget.lua:10508
 msgid "Go to book"
 msgstr "Kitaba git"
 
-#: lib/bookshelf_widget.lua:10506
+#: lib/bookshelf_widget.lua:10508
 msgid "Go to page"
 msgstr "Sayfaya git"
 
-#: lib/bookshelf_widget.lua:10513
+#: lib/bookshelf_widget.lua:10515
 #, lua-format
 msgid "Book must be between 1 and %d"
 msgstr "Kitap 1 ile %d arasında olmalı"
 
-#: lib/bookshelf_widget.lua:10514
+#: lib/bookshelf_widget.lua:10516
 #, lua-format
 msgid "Page must be between 1 and %d"
 msgstr "Sayfa 1 ile %d arasında olmalı"
 
-#: lib/bookshelf_widget.lua:18680
+#: lib/bookshelf_widget.lua:18689
 msgid "Reset to default"
 msgstr "Varsayılana sıfırla"
 
-#: lib/bookshelf_widget.lua:18681
+#: lib/bookshelf_widget.lua:18690
 msgid "Puts back the modules the top panel starts with."
 msgstr "Üst panelin başlangıçtaki modüllerini geri koyar."
 
-#: lib/bookshelf_widget.lua:18692
+#: lib/bookshelf_widget.lua:18701
 msgid "Remove from the top panel"
 msgstr "Üst panelden kaldır"
 
-#: lib/bookshelf_widget.lua:18693
+#: lib/bookshelf_widget.lua:18702
 msgid "Settings > Modules > In the top panel brings them back."
 msgstr "Ayarlar > Modüller > Üst panelde ile geri getirebilirsiniz."
 
-#: lib/bookshelf_widget.lua:18886 lib/bookshelf_widget.lua:20492
+#: lib/bookshelf_widget.lua:18895 lib/bookshelf_widget.lua:20501
 msgid "Bulk selection isn't available in remote catalog views."
 msgstr "Toplu seçim uzak katalog görünümlerinde kullanılamaz."
 
-#: lib/bookshelf_widget.lua:19506
+#: lib/bookshelf_widget.lua:19515
 msgid "Refreshing library…"
 msgstr "Kitaplık yenileniyor…"
 
-#: lib/bookshelf_widget.lua:19996
+#: lib/bookshelf_widget.lua:20005
 msgid "Hardcover metadata refreshed"
 msgstr "Hardcover üst verileri yenilendi"
 
-#: lib/bookshelf_widget.lua:19998
+#: lib/bookshelf_widget.lua:20007
 msgid "Hardcover refresh failed"
 msgstr "Hardcover yenilemesi başarısız oldu"
 
-#: lib/bookshelf_widget.lua:20003
+#: lib/bookshelf_widget.lua:20012
 msgid "Linking to Hardcover…"
 msgstr "Hardcover'a bağlanıyor…"
 
-#: lib/bookshelf_widget.lua:20016
+#: lib/bookshelf_widget.lua:20025
 msgid "Auto link"
 msgstr "Otomatik bağla"
 
-#: lib/bookshelf_widget.lua:20016
+#: lib/bookshelf_widget.lua:20025
 msgid "Auto link (best guess)"
 msgstr "Otomatik bağla (en iyi tahmin)"
 
-#: lib/bookshelf_widget.lua:20024
+#: lib/bookshelf_widget.lua:20033
 msgid "No embedded Hardcover identifier found"
 msgstr "Gömülü Hardcover kimliği bulunamadı"
 
-#: lib/bookshelf_widget.lua:20027 lib/bookshelf_widget.lua:20073
+#: lib/bookshelf_widget.lua:20036 lib/bookshelf_widget.lua:20082
 msgid "Hardcover book linked"
 msgstr "Hardcover kitabı bağlandı"
 
-#: lib/bookshelf_widget.lua:20035
+#: lib/bookshelf_widget.lua:20044
 msgid "No confident Hardcover match -- try Manual link"
 msgstr "Kesin bir Hardcover eşleşmesi yok -- El ile bağla'yı deneyin"
 
-#: lib/bookshelf_widget.lua:20036 lib/bookshelf_widget.lua:20078
+#: lib/bookshelf_widget.lua:20045 lib/bookshelf_widget.lua:20087
 msgid "Hardcover search failed"
 msgstr "Hardcover araması başarısız oldu"
 
-#: lib/bookshelf_widget.lua:20040
+#: lib/bookshelf_widget.lua:20049
 msgid "Hardcover book linked (best guess)"
 msgstr "Hardcover kitabı bağlandı (en iyi tahmin)"
 
-#: lib/bookshelf_widget.lua:20055
+#: lib/bookshelf_widget.lua:20064
 msgid "Hardcover link failed"
 msgstr "Hardcover bağlantısı başarısız oldu"
 
-#: lib/bookshelf_widget.lua:20070 lib/bookshelf_widget.lua:20073
+#: lib/bookshelf_widget.lua:20079 lib/bookshelf_widget.lua:20082
 msgid "Manual link"
 msgstr "El ile bağla"
 
-#: lib/bookshelf_widget.lua:20074
+#: lib/bookshelf_widget.lua:20083
 msgid "Book linked, but metadata refresh failed: %1"
 msgstr "Kitap bağlandı, ancak üst veriler yenilenemedi: %1"
 
-#: lib/bookshelf_widget.lua:20084 lib/bookshelf_widget.lua:20093
+#: lib/bookshelf_widget.lua:20093 lib/bookshelf_widget.lua:20102
 msgid "Select edition"
 msgstr "Baskı seç"
 
-#: lib/bookshelf_widget.lua:20089
+#: lib/bookshelf_widget.lua:20098
 msgid "Link a Hardcover book first"
 msgstr "Önce bir Hardcover kitabı bağlayın"
 
-#: lib/bookshelf_widget.lua:20093
+#: lib/bookshelf_widget.lua:20102
 msgid "Hardcover edition linked"
 msgstr "Hardcover baskısı bağlandı"
 
-#: lib/bookshelf_widget.lua:20094
+#: lib/bookshelf_widget.lua:20103
 msgid "Edition linked, but metadata refresh failed: %1"
 msgstr "Baskı bağlandı, ancak üst veriler yenilenemedi: %1"
 
-#: lib/bookshelf_widget.lua:20098
+#: lib/bookshelf_widget.lua:20107
 msgid "Hardcover edition search failed"
 msgstr "Hardcover baskı araması başarısız oldu"
 
-#: lib/bookshelf_widget.lua:20105
+#: lib/bookshelf_widget.lua:20114
 msgid "Clear link"
 msgstr "Bağlantıyı kaldır"
 
-#: lib/bookshelf_widget.lua:20112
+#: lib/bookshelf_widget.lua:20121
 msgid "Hardcover link cleared"
 msgstr "Hardcover bağlantısı kaldırıldı"
 
-#: lib/bookshelf_widget.lua:20114
+#: lib/bookshelf_widget.lua:20123
 msgid "Could not clear Hardcover link"
 msgstr "Hardcover bağlantısı kaldırılamadı"
 
-#: lib/bookshelf_widget.lua:20133
+#: lib/bookshelf_widget.lua:20142
 msgid "Could not update"
 msgstr "Güncellenemedi"
 
-#: lib/bookshelf_widget.lua:20148
+#: lib/bookshelf_widget.lua:20157
 msgid "Not connected to Hardcover."
 msgstr "Hardcover'a bağlı değil."
 
-#: lib/bookshelf_widget.lua:20150
+#: lib/bookshelf_widget.lua:20159
 msgid ""
 "Hardcover (hardcover.app) is a free site for tracking what you read. A book linked to it gets Hardcover's ratings, reviews, description and genres.\n"
 "\n"
 "To connect, install a Hardcover sync plugin and sign in there, then restart KOReader. Or give Bookshelf a Hardcover API key: get one at hardcover.app/account/api."
-msgstr "Hardcover (hardcover.app), okuduklarınızı takip etmek için ücretsiz bir sitedir. Ona bağlanan bir kitap, Hardcover'daki puanları, incelemeleri, açıklamayı ve türleri alır.\n\nBağlanmak için bir Hardcover eşitleme eklentisi kurup orada oturum açın, ardından KOReader'ı yeniden başlatın. Ya da Bookshelf'e bir Hardcover API anahtarı verin: hardcover.app/account/api adresinden alabilirsiniz."
+msgstr ""
+"Hardcover (hardcover.app), okuduklarınızı takip etmek için ücretsiz bir sitedir. Ona bağlanan bir kitap, Hardcover'daki puanları, incelemeleri, açıklamayı ve türleri alır.\n"
+"\n"
+"Bağlanmak için bir Hardcover eşitleme eklentisi kurup orada oturum açın, ardından KOReader'ı yeniden başlatın. Ya da Bookshelf'e bir Hardcover API anahtarı verin: hardcover.app/account/api adresinden alabilirsiniz."
 
-#: lib/bookshelf_widget.lua:20170
+#: lib/bookshelf_widget.lua:20179
 msgid "Use Hardcover's"
 msgstr "Hardcover'dan kullan"
 
-#: lib/bookshelf_widget.lua:20178
+#: lib/bookshelf_widget.lua:20187
 msgid "No Hardcover cover has been downloaded for this book."
 msgstr "Bu kitap için Hardcover'dan kapak indirilmedi."
 
-#: lib/bookshelf_widget.lua:20183
+#: lib/bookshelf_widget.lua:20192
 msgid "Change link"
 msgstr "Bağlantıyı değiştir"
 
-#: lib/bookshelf_widget.lua:20183
+#: lib/bookshelf_widget.lua:20192
 msgid "Link to Hardcover"
 msgstr "Hardcover'a bağla"
 
-#: lib/bookshelf_widget.lua:20194
+#: lib/bookshelf_widget.lua:20203
 msgid "Linked to %1."
 msgstr "Bağlı olduğu kitap: %1."
 
-#: lib/bookshelf_widget.lua:20195
+#: lib/bookshelf_widget.lua:20204
 msgid "Not linked to Hardcover."
 msgstr "Hardcover'a bağlı değil."
 
-#: lib/bookshelf_widget.lua:20498
+#: lib/bookshelf_widget.lua:20507
 msgid "No books to select here."
 msgstr "Burada seçilecek kitap yok."
 
-#: lib/bookshelf_widget.lua:20510
+#: lib/bookshelf_widget.lua:20519
 msgid "Selected the first %1 books (the most one selection holds)."
 msgstr "İlk %1 kitap seçildi (bir seçimin alabileceği en fazla sayı)."
 
-#: lib/bookshelf_widget.lua:20515
+#: lib/bookshelf_widget.lua:20524
 msgid "Selected %1 books."
 msgstr "%1 kitap seçildi."
 
-#: lib/bookshelf_widget.lua:20578
+#: lib/bookshelf_widget.lua:20587
 msgid "%1, %2 selected"
 msgstr "%1, %2 seçili"
 
-#: lib/bookshelf_widget.lua:20657
+#: lib/bookshelf_widget.lua:20666
 msgid "Pin to the shelf menu"
 msgstr "Raf menüsüne sabitle"
 
-#: lib/bookshelf_widget.lua:20658
+#: lib/bookshelf_widget.lua:20667
 msgid "A shelf of its own in the shelf menu, next to this one."
 msgstr "Raf menüsünde, bunun yanında kendine ait bir raf."
 
-#: lib/bookshelf_widget.lua:20672
+#: lib/bookshelf_widget.lua:20681
 #, lua-format
 msgid "Add %d more"
 msgstr "%d tane daha ekle"
 
-#: lib/bookshelf_widget.lua:20673
+#: lib/bookshelf_widget.lua:20682
 msgid "Adds the rest of its books to your selection."
 msgstr "Kalan kitaplarını seçiminize ekler."
 
-#: lib/bookshelf_widget.lua:20676
+#: lib/bookshelf_widget.lua:20685
 #, lua-format
 msgid "Select %d"
 msgstr "%d seç"
 
-#: lib/bookshelf_widget.lua:20677
+#: lib/bookshelf_widget.lua:20686
 msgid "Selects its books, to change their status, rating or collections together."
 msgstr "Durumlarını, puanlarını veya dermelerini birlikte değiştirmek için kitaplarını seçer."
 
-#: lib/bookshelf_widget.lua:20682
+#: lib/bookshelf_widget.lua:20691
 #, lua-format
 msgid "Remove %d"
 msgstr "%d çıkar"
 
-#: lib/bookshelf_widget.lua:20683
+#: lib/bookshelf_widget.lua:20692
 msgid "Takes its books out of your selection."
 msgstr "Kitaplarını seçiminizden çıkarır."
 
-#: lib/bookshelf_widget.lua:20690
+#: lib/bookshelf_widget.lua:20699
 msgid "Finds page counts for just these books."
 msgstr "Yalnızca bu kitapların sayfa sayılarını bulur."
 
-#: lib/bookshelf_widget.lua:20702
+#: lib/bookshelf_widget.lua:20711
 msgid "How this series' books are drawn, on every shelf."
 msgstr "Bu dizinin kitaplarının her rafta nasıl çizileceği."
 
-#: lib/bookshelf_widget.lua:20705
+#: lib/bookshelf_widget.lua:20714
 msgid "Same as shelf"
 msgstr "Rafla aynı"
 
-#: lib/bookshelf_widget.lua:20727
+#: lib/bookshelf_widget.lua:20736
 msgid "Shown on the stack in place of its covers."
 msgstr "Yığında kapakları yerine gösterilir."
 
-#: lib/bookshelf_widget.lua:20733
+#: lib/bookshelf_widget.lua:20742
 msgid "Set folder image…"
 msgstr "Klasör görseli ayarla…"
 
-#: lib/bookshelf_widget.lua:20737
+#: lib/bookshelf_widget.lua:20746
 msgid "Clear folder image"
 msgstr "Klasör görselini kaldır"
 
-#: lib/bookshelf_widget.lua:20738
+#: lib/bookshelf_widget.lua:20747
 msgid "Back to the folder's covers."
 msgstr "Klasörün kapaklarına geri döner."
 
-#: lib/bookshelf_widget.lua:20745 lib/bookshelf_widget.lua:20836
+#: lib/bookshelf_widget.lua:20754 lib/bookshelf_widget.lua:20845
 msgid "Image"
 msgstr "Görsel"
 
-#: lib/bookshelf_widget.lua:20750 lib/bookshelf_widget_book_popup.lua:1924
+#: lib/bookshelf_widget.lua:20759 lib/bookshelf_widget_book_popup.lua:1924
 msgid "Move…"
 msgstr "Taşı…"
 
-#: lib/bookshelf_widget.lua:20752
+#: lib/bookshelf_widget.lua:20761
 msgid "Rename…"
 msgstr "Yeniden adlandır…"
 
-#: lib/bookshelf_widget.lua:20765 lib/bookshelf_widget.lua:20776
+#: lib/bookshelf_widget.lua:20774 lib/bookshelf_widget.lua:20785
 msgid "Set author image…"
 msgstr "Yazar görseli ayarla…"
 
-#: lib/bookshelf_widget.lua:20766 lib/bookshelf_widget.lua:20777
+#: lib/bookshelf_widget.lua:20775 lib/bookshelf_widget.lua:20786
 msgid "Set series image…"
 msgstr "Dizi görseli ayarla…"
 
-#: lib/bookshelf_widget.lua:20767 lib/bookshelf_widget.lua:20778
+#: lib/bookshelf_widget.lua:20776 lib/bookshelf_widget.lua:20787
 msgid "Set genre image…"
 msgstr "Tür görseli ayarla…"
 
-#: lib/bookshelf_widget.lua:20768 lib/bookshelf_widget.lua:20779
+#: lib/bookshelf_widget.lua:20777 lib/bookshelf_widget.lua:20788
 msgid "Set collection image…"
 msgstr "Derme görseli ayarla…"
 
-#: lib/bookshelf_widget.lua:20769 lib/bookshelf_widget.lua:20782
+#: lib/bookshelf_widget.lua:20778 lib/bookshelf_widget.lua:20791
 msgid "Clear author image"
 msgstr "Yazar görselini kaldır"
 
-#: lib/bookshelf_widget.lua:20770 lib/bookshelf_widget.lua:20783
+#: lib/bookshelf_widget.lua:20779 lib/bookshelf_widget.lua:20792
 msgid "Clear series image"
 msgstr "Dizi görselini kaldır"
 
-#: lib/bookshelf_widget.lua:20771 lib/bookshelf_widget.lua:20784
+#: lib/bookshelf_widget.lua:20780 lib/bookshelf_widget.lua:20793
 msgid "Clear genre image"
 msgstr "Tür görselini kaldır"
 
-#: lib/bookshelf_widget.lua:20772 lib/bookshelf_widget.lua:20785
+#: lib/bookshelf_widget.lua:20781 lib/bookshelf_widget.lua:20794
 msgid "Clear collection image"
 msgstr "Derme görselini kaldır"
 
-#: lib/bookshelf_widget.lua:20795
+#: lib/bookshelf_widget.lua:20804
 msgid "Back to the stack's covers."
 msgstr "Yığının kapaklarına geri döner."
 
-#: lib/bookshelf_widget.lua:20816
+#: lib/bookshelf_widget.lua:20825
 msgid ""
 "Delete this image from the image library?\n"
 "\n"
 "%1"
-msgstr "Bu görsel, görsel kitaplığından silinsin mi?\n\n%1"
+msgstr ""
+"Bu görsel, görsel kitaplığından silinsin mi?\n"
+"\n"
+"%1"
 
-#: lib/bookshelf_widget.lua:20831
+#: lib/bookshelf_widget.lua:20840
 msgid "Find author image online"
 msgstr "Yazar görselini çevrimiçi bul"
 
-#: lib/bookshelf_widget.lua:20832
+#: lib/bookshelf_widget.lua:20841
 msgid "Looks for a photo on Open Library and Wikipedia."
 msgstr "Open Library ve Wikipedia'da fotoğraf arar."
 
-#: lib/bookshelf_widget.lua:20867
+#: lib/bookshelf_widget.lua:20876
 msgid "Choose folder image"
 msgstr "Klasör görseli seç"
 
-#: lib/bookshelf_widget.lua:20906
+#: lib/bookshelf_widget.lua:20915
 msgid "Choose image"
 msgstr "Görsel seç"
 
-#: lib/bookshelf_widget.lua:21185
+#: lib/bookshelf_widget.lua:21194
 msgid "Starts a shelf inside this one: pick what it shows first."
 msgstr "Bunun içinde bir raf başlatır: önce ne göstereceğini seçin."
 
-#: lib/bookshelf_widget.lua:21187
+#: lib/bookshelf_widget.lua:21196
 msgid "Move a shelf here"
 msgstr "Buraya bir raf taşı"
 
-#: lib/bookshelf_widget.lua:21192
+#: lib/bookshelf_widget.lua:21201
 msgid "In %1"
 msgstr "%1 içinde"
 
-#: lib/bookshelf_widget.lua:21192
+#: lib/bookshelf_widget.lua:21201
 msgid "In the shelf menu"
 msgstr "Raf menüsünde"
 
-#: lib/bookshelf_widget.lua:21202 lib/bookshelf_widget.lua:21405
-#: lib/bookshelf_widget.lua:21450
+#: lib/bookshelf_widget.lua:21211 lib/bookshelf_widget.lua:21414
+#: lib/bookshelf_widget.lua:21459
 msgid "Add shelf"
 msgstr "Raf ekle"
 
-#: lib/bookshelf_widget.lua:21678
+#: lib/bookshelf_widget.lua:21687
 msgid "Search library"
 msgstr "Kitaplıkta ara"
 
-#: lib/bookshelf_widget.lua:21681
+#: lib/bookshelf_widget.lua:21690
 msgid "title, author, series, genre…"
 msgstr "başlık, yazar, dizi, tür…"
 
-#: lib/bookshelf_widget.lua:21681
+#: lib/bookshelf_widget.lua:21690
 msgid "title, author, series…"
 msgstr "başlık, yazar, dizi…"
 
@@ -6731,7 +6842,7 @@ msgstr "1 yer imi"
 msgid "(no title)"
 msgstr "(başlık yok)"
 
-#: lib/bookshelf_widget_book_popup.lua:507 lib/bookshelf_widget_opds.lua:3258
+#: lib/bookshelf_widget_book_popup.lua:507
 msgid "Read"
 msgstr "Okundu"
 
@@ -6797,7 +6908,7 @@ msgid "Publish date"
 msgstr "Yayın tarihi"
 
 #: lib/bookshelf_widget_book_popup.lua:1896
-#: lib/bookshelf_widget_book_popup.lua:2377 micromodules/countdown.lua:142
+#: lib/bookshelf_widget_book_popup.lua:2377 micromodules/countdown.lua:155
 msgid "Set date"
 msgstr "Tarih ayarla"
 
@@ -7041,19 +7152,25 @@ msgstr "Derme sırasına göre sırala"
 msgid ""
 "Fetching %1… (%2 books)\n"
 "(Tap to cancel)"
-msgstr "%1 alınıyor… (%2 kitap)\n(İptal için dokunun)"
+msgstr ""
+"%1 alınıyor… (%2 kitap)\n"
+"(İptal için dokunun)"
 
 #: lib/bookshelf_widget_opds.lua:430
 msgid ""
 "Fetching %1…\n"
 "(Tap to cancel)"
-msgstr "%1 alınıyor…\n(İptal için dokunun)"
+msgstr ""
+"%1 alınıyor…\n"
+"(İptal için dokunun)"
 
 #: lib/bookshelf_widget_opds.lua:500
 msgid ""
 "Stop loading %1?\n"
 "%2 books so far."
-msgstr "%1 yüklemesi durdurulsun mu?\nŞu ana kadar %2 kitap."
+msgstr ""
+"%1 yüklemesi durdurulsun mu?\n"
+"Şu ana kadar %2 kitap."
 
 #: lib/bookshelf_widget_opds.lua:502
 msgid "Stop loading %1?"
@@ -7180,11 +7297,22 @@ msgid ""
 "%1\n"
 "\n"
 "Many apps refuse this because it could be a downgrade attack."
-msgstr "Güvenli olmayan yönlendirme reddedildi.\n\nSunucu bu indirmeyi HTTPS olmayan bir adrese göndermeye çalıştı:\n\n%1\n\nBu bir sürüm düşürme saldırısı olabileceği için pek çok uygulama bunu reddeder."
+msgstr ""
+"Güvenli olmayan yönlendirme reddedildi.\n"
+"\n"
+"Sunucu bu indirmeyi HTTPS olmayan bir adrese göndermeye çalıştı:\n"
+"\n"
+"%1\n"
+"\n"
+"Bu bir sürüm düşürme saldırısı olabileceği için pek çok uygulama bunu reddeder."
 
 #: lib/bookshelf_widget_opds.lua:3257
 msgid "%1 downloaded. Read it now?"
 msgstr "%1 indirildi. Şimdi okunsun mu?"
+
+#: lib/bookshelf_widget_opds.lua:3258
+msgid "Read now"
+msgstr "Şimdi oku"
 
 #: lib/bookshelf_widget_opds.lua:3266
 msgid "Not now"
@@ -7222,188 +7350,197 @@ msgstr "Kataloğun en üstü yerine bu klasörde açılır."
 msgid "Opens at the top of the catalog again."
 msgstr "Yeniden kataloğun en üstünde açılır."
 
-#: main.lua:281
+#: main.lua:289
 msgid "Importing calibre metadata…"
 msgstr "calibre üst verileri içe aktarılıyor…"
 
-#: main.lua:411
+#: main.lua:419
 msgid ""
 "Bookshelf update: cached Hardcover book details from earlier versions can list audiobook narrators and translators as authors, which shows extra author cards.\n"
 "\n"
 "Refresh the details for your linked books now? (Contacts Hardcover, rate-limited, cancellable. Also available later under Hardcover > Manage Hardcover data.)"
-msgstr "Bookshelf güncellemesi: önceki sürümlerden önbelleğe alınmış Hardcover kitap ayrıntıları, sesli kitap anlatıcılarını ve çevirmenleri yazar olarak listeleyebilir; bu da fazladan yazar kartları gösterir.\n\nBağlı kitaplarınızın ayrıntıları şimdi yenilensin mi? (Hardcover'a bağlanır, hız sınırlıdır, iptal edilebilir. Daha sonra Hardcover > Hardcover verilerini yönet altından da yapılabilir.)"
+msgstr ""
+"Bookshelf güncellemesi: önceki sürümlerden önbelleğe alınmış Hardcover kitap ayrıntıları, sesli kitap anlatıcılarını ve çevirmenleri yazar olarak listeleyebilir; bu da fazladan yazar kartları gösterir.\n"
+"\n"
+"Bağlı kitaplarınızın ayrıntıları şimdi yenilensin mi? (Hardcover'a bağlanır, hız sınırlıdır, iptal edilebilir. Daha sonra Hardcover > Hardcover verilerini yönet altından da yapılabilir.)"
 
-#: main.lua:412
+#: main.lua:420
 msgid "Refresh now"
 msgstr "Şimdi yenile"
 
-#: main.lua:413
+#: main.lua:421
 msgid "Later"
 msgstr "Daha sonra"
 
-#: main.lua:521
+#: main.lua:525
+msgid "Bookshelf had trouble starting twice in a short time, so it no longer keeps a compiled copy of its code. Starting may take a little longer. To turn it back on: Settings > Advanced > Performance tweaks > Compiled code cache."
+msgstr "Bookshelf kısa sürede iki kez açılırken sorun yaşadı, bu yüzden artık kodunun derlenmiş bir kopyasını saklamıyor. Açılış biraz daha uzun sürebilir. Yeniden açmak için: Ayarlar > Gelişmiş > Performans ayarları > Derlenmiş kod önbelleği."
+
+#: main.lua:554
 msgid "Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More plugins."
 msgstr "Bookshelf için CoverBrowser eklentisi gerekir. Ayarlar > Diğer eklentiler altından etkinleştirin."
 
-#: main.lua:599 main.lua:603 main.lua:634
+#: main.lua:632 main.lua:636 main.lua:667
 msgid "bookshelf"
 msgstr "bookshelf"
 
-#: main.lua:634
+#: main.lua:667
 msgid "Start with: %1"
 msgstr "Başlangıç: %1"
 
-#: main.lua:766
+#: main.lua:799
 msgid "Close Bookshelf"
 msgstr "Bookshelf'i kapat"
 
-#: main.lua:766
+#: main.lua:799
 msgid "Open Bookshelf"
 msgstr "Bookshelf'i aç"
 
-#: main.lua:826
+#: main.lua:859
 msgid "Open a small overlay that lets you set the number of columns and rows of books on the shelf, with the bookshelf visible behind it. Cover size follows the column count and the top panel fills the space left over. Changes preview in realtime; Accept keeps them, Cancel reverts."
 msgstr "Raftaki kitapların sütun ve satır sayısını ayarlamanızı sağlayan, arkasında rafın göründüğü küçük bir katman açar. Kapak boyutu sütun sayısına göre değişir ve üst panel kalan alanı doldurur. Değişiklikler anında önizlenir; Kabul et onları korur, İptal geri alır."
 
-#: main.lua:841
+#: main.lua:874
 msgid "Edit shelves…"
 msgstr "Rafları düzenle…"
 
-#: main.lua:884
+#: main.lua:917
 msgid "Hardcover enrichment"
 msgstr "Hardcover zenginleştirmesi"
 
-#: main.lua:912
+#: main.lua:945
 msgid "Updates"
 msgstr "Güncellemeler"
 
-#: main.lua:919
+#: main.lua:952
 msgid "About"
 msgstr "Hakkında"
 
-#: main.lua:1054
+#: main.lua:1087
 msgid "Bookshelf couldn't open. Some of its files may be missing or corrupted after an update. Try reinstalling the plugin."
 msgstr "Bookshelf açılamadı. Bir güncellemeden sonra bazı dosyaları eksik ya da bozuk olabilir. Eklentiyi yeniden kurmayı deneyin."
 
-#: main.lua:1128
+#: main.lua:1161
 msgid "Bookshelf: open or close"
 msgstr "Bookshelf: aç veya kapat"
 
-#: main.lua:1134
+#: main.lua:1167
 msgid "Bookshelf: open"
 msgstr "Bookshelf: aç"
 
-#: main.lua:1137
+#: main.lua:1170
 msgid "on"
 msgstr "açık"
 
-#: main.lua:1143
+#: main.lua:1176
 msgid "Bookshelf: next shelf"
 msgstr "Bookshelf: sonraki raf"
 
-#: main.lua:1149
+#: main.lua:1182
 msgid "Bookshelf: previous shelf"
 msgstr "Bookshelf: önceki raf"
 
-#: main.lua:1155
+#: main.lua:1188
 msgid "Bookshelf: next page of shelves"
 msgstr "Bookshelf: rafların sonraki sayfası"
 
-#: main.lua:1161
+#: main.lua:1194
 msgid "Bookshelf: previous page of shelves"
 msgstr "Bookshelf: rafların önceki sayfası"
 
-#: main.lua:1167
+#: main.lua:1200
 msgid "Bookshelf: full screen shelves on or off"
 msgstr "Bookshelf: tam ekran raflar açık/kapalı"
 
-#: main.lua:1177
+#: main.lua:1210
 msgid "Bookshelf: refresh the library"
 msgstr "Bookshelf: kitaplığı yenile"
 
-#: main.lua:1183
+#: main.lua:1216
 msgid "Bookshelf: toggle bulk selection mode"
 msgstr "Bookshelf: toplu seçim kipini aç/kapat"
 
-#: main.lua:1190
+#: main.lua:1223
 msgid "Bookshelf: toggle selection on focused book"
 msgstr "Bookshelf: odaktaki kitabın seçimini aç/kapat"
 
-#: main.lua:1199
+#: main.lua:1232
 msgid "Bookshelf: select all books in this shelf"
 msgstr "Bookshelf: bu raftaki tüm kitapları seç"
 
-#: main.lua:1205
+#: main.lua:1238
 msgid "Bookshelf: add focused stack to selection"
 msgstr "Bookshelf: odaktaki yığını seçime ekle"
 
-#: main.lua:1211
+#: main.lua:1244
 msgid "Bookshelf: open bulk action menu"
 msgstr "Bookshelf: toplu işlem menüsünü aç"
 
-#: main.lua:1222
+#: main.lua:1255
 msgid "Bookshelf: open start menu"
 msgstr "Bookshelf: başlangıç menüsünü aç"
 
-#: main.lua:1228
+#: main.lua:1261
 msgid "Bookshelf: open modules"
 msgstr "Bookshelf: modülleri aç"
 
-#: main.lua:1242
+#: main.lua:1275
 msgid "Bookshelf: shuffle ornaments"
 msgstr "Bookshelf: süsleri karıştır"
 
-#: main.lua:1248
+#: main.lua:1281
 msgid "Bookshelf: go to home screen"
 msgstr "Bookshelf: Giriş ekranına git"
 
-#: main.lua:2445
+#: main.lua:2544
 msgid "Branch name (leave empty for stable)"
 msgstr "Dal adı (kararlı sürüm için boş bırakın)"
 
-#: main.lua:2482
+#: main.lua:2581
 msgid ""
 "Book metadata scanner not available.\n"
 "Install the CoverBrowser plugin to enable it."
-msgstr "Kitap üst verisi tarayıcısı yok.\nEtkinleştirmek için CoverBrowser eklentisini kurun."
+msgstr ""
+"Kitap üst verisi tarayıcısı yok.\n"
+"Etkinleştirmek için CoverBrowser eklentisini kurun."
 
-#: main.lua:2631
+#: main.lua:2731
 msgid "Page count report"
 msgstr "Sayfa sayısı raporu"
 
-#: main.lua:2644
+#: main.lua:2744
 msgid "Page counts are already being extracted."
 msgstr "Sayfa sayıları zaten çıkarılıyor."
 
-#: main.lua:2672
+#: main.lua:2772
 msgid "Counting pages in book %1 of %2"
 msgstr "Sayfalar sayılıyor: kitap %1 / %2"
 
-#: main.lua:2682
+#: main.lua:2782
 msgid "Looking up page numbers…"
 msgstr "Sayfa numaraları aranıyor…"
 
-#: main.lua:2752
+#: main.lua:2852
 msgid "Every book already has a page count."
 msgstr "Her kitabın zaten bir sayfa sayısı var."
 
-#: main.lua:3063
+#: main.lua:3185
 msgid "No linked books to refresh"
 msgstr "Yenilenecek bağlı kitap yok"
 
-#: main.lua:3080
+#: main.lua:3202
 msgid "Refreshing Hardcover details… %1 of %2"
 msgstr "Hardcover ayrıntıları yenileniyor… %1 / %2"
 
-#: main.lua:3113
+#: main.lua:3235
 msgid "Hardcover details refreshed for %1 of %2 linked books."
 msgstr "%2 bağlı kitaptan %1 tanesinin Hardcover ayrıntıları yenilendi."
 
-#: main.lua:3135
+#: main.lua:3257
 msgid "This will clear the development branch setting and install the latest stable release of Bookshelf, then restart KOReader. Continue?"
 msgstr "Bu işlem geliştirme dalı ayarını temizleyip Bookshelf'in en son kararlı sürümünü kuracak, ardından KOReader'ı yeniden başlatacak. Devam edilsin mi?"
 
-#: main.lua:3157
+#: main.lua:3279
 msgid "Bookshelf update available: v"
 msgstr "Bookshelf güncellemesi var: v"
 
@@ -7507,67 +7644,67 @@ msgstr "12 saat"
 msgid "24-hour"
 msgstr "24 saat"
 
-#: micromodules/countdown.lua:44
+#: micromodules/countdown.lua:57
 msgid "Countdown date"
 msgstr "Geri sayım tarihi"
 
-#: micromodules/countdown.lua:56
+#: micromodules/countdown.lua:69
 msgid "Countdown label"
 msgstr "Geri sayım adı"
 
-#: micromodules/countdown.lua:58
+#: micromodules/countdown.lua:71
 msgid "e.g. Holiday"
 msgstr "örn. Tatil"
 
-#: micromodules/countdown.lua:66 micromodules/countdown.lua:83
-#: micromodules/countdown.lua:90 micromodules/countdown.lua:139
+#: micromodules/countdown.lua:79 micromodules/countdown.lua:96
+#: micromodules/countdown.lua:103 micromodules/countdown.lua:152
 msgid "Countdown"
 msgstr "Geri sayım"
 
-#: micromodules/countdown.lua:84
+#: micromodules/countdown.lua:97
 msgid "From a date you set. Works offline."
 msgstr "Ayarladığınız bir tarihten. Çevrimdışı çalışır."
 
-#: micromodules/countdown.lua:95 micromodules/countdown.lua:112
+#: micromodules/countdown.lua:108 micromodules/countdown.lua:125
 #: micromodules/reading_streak.lua:313 micromodules/reading_streak.lua:322
 #: micromodules/reading_streak.lua:332
 msgid "days"
 msgstr "gün"
 
-#: micromodules/countdown.lua:95
+#: micromodules/countdown.lua:108
 msgid "until …"
 msgstr "kalan: …"
 
-#: micromodules/countdown.lua:101
+#: micromodules/countdown.lua:114
 msgid "Set a date"
 msgstr "Bir tarih ayarla"
 
-#: micromodules/countdown.lua:109
+#: micromodules/countdown.lua:122
 msgid "Today"
 msgstr "Bugün"
 
-#: micromodules/countdown.lua:112 micromodules/reading_streak.lua:313
+#: micromodules/countdown.lua:125 micromodules/reading_streak.lua:313
 #: micromodules/reading_streak.lua:322 micromodules/reading_streak.lua:332
 msgid "day"
 msgstr "gün"
 
-#: micromodules/countdown.lua:114
+#: micromodules/countdown.lua:127
 msgid "until %1"
 msgstr "kalan: %1"
 
-#: micromodules/countdown.lua:115
+#: micromodules/countdown.lua:128
 msgid "since %1"
 msgstr "geçen: %1"
 
-#: micromodules/countdown.lua:122
+#: micromodules/countdown.lua:135
 msgid "Next"
 msgstr "İleri"
 
-#: micromodules/countdown.lua:141
+#: micromodules/countdown.lua:154
 msgid "Change date…"
 msgstr "Tarihi değiştir…"
 
-#: micromodules/countdown.lua:145
+#: micromodules/countdown.lua:158
 msgid "Change label…"
 msgstr "Adı değiştir…"
 
@@ -8306,6 +8443,67 @@ msgstr "Soru getiriliyor..."
 msgid "Tap for next question →"
 msgstr "Sonraki soru için dokunun →"
 
+#: micromodules/vocab_word.lua:824
+msgid "Turn on Vocabulary builder in Tools > More tools > Plugin management, then words you look up while reading appear here."
+msgstr "Araçlar > Diğer araçlar > Eklenti yönetimi bölümünden Sözcük dağarcığı oluşturucu'yu açın; okurken baktığınız sözcükler burada görünür."
+
+#: micromodules/vocab_word.lua:825
+msgid "To save every word you look up, turn on Auto add new words in Vocabulary builder's menu (search menu > Vocabulary builder)."
+msgstr "Baktığınız her sözcüğü kaydetmek için Sözcük dağarcığı oluşturucu menüsünde (arama menüsü > Sözcük dağarcığı oluşturucu) Yeni sözcükler otomatik olarak eklensin seçeneğini açın."
+
+#: micromodules/vocab_word.lua:829 micromodules/vocab_word.lua:831
+msgid "Look up words while reading to fill this card."
+msgstr "Bu kartı doldurmak için okurken sözcüklere bakın."
+
+#: micromodules/vocab_word.lua:834
+msgid "Only one word saved so far."
+msgstr "Şimdiye kadar yalnızca bir sözcük kaydedildi."
+
+#: micromodules/vocab_word.lua:1006
+msgid "Reset known words (%1)"
+msgstr "Bilinen sözcükleri sıfırla (%1)"
+
+#: micromodules/vocab_word.lua:1021
+msgid "Senses shown"
+msgstr "Gösterilen anlamlar"
+
+#: micromodules/vocab_word.lua:1025
+msgid "Book context"
+msgstr "Kitaptaki bağlam"
+
+#: micromodules/vocab_word.lua:1025
+msgid "Word type"
+msgstr "Sözcük türü"
+
+#: micromodules/vocab_word.lua:1026
+msgid "Review-due words first"
+msgstr "Tekrar zamanı gelenler önce"
+
+#: micromodules/vocab_word.lua:1032
+msgid "Dictionary"
+msgstr "Sözlük"
+
+#: micromodules/vocab_word.lua:1033
+msgid "All dictionaries"
+msgstr "Tüm sözlükler"
+
+#: micromodules/vocab_word.lua:1041 micromodules/vocab_word.lua:1071
+#: micromodules/vocab_word.lua:1104
+msgid "Vocab Word"
+msgstr "Sözcük Kartı"
+
+#: micromodules/vocab_word.lua:1072
+msgid "From Vocabulary Builder + dictionary. Works offline."
+msgstr "Sözcük dağarcığı oluşturucu + sözlükten. Çevrimdışı çalışır."
+
+#: micromodules/vocab_word.lua:1113
+msgid "No vocab words yet"
+msgstr "Henüz sözcük yok"
+
+#: micromodules/vocab_word.lua:1232
+msgid "✓ I know it"
+msgstr "✓ Biliyorum"
+
 #: micromodules/weather.lua:31
 msgid "Clear sky"
 msgstr "Açık"
@@ -8459,5 +8657,5 @@ msgstr "%1 dk önce güncellendi"
 msgid "Updated %1h ago"
 msgstr "%1 sa önce güncellendi"
 
-msgid "Read now"
-msgstr "Şimdi oku"
+#~ msgid "Every book faces out until you turn it. Long-press a book on the shelf, tap 'Arrange', then 'Face out'."
+#~ msgstr "Siz çevirene kadar her kitap kapağı önde durur. Raftaki bir kitaba uzun basın, önce 'Yerleştir'e, sonra 'Kapağı önde'ye dokunun."

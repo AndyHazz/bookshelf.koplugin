@@ -993,7 +993,7 @@ t.test("Just one: plain names, and a folder there instead of a card of its own",
     local page = SRC:match("\nfunction Editor:_pickSource%b()(.-)\nend\n")
     local just = page:match('add%({ type = "heading", text = _%("Just one"%) }%)\n            add%({ type = "chips", items = {(.-)} }%)')
     assert(just, "no Just one row")
-    for _i, s in ipairs({ '_("Folder")', '_("Flattened folder")', '_("Series")', '_("Author")', '_("Genre")',
+    for _i, s in ipairs({ '_("Folder")', '_("Flattened folder")', 'C_("one series", "Series")', '_("Author")', '_("Genre")',
             '_("Format")', '_("Rating")', '_("Language")', '_("Decade")' }) do
         assert(just:find(s, 1, true), s .. " missing from Just one")
     end

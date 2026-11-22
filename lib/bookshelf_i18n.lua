@@ -23,19 +23,23 @@ local logger = require("logger")
 local _dir = (debug.getinfo(1, "S").source:match("^@(.+/)") or "./")
 local _base = (_dir:gsub("lib/$", ""))
 
+-- A msgctxt entry is keyed as context .. "\4" .. msgid, gettext's own
+-- convention, so it never overwrites the plain msgid's translation.
+local CTX_SEP = "\4"
+
 -- Minimal .po parser
 local function parsePO(path)
     local f = io.open(path, "r")
     if not f then return nil end
 
     local map = {}
-    local msgid, msgstr, in_id, in_str = nil, nil, false, false
+    local msgctxt, msgid, msgstr, in_ctx, in_id, in_str = nil, nil, nil, false, false, false
 
     local function flush()
         if msgid and msgstr and msgid ~= "" and msgstr ~= "" then
-            map[msgid] = msgstr
+            map[msgctxt and (msgctxt .. CTX_SEP .. msgid) or msgid] = msgstr
         end
-        msgid, msgstr, in_id, in_str = nil, nil, false, false
+        msgctxt, msgid, msgstr, in_ctx, in_id, in_str = nil, nil, nil, false, false, false
     end
 
     local function unescape(s)
@@ -46,15 +50,20 @@ local function parsePO(path)
         local line = raw_line:match("^%s*(.-)%s*$")
         if line:match("^#") or line == "" then
             if line == "" then flush() end
-        elseif line:match('^msgid%s+"') then
+        elseif line:match('^msgctxt%s+"') then
             flush()
+            msgctxt = unescape(line:match('^msgctxt%s+"(.*)"') or "")
+            in_ctx = true; in_id = false; in_str = false
+        elseif line:match('^msgid%s+"') then
+            if not msgctxt then flush() end
             msgid  = unescape(line:match('^msgid%s+"(.*)"') or "")
-            in_id  = true; in_str = false
+            in_id  = true; in_str = false; in_ctx = false
         elseif line:match('^msgstr%s+"') then
             msgstr = unescape(line:match('^msgstr%s+"(.*)"') or "")
-            in_str = true; in_id  = false
+            in_str = true; in_id  = false; in_ctx = false
         elseif line:match('^"') then
             local cont = unescape(line:match('^"(.*)"') or "")
+            if in_ctx and msgctxt then msgctxt = msgctxt .. cont end
             if in_id  and msgid  then msgid  = msgid  .. cont end
             if in_str and msgstr then msgstr = msgstr .. cont end
         end
@@ -109,6 +118,19 @@ local function gettext(msgid)
     return ko_gettext(msgid)
 end
 
+--- pgettext(context, msgid): for a msgid whose translation depends on where
+--- it shows (xgettext keyword C_:1c,2). An untranslated entry shows the
+--- English, never the plain msgid's translation, which is what it differs from.
+local function pgettext(msgctxt, msgid)
+    if translations then
+        local t = translations[msgctxt .. CTX_SEP .. msgid]
+        if t then return t end
+    end
+    local pg = type(ko_gettext) == "table" and rawget(ko_gettext, "pgettext")
+    if pg then return pg(msgctxt, msgid) end
+    return msgid
+end
+
 -- ngettext: bookshelf doesn't currently use plural forms, but keep the
 -- interface symmetric so callers can switch to it without a wrapper.
 local function ngettext(s, _p, _n)
@@ -117,6 +139,7 @@ end
 
 return {
     gettext  = gettext,
+    pgettext = pgettext,
     ngettext = ngettext,
     getLang  = detectLang,
 }

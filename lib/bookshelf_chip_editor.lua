@@ -23,6 +23,8 @@ local ViewMode = require("lib/bookshelf_view_mode")
 local Filter   = require("lib/bookshelf_filter")
 local logger   = require("logger")
 local _        = require("lib/bookshelf_i18n").gettext
+-- A word that reads differently by where it shows ("Series": one, or many).
+local C_       = require("lib/bookshelf_i18n").pgettext
 local T        = require("ffi/util").template
 
 local Editor = {}
@@ -415,7 +417,7 @@ SOURCE_LABEL = {
     tag           = function() return _("Collection")         end,
     genre         = function() return _("Genre")              end,
     author        = function() return _("Author")             end,
-    single_series = function() return _("Series")             end,
+    single_series = function() return C_("one series", "Series") end,
     status        = function() return _("Status")             end,
     format        = function() return _("Format")             end,
     rating        = function() return _("Rating")             end,
@@ -2962,7 +2964,7 @@ function Editor:_openFaceOut(draft, on_change)
         blocks[#blocks + 1] = { type = "chips", items = whole }
         if sp.chosen then
             blocks[#blocks + 1] = { type = "hint",
-                text = _("Every book faces out until you turn it. Long-press a book on the shelf, tap 'Arrange', then 'Face out'.") }
+                text = _("Every book faces out until you turn it. Long-press a book on the shelf, then tap 'Face out'.") }
         end
         return { strip = { { type = "summary", text = summary } }, blocks = blocks }
     end
@@ -3550,7 +3552,7 @@ function Editor:_pickSource(draft, on_close)
             -- It shows books, so no stacks (series, authors, a shelf of
             -- shelves...) and nothing online; a shelf of one of them is books.
             add({ type = "heading", text = _("Just one") })
-            add(one("single_series", _("Series"), group_pick("series")))
+            add(one("single_series", C_("one series", "Series"), group_pick("series")))
             add(one("author", _("Author"), group_pick("author")))
             add(one("genre", _("Genre"), group_pick("genre")))
             add(one("format", _("Format"), group_pick("format")))
@@ -3578,7 +3580,7 @@ function Editor:_pickSource(draft, on_close)
             add({ type = "chips", items = {
                 oneChip("folder", _("Folder"), function() open_folder_picker("folder") end),
                 oneChip("folder_flat", _("Flattened folder"), function() open_folder_picker("folder_flat") end),
-                oneChip("single_series", _("Series"), group_pick("series")),
+                oneChip("single_series", C_("one series", "Series"), group_pick("series")),
                 oneChip("author", _("Author"), group_pick("author")),
                 oneChip("genre", _("Genre"), group_pick("genre")),
                 oneChip("format", _("Format"), group_pick("format")),

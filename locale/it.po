@@ -639,7 +639,7 @@ msgstr "Autore"
 #: lib/bookshelf_chip_editor.lua:3583
 msgctxt "one series"
 msgid "Series"
-msgstr "Serie singola"
+msgstr "Serie"
 
 #: lib/bookshelf_chip_editor.lua:421 lib/bookshelf_chip_editor.lua:4173
 #: lib/bookshelf_filter.lua:31

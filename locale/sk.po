@@ -566,7 +566,7 @@ msgstr "Najnovšie pridané"
 #: lib/bookshelf_widget.lua:1675 lib/bookshelf_widget_book_popup.lua:3570
 #: lib/bookshelf_widget_book_popup.lua:4157
 msgid "Series"
-msgstr "Séria"
+msgstr "Série"
 
 #: lib/bookshelf_chip_editor.lua:405 lib/bookshelf_chip_editor.lua:3569
 #: lib/bookshelf_settings.lua:156 lib/bookshelf_tab_model.lua:86

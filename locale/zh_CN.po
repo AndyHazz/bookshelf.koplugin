@@ -7391,7 +7391,7 @@ msgstr "Bookshelf 在短时间内两次启动出现问题，因此不再保留�
 
 #: main.lua:554
 msgid "Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More plugins."
-msgstr "Bookshelf 需要 CoverBrowser 插件支持。请在 「设置 > 更多工具> 插件管理」 中启用它。"
+msgstr "Bookshelf 需要 CoverBrowser 插件支持。请在 「工具 > 更多工具 > 插件管理」 中启用它。"
 
 #: main.lua:632 main.lua:636 main.lua:667
 msgid "bookshelf"

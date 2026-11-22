@@ -165,6 +165,42 @@ local function test_size_mismatch_purges()
     assertEq(_G._test_scc_dropped[1], "/books/a.epub", "SCC drop fired")
 end
 
+-- Issue 622: with Cover browser disabled, another plugin's "bookinfomanager"
+-- answers the require and keeps its covers in a different file. The sweep
+-- reads Cover browser's (old) bookinfo_cache.sqlite3, so deleting through
+-- that module wiped the other plugin's covers on every start. Skip instead.
+local function test_foreign_bim_skipped()
+    reset()
+    _G._test_db_rows = {
+        { directory = "/books/", filename = "a.epub", filemtime = 100, filesize = 1000 },
+    }
+    _G._test_files = { ["/books/a.epub"] = { size = 9999, mtime = 100 } }
+    _bim_stub.db_location = "/tmp/_test_sweep_settings/PT_bookinfo_cache.sqlite3"
+    local Sweep = require("lib/bookshelf_stale_sweep")
+    local ok, stats = pcall(Sweep.run, Sweep)
+    _bim_stub.db_location = nil
+    assert(ok, tostring(stats))
+    assertEq(stats.stale, 0, "nothing purged")
+    assertEq(#_G._test_bim_deleted, 0, "no delete through the other plugin's module")
+    assertEq(Sweep:run().skipped, true, "not retried every init")
+end
+
+-- Cover browser's own module (its db_location is the file the sweep reads)
+-- sweeps as before.
+local function test_coverbrowser_bim_sweeps()
+    reset()
+    _G._test_db_rows = {
+        { directory = "/books/", filename = "a.epub", filemtime = 100, filesize = 1000 },
+    }
+    _G._test_files = { ["/books/a.epub"] = { size = 9999, mtime = 100 } }
+    _bim_stub.db_location = "/tmp/_test_sweep_settings/bookinfo_cache.sqlite3"
+    local Sweep = require("lib/bookshelf_stale_sweep")
+    local ok, stats = pcall(Sweep.run, Sweep)
+    _bim_stub.db_location = nil
+    assert(ok, tostring(stats))
+    assertEq(stats.stale, 1, "one stale row")
+end
+
 local function test_mtime_only_mismatch_left_alone()
     -- Regression guard for issue #103: an mtime change WITHOUT a size
     -- change must NOT mark a row stale. Sync/enricher mtime drift was
@@ -385,6 +421,8 @@ local tests = {
     { "purged books queued for re-extraction",     test_purged_books_queued_for_reextraction },
     { "no extraction when nothing purged",         test_no_extraction_when_nothing_purged },
     { "a big library is checked in short slices",  test_big_library_sliced_by_time },
+    { "another plugin's BIM module: skipped",      test_foreign_bim_skipped },
+    { "Cover browser's BIM module: sweeps",        test_coverbrowser_bim_sweeps },
 }
 
 local failed = 0

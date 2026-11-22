@@ -249,6 +249,19 @@ function StaleSweep:run(opts)
         return stats
     end
 
+    -- Only with Cover browser's own module. With Cover browser disabled
+    -- another plugin's "bookinfomanager" can answer the require and keep its
+    -- covers in a different file: the rows below come from Cover browser's
+    -- (by then abandoned) bookinfo_cache.sqlite3, so deleting its stale ones
+    -- through that module wiped the other plugin's covers on every start
+    -- (issue 622; reproduced on the rig). Unsupported setup: leave it alone.
+    local loc = BIM.db_location
+    if type(loc) == "string" and not loc:find("/bookinfo_cache%.sqlite3$") then
+        logger.dbg("[bookshelf stale-sweep] cover cache is not Cover browser's, skipping:", loc)
+        self._ran = true
+        return stats
+    end
+
     local db = _openBimDb()
     if not db then
         logger.dbg("[bookshelf stale-sweep] no bookinfo_cache.sqlite3 yet")

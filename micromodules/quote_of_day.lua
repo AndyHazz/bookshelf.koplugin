@@ -233,6 +233,22 @@ showSettings = function(ctx)
     UIManager:show(dialog)
 end
 
+local last_sleep_text
+
+local function quoteForRender(ctx)
+    local rotation = ctx.bw and ctx.bw._sleep_rotation
+    if not (rotation and rotation.quote_index) then return Quotes.ofTheDay() end
+    if rotation.quote == nil then
+        local quote = Quotes.ofTheDay(rotation.quote_index)
+        if quote and quote.text == last_sleep_text then
+            quote = Quotes.ofTheDay(rotation.quote_index + 1) or quote
+        end
+        rotation.quote = quote or false
+        last_sleep_text = quote and quote.text
+    end
+    return rotation.quote or nil
+end
+
 return {
     key   = "quote_of_day", -- stable id stored in user menus; never change it
     -- Text: unreadable one grid column wide (truncates or breaks words).
@@ -258,7 +274,7 @@ return {
         local SM            = require("lib/bookshelf_start_menu_modules")
         local mw = math.max(50, width)
         local function sc(n) return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5)) end
-        local q = Quotes.ofTheDay()
+        local q = quoteForRender(ctx)
         if not q then
             -- Muted fallback rather than nil so the card shows a friendly
             -- message instead of the raw module key.

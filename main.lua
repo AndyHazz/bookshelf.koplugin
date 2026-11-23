@@ -51,6 +51,7 @@ end
 -- flat layout into settings/bookshelf/ and cache/bookshelf/ (5.3).
 require("lib/bookshelf_storage_move").run()
 local BookshelfSettings = require("lib/bookshelf_settings_store")
+local SleepScreen     = require("lib/bookshelf_sleep_screen")
 local UIManager       = require("ui/uimanager")
 local logger          = require("logger")
 local _               = require("lib/bookshelf_i18n").gettext
@@ -105,6 +106,10 @@ end
 -- instance's onCloseWidget find and dismiss the overlay during a KOReader
 -- exit, so the UIManager window stack can drain to zero.
 local _live_widget = nil
+
+local function getLiveShelf()
+    return _live_widget
+end
 
 -- afterFirstPaint(delay, fn): fn, delay seconds after the shelf has first
 -- painted -- for startup chores that must not hold the shelf back. When
@@ -347,6 +352,7 @@ end
 
 function Bookshelf:init()
     _installBroadcastTag()
+    SleepScreen.install(getLiveShelf)
     -- KOReader's menu closes over the shelf without a full-screen flash.
     pcall(function() require("lib/bookshelf_menu_close_refresh").install() end)
     -- The panel's night-mode inversion flag is kernel-side and outlives the
@@ -768,6 +774,7 @@ function Bookshelf:hideMenu(touchmenu_instance)
 end
 
 function Bookshelf:addToMainMenu(menu_items)
+    SleepScreen.addToMainMenu(menu_items)
     -- Skip reader context entirely: bookshelf is a home-screen plugin and has
     -- nothing useful to add to the reader menu. is_doc_only=false is required
     -- only so onCloseDocument fires; self.ui.document is nil in FM context.
@@ -2411,6 +2418,7 @@ Bookshelf.onRestart = Bookshelf.onExit
 -- never completes. Suppression only skips REpaints - pixels already on
 -- screen stay, so an open from the visible shelf is unaffected.
 function Bookshelf:onShowingReader()
+    SleepScreen.rememberHome(_live_widget)
     -- A book is opening over the shelf: whatever it does to progress and
     -- read state, the tree underneath is no longer current, so the next
     -- warm show() must run its softRefresh (see _tree_fresh in _rebuild).

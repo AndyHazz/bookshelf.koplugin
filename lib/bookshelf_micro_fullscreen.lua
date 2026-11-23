@@ -228,7 +228,28 @@ function MicroFullscreen.open(bw, button_dimen, footer_h)
     return self
 end
 
+function MicroFullscreen.renderSnapshot(bw)
+    local view = MicroFullscreen:new{
+        bw = bw,
+        footer_h = Screen:scaleBySize(40),
+        read_only = true,
+    }
+    local image = Blitbuffer.new(view.dimen.w, view.dimen.h, Screen.bb:getType())
+    image:setInverse(Screen.bb:getInverse())
+    local painted, err = pcall(InputContainer.paintTo, view, image, 0, 0)
+    view:free()
+    if not painted then
+        image:free()
+        error(err, 0)
+    end
+    return image
+end
+
 function MicroFullscreen:init()
+    if self.read_only then
+        self:_build()
+        return
+    end
     if Device:hasKeys() then
         self.key_events = { Close = { { Device.input.group.Back } } }
     end
@@ -489,7 +510,7 @@ function MicroFullscreen:_build()
             close_dimen = ReaderButtons.gridTapRect(grid_side)
         end
     end
-    local close_glyph = _closeGlyph(self.bw, close_dimen, self._dpad, self._focus_close,
+    local close_glyph = not self.read_only and _closeGlyph(self.bw, close_dimen, self._dpad, self._focus_close,
         launcher and launcher.grid or nil)
     if close_glyph then
         children[#children + 1] = close_glyph
@@ -513,7 +534,7 @@ function MicroFullscreen:_build()
             pencil_dimen = ReaderButtons.gridTapRect(close_side == "left" and "right" or "left")
         end
     end
-    local pg = pencil_dimen and _pencilGlyph(self.bw, pencil_dimen, launcher and launcher.bars or nil,
+    local pg = not self.read_only and pencil_dimen and _pencilGlyph(self.bw, pencil_dimen, launcher and launcher.bars or nil,
         self._dpad, self._focus_pencil)
     if pg and not self._edit then
         children[#children + 1] = pg
@@ -528,7 +549,7 @@ function MicroFullscreen:_build()
     self._footer_rect = fp_x and Geom:new{ x = fp_x, y = fp_y, w = fp_w, h = fp_h } or nil
     self._dots = nil
     local pages = info and info.surface == "fullscreen" and info.pages
-    if pages and #pages > 1 and not self._edit then
+    if pages and #pages > 1 and not self._edit and not self.read_only then
         local band = self._footer_rect
             or Geom:new{ x = 0, y = sh - self.footer_h, w = sw, h = self.footer_h }
         -- On the same line as the close X and the pencil: those centre in the

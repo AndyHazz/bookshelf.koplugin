@@ -957,6 +957,23 @@ end
 
 -- ── Settings dialog ────────────────────────────────────────────
 
+local last_sleep_word
+
+local function wordForRender(ctx)
+    local rotation = ctx.bw and ctx.bw._sleep_rotation
+    if not (rotation and rotation.vocab) then return fetchRandomWord() end
+    if rotation.word == nil then
+        local current = last_sleep_word or (_last_word_data and _last_word_data.word)
+        local data = drawNextWord(current)
+        if data and data.word == current then
+            data = drawNextWord(current) or data
+        end
+        rotation.word = data or false
+        last_sleep_word = data and data.word
+    end
+    return rotation.word or nil
+end
+
 local function showSettings(ctx)
     lazyInit()
     local Kit = require("lib/bookshelf_module_kit")
@@ -1094,7 +1111,7 @@ return {
         -- Nothing to show, or nothing a tap could move on to: say how to
         -- collect words instead (the preview keeps the sample word).
         local hint = not ctx.preview and hintText(vocabStatus(), usableWordCount())
-        local word_data = not hint and fetchRandomWord()
+        local word_data = not hint and wordForRender(ctx)
         if not word_data then
             local VerticalGroup = require("ui/widget/verticalgroup")
             local VerticalSpan = require("ui/widget/verticalspan")

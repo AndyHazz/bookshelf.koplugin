@@ -327,7 +327,7 @@ end
 -- opened. A book whose highlights are all in left-out colours (or that has
 -- lost them since its count) leaves the pool and the pick moves on, a few
 -- times at most.
-function Quotes._pickAt(pool, total, files, k)
+function Quotes._pickAt(pool, total, files, k, sleep_pick)
     local skip_colors = readSet(Quotes.SKIP_COLORS_KEY)
     files = files or {}
     for _try = 1, 6 do
@@ -342,7 +342,7 @@ function Quotes._pickAt(pool, total, files, k)
                 _collectFromSidecar(b.fp, quotes, skip_colors)
                 if #quotes > 0 then
                     local idx = ((k - before - 1) % #quotes) + 1
-                    if Quotes.readRefresh() == "open" and #quotes > 1 and _last_text
+                    if not sleep_pick and Quotes.readRefresh() == "open" and #quotes > 1 and _last_text
                             and quotes[idx].text == _last_text then
                         idx = idx % #quotes + 1
                     end
@@ -579,16 +579,16 @@ end
 --     all day and across restarts; each reroll() steps to the NEXT quote.
 --   open: random per pick, skipping the last shown quote when alternatives
 --     exist, so consecutive menu opens differ.
-local function pickQuote(quotes)
+local function pickQuote(quotes, sleep_pick)
     local n = #quotes
-    if Quotes.readRefresh() == "open" then
+    if not sleep_pick and Quotes.readRefresh() == "open" then
         local idx = math.random(n)
         if n > 1 and _last_text and quotes[idx].text == _last_text then
             idx = idx % n + 1
         end
         return quotes[idx]
     end
-    local seed = (tonumber(os.date("%Y%m%d")) or 0) + n + _nonce
+    local seed = (tonumber(os.date("%Y%m%d")) or 0) + n + (sleep_pick or _nonce)
     return quotes[(seed % n) + 1]
 end
 
@@ -609,12 +609,12 @@ local DAILY_CACHE_KEY = "quote_of_day_daily_cache"
 
 -- The daily quote (cached). Returns { text, title, author, filepath, page,
 -- pos0, legacy } or nil when there are no highlights.
-function Quotes.ofTheDay()
-    local key = cacheKey()
-    if _cache and _cache.key == key then
+function Quotes.ofTheDay(sleep_pick)
+    local key = not sleep_pick and cacheKey()
+    if key and _cache and _cache.key == key then
         return _cache.data or nil
     end
-    local daily = Quotes.readRefresh() == "daily"
+    local daily = not sleep_pick and Quotes.readRefresh() == "daily"
     if daily then
         local Store = require("lib/bookshelf_settings_store")
         local stored = Store.read(DAILY_CACHE_KEY)
@@ -630,7 +630,7 @@ function Quotes.ofTheDay()
         local source = Quotes.readSource()
         local files = (source ~= "highlights") and Quotes.fileQuotes() or {}
         if source == "files" then
-            return (#files > 0) and pickQuote(files) or nil
+            return (#files > 0) and pickQuote(files, sleep_pick) or nil
         end
         local pool, total, more = buildPool(Quotes.INDEX_BUDGET)
         -- Nothing found yet, and books left that were never counted: count
@@ -644,19 +644,19 @@ function Quotes.ofTheDay()
         local all = total + #files
         if all == 0 then return nil end
         local k
-        if Quotes.readRefresh() == "open" then
+        if not sleep_pick and Quotes.readRefresh() == "open" then
             k = math.random(all)
         else
-            k = ((tonumber(os.date("%Y%m%d")) or 0) + all + _nonce) % all + 1
+            k = ((tonumber(os.date("%Y%m%d")) or 0) + all + (sleep_pick or _nonce)) % all + 1
         end
-        return Quotes._pickAt(pool, total, files, k)
+        return Quotes._pickAt(pool, total, files, k, sleep_pick)
     end)
     if not ok then
         require("logger").warn("[bookshelf] quote of the day unavailable:", pick)
         pick = nil
     end
     if pick then
-        _last_text = pick.text
+        if not sleep_pick then _last_text = pick.text end
         data = {
             text = truncateQuote(pick.text), title = pick.title,
             author = pick.author,
@@ -665,6 +665,7 @@ function Quotes.ofTheDay()
             page_display = pick.page_display,
         }
     end
+    if sleep_pick then return data or nil end
     _cache = { key = key, data = data }
     if daily and data then
         local Store = require("lib/bookshelf_settings_store")

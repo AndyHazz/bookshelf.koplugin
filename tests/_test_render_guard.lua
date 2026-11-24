@@ -123,6 +123,36 @@ test("kernel versions compare by number, not text", function()
     eq(G.kernelAtLeast("junk", 4, 7), false)
 end)
 
+-- KOReader's DocumentRegistry:openDocument forces two full collections. In
+-- the scan's child that is ~1.2 s a book on a PW5 for nothing: the child has
+-- no earlier document to free and is thrown away after the count.
+test("withoutForcedCollect: a full collection inside is skipped, the rest of collectgarbage works", function()
+    local real, full = collectgarbage, 0
+    _G.collectgarbage = function(opt, ...)
+        if opt == nil or opt == "collect" then full = full + 1 end
+        return real(opt, ...)
+    end
+    local kb
+    local got = G.withoutForcedCollect(function()
+        collectgarbage(); collectgarbage("collect")
+        kb = collectgarbage("count")
+        return "counted"
+    end)
+    local restored = _G.collectgarbage
+    _G.collectgarbage = real
+    eq(got, "counted"); eq(full, 0, "a full collection ran inside")
+    eq(type(kb), "number", "collectgarbage('count') should still answer")
+    restored(); eq(full, 1, "collectgarbage was not put back")
+end)
+
+test("withoutForcedCollect: collectgarbage is put back when the work fails, and the error passes on", function()
+    local real = collectgarbage
+    local ok, err = pcall(G.withoutForcedCollect, function() error("no such book", 0) end)
+    local same = _G.collectgarbage == real
+    _G.collectgarbage = real
+    eq(ok, false); eq(err, "no such book"); eq(same, true, "collectgarbage was left replaced")
+end)
+
 os.execute("rm -rf " .. dir)
 print(string.format("PASS %d  FAIL %d", pass, fail))
 os.exit(fail == 0 and 0 or 1)

@@ -3068,7 +3068,11 @@ function Bookshelf:scanPageCounts(opts)
                         if not ok_g then headroom, avail = nil, nil end
                         local ok_pc, pc = pcall(function()
                             local DocumentRegistry = require("document/documentregistry")
-                            local doc = DocumentRegistry:openDocument(fp)
+                            -- Without the two full collections openDocument
+                            -- forces: ~1.2 s a book here for nothing.
+                            local doc = G.withoutForcedCollect(function()
+                                return DocumentRegistry:openDocument(fp)
+                            end)
                             if not doc then return nil end
                             -- The reader's own layout, not crengine's defaults:
                             -- the count is shown as the book's page count. Its

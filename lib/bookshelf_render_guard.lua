@@ -19,6 +19,9 @@
 --   takeCrashed()  at the next scan: the book that was in flight, if any,
 --                  goes on a list of books the scan skips (and reports as
 --                  not counted) for as long as the file stays the same size.
+--
+-- And one for speed: withoutForcedCollect(fn), around the child's
+-- openDocument.
 local M = {}
 
 -- { [filepath] = size in bytes }. A new key in 6.0 (was "page_count_skip"),
@@ -149,6 +152,29 @@ local function sizeOf(fp)
     local ok, lfs = pcall(require, "libs/libkoreader-lfs")
     if not ok then return nil end
     return lfs.attributes(fp, "size")
+end
+
+-- withoutForcedCollect(fn) -> fn's first two results, with full collections asked for
+-- inside it skipped. KOReader's DocumentRegistry:openDocument forces two
+-- before every open, so an earlier document's memory can be reused. The
+-- scan's child has no earlier document and is thrown away after the count,
+-- and walking a heap forked from KOReader's is slow: 1.2-1.3 s a book on a
+-- PW5 (65 MB heap), 2.4 s > 1.2 s for a render with crengine's cache warm,
+-- the same page counts. Only an explicit full collection is skipped; the
+-- collector's own incremental work and collectgarbage("count") and the like
+-- go on as usual. collectgarbage is put back afterwards, so this is safe
+-- where the work runs in KOReader itself rather than a child.
+function M.withoutForcedCollect(fn)
+    local globals = package.loaded._G
+    local real = globals.collectgarbage
+    globals.collectgarbage = function(opt, ...)
+        if opt == nil or opt == "collect" then return 0 end
+        return real(opt, ...)
+    end
+    local ok, a, b = pcall(fn)
+    globals.collectgarbage = real
+    if not ok then error(a, 0) end
+    return a, b
 end
 
 -- takeCrashed(store) -> the file path left in flight, now on the skip list,

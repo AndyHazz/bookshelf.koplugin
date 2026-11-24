@@ -1457,6 +1457,64 @@ test("searchAll: matches books by title", function()
     assert(r.books[1].title == "Dune")
 end)
 
+test("searchAll: a query in another alphabet matches whatever its case", function()
+    -- string.lower folds ASCII only, so "дюна" never found "Дюна". KOReader's
+    -- util.stringLower does the folding on a device; a stand-in for it here.
+    Repo.invalidateWalkCache()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib") and {".", "..", "a.epub", "b.epub"} or {".", ".."}
+        local i = 0; return function() i = i+1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        if key == "mode" then return "file" end
+        return 0
+    end
+    _G._test_settings  = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    _G._test_bim_data  = {
+        ["/lib/a.epub"] = { title = "Дюна", authors = "Фрэнк Герберт" },
+        ["/lib/b.epub"] = { title = "Lalka", authors = "Bolesław Prus" },
+    }
+    local fold = { ["Д"] = "д", ["Ł"] = "ł" }
+    local saved_util = package.loaded["util"]
+    package.loaded["util"] = { stringLower = function(str)
+        for upper, lower in pairs(fold) do str = str:gsub(upper, lower) end
+        return str:lower()
+    end }
+    Repo._lower_fold = nil
+    local by_title  = Repo.searchAll("дюна")
+    local polish    = Repo.searchAll("bolesŁaw")
+    -- A query in the book's own capitals matched before and still does.
+    local own_caps  = Repo.searchAll("Дюна")
+    package.loaded["util"] = saved_util
+    Repo._lower_fold = nil
+    assert(#by_title.books == 1 and by_title.books[1].title == "Дюна",
+        "expected Дюна, got " .. #by_title.books)
+    assert(#polish.books == 1 and polish.books[1].title == "Lalka",
+        "expected Lalka, got " .. #polish.books)
+    assert(#own_caps.books == 1)
+end)
+
+test("Repo._lower: ASCII skips the fold; before util.stringLower, Utf8Proc.lowercase", function()
+    local saved_util, saved_u8 = package.loaded["util"], package.loaded["ffi/utf8proc"]
+    local calls = 0
+    -- A KOReader before v2026.07: util has fixUtf8 but no stringLower.
+    package.loaded["util"] = { fixUtf8 = function(str) return str end }
+    package.loaded["ffi/utf8proc"] = {
+        lowercase = function(str) calls = calls + 1; return (str:gsub("Д", "д"):lower()) end,
+        lowercase_dumb = function() error("the per-codepoint fold is too slow for search") end,
+    }
+    Repo._lower_fold = nil
+    local ascii    = Repo._lower("The Strange Case")
+    local ascii_calls = calls
+    local cyrillic = Repo._lower("Дюна")
+    package.loaded["util"], package.loaded["ffi/utf8proc"] = saved_util, saved_u8
+    Repo._lower_fold = nil
+    assert(ascii == "the strange case")
+    assert(ascii_calls == 0, "ASCII went through the Unicode fold")
+    assert(cyrillic == "дюна", "expected дюна, got " .. tostring(cyrillic))
+    assert(calls == 1)
+end)
+
 test("searchAll: matches author groups by name", function()
     Repo.invalidateWalkCache()
     package.loaded["libs/libkoreader-lfs"].dir = function(path)

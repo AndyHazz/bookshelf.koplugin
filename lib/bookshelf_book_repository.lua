@@ -5577,18 +5577,55 @@ local function _searchIncludesGenres()
     return BookshelfSettings.read("search_include_genres") ~= false
 end
 
+-- Lower case for matching. string.lower folds ASCII only, so a search for
+-- "дюна" missed "Дюна" and "łódź" missed "Łódź": anything outside ASCII had
+-- to be typed in the book's own capitals. KOReader's util.stringLower folds
+-- the whole of Unicode. It is new in v2026.07; before that, the same
+-- Utf8Proc.lowercase it wraps (one C call, in base since 2021). Not
+-- Utf8Proc.lowercase_dumb: it concatenates per codepoint, ~3 s a search over
+-- 1500 books on a PW5. Plain :lower() stands in where neither is there (the
+-- tests' bare Lua).
+--
+-- Search folds every field of every book on each query, so ASCII, where
+-- :lower() gives the same answer, skips the fold: ~230 ms > ~30 ms a search
+-- on a PW5 for an English library. The fold is looked up once, on the first
+-- non-ASCII string; Repo._lower_fold = nil makes the next call look again.
+function Repo._resolveLowerFold()
+    local ok_util, util = pcall(require, "util")
+    if not (ok_util and type(util) == "table") then return false end
+    if type(util.stringLower) == "function" then return util.stringLower end
+    local ok_u8, Utf8Proc = pcall(require, "ffi/utf8proc")
+    if ok_u8 and type(Utf8Proc) == "table" and type(Utf8Proc.lowercase) == "function"
+            and type(util.fixUtf8) == "function" then
+        return function(s) return Utf8Proc.lowercase(util.fixUtf8(s, "?")) end
+    end
+    return false
+end
+
+function Repo._lower(s)
+    if type(s) ~= "string" or s == "" then return "" end
+    if not s:find("[\128-\255]") then return s:lower() end
+    if Repo._lower_fold == nil then Repo._lower_fold = Repo._resolveLowerFold() end
+    local fold = Repo._lower_fold
+    if fold then
+        local ok, folded = pcall(fold, s)
+        if ok and type(folded) == "string" then return folded end
+    end
+    return s:lower()
+end
+
 local function _searchMatches(b, words, skip_genres)
     local parts = {
-        (b.title       or ""):lower(),
-        (b.author      or ""):lower(),
-        (b.series_name or ""):lower(),
-        (b.filename    or ""):lower(),
+        Repo._lower(b.title),
+        Repo._lower(b.author),
+        Repo._lower(b.series_name),
+        Repo._lower(b.filename),
     }
     if b.authors then
-        for _i, a in ipairs(b.authors) do parts[#parts + 1] = a:lower() end
+        for _i, a in ipairs(b.authors) do parts[#parts + 1] = Repo._lower(a) end
     end
     if b.genres and not skip_genres then
-        for _i, g in ipairs(b.genres) do parts[#parts + 1] = g:lower() end
+        for _i, g in ipairs(b.genres) do parts[#parts + 1] = Repo._lower(g) end
     end
     local hay = table.concat(parts, " ")
     for _i, w in ipairs(words) do
@@ -5627,7 +5664,7 @@ function Repo.searchBooks(query, limit)
     local cands = cachedWalk(home, depth)
     local words = {}
     for w in query:gmatch("%S+") do
-        words[#words + 1] = w:lower()
+        words[#words + 1] = Repo._lower(w)
     end
     if #words == 0 then return {} end
     local light_cache = _getLightMetaCache(home, depth)
@@ -8116,7 +8153,7 @@ end
 function Repo.searchAll(query)
     local empty = { folders = {}, authors = {}, series = {}, genres = {}, books = {} }
     if not query or query == "" then return empty end
-    local q = query:lower()
+    local q = Repo._lower(query)
 
     local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
@@ -8140,7 +8177,7 @@ function Repo.searchAll(query)
             if not seen_dirs[dir] then
                 seen_dirs[dir] = true
                 local basename = dir:match("([^/]+)$") or dir
-                if basename:lower():find(q, 1, true) then
+                if Repo._lower(basename):find(q, 1, true) then
                     local first_book = Repo.buildBookMeta(c.fp)
                     folders[#folders + 1] = {
                         kind       = "folder",
@@ -8163,7 +8200,7 @@ function Repo.searchAll(query)
         if not cache_table[key] then return {} end
         local out = {}
         for _i, shape in ipairs(cache_table[key].groups) do
-            if (shape.series_name or ""):lower():find(q, 1, true) then
+            if Repo._lower(shape.series_name):find(q, 1, true) then
                 out[#out + 1] = _hydrateGroupShape(shape)
             end
         end

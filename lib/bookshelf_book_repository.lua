@@ -5580,7 +5580,8 @@ end
 -- Lower case for matching. string.lower folds ASCII only, so a search for
 -- "дюна" missed "Дюна" and "łódź" missed "Łódź": anything outside ASCII had
 -- to be typed in the book's own capitals. KOReader's util.stringLower folds
--- the whole of Unicode. It is new in v2026.07; before that, the same
+-- the whole of Unicode. KOReader v2026.03, the oldest supported, has it
+-- (v2025.10 did not); one without it gets the same
 -- Utf8Proc.lowercase it wraps (one C call, in base since 2021). Not
 -- Utf8Proc.lowercase_dumb: it concatenates per codepoint, ~3 s a search over
 -- 1500 books on a PW5. Plain :lower() stands in where neither is there (the

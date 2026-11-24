@@ -5577,18 +5577,42 @@ local function _searchIncludesGenres()
     return BookshelfSettings.read("search_include_genres") ~= false
 end
 
+-- Lower case for matching. string.lower folds ASCII only, so a search for
+-- "дюна" missed "Дюна" and "łódź" missed "Łódź": anything outside ASCII had
+-- to be typed in the book's own capitals. KOReader's util.stringLower folds
+-- the whole of Unicode; a KOReader from before it has utf8proc's per-codepoint
+-- folding (as TextSegments.upper does for upper case), and plain :lower()
+-- stands in where neither is there (the tests' bare Lua).
+function Repo._lower(s)
+    if type(s) ~= "string" or s == "" then return "" end
+    local ok_util, util = pcall(require, "util")
+    if ok_util and type(util) == "table" then
+        if type(util.stringLower) == "function" then
+            local ok, folded = pcall(util.stringLower, s)
+            if ok and type(folded) == "string" then return folded end
+        end
+        local ok_u8, Utf8Proc = pcall(require, "ffi/utf8proc")
+        if ok_u8 and type(Utf8Proc) == "table" and type(Utf8Proc.lowercase_dumb) == "function"
+                and type(util.fixUtf8) == "function" then
+            local ok, folded = pcall(function() return Utf8Proc.lowercase_dumb(util.fixUtf8(s, "?")) end)
+            if ok and type(folded) == "string" then return folded end
+        end
+    end
+    return s:lower()
+end
+
 local function _searchMatches(b, words, skip_genres)
     local parts = {
-        (b.title       or ""):lower(),
-        (b.author      or ""):lower(),
-        (b.series_name or ""):lower(),
-        (b.filename    or ""):lower(),
+        Repo._lower(b.title),
+        Repo._lower(b.author),
+        Repo._lower(b.series_name),
+        Repo._lower(b.filename),
     }
     if b.authors then
-        for _i, a in ipairs(b.authors) do parts[#parts + 1] = a:lower() end
+        for _i, a in ipairs(b.authors) do parts[#parts + 1] = Repo._lower(a) end
     end
     if b.genres and not skip_genres then
-        for _i, g in ipairs(b.genres) do parts[#parts + 1] = g:lower() end
+        for _i, g in ipairs(b.genres) do parts[#parts + 1] = Repo._lower(g) end
     end
     local hay = table.concat(parts, " ")
     for _i, w in ipairs(words) do
@@ -5627,7 +5651,7 @@ function Repo.searchBooks(query, limit)
     local cands = cachedWalk(home, depth)
     local words = {}
     for w in query:gmatch("%S+") do
-        words[#words + 1] = w:lower()
+        words[#words + 1] = Repo._lower(w)
     end
     if #words == 0 then return {} end
     local light_cache = _getLightMetaCache(home, depth)
@@ -8116,7 +8140,7 @@ end
 function Repo.searchAll(query)
     local empty = { folders = {}, authors = {}, series = {}, genres = {}, books = {} }
     if not query or query == "" then return empty end
-    local q = query:lower()
+    local q = Repo._lower(query)
 
     local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
@@ -8140,7 +8164,7 @@ function Repo.searchAll(query)
             if not seen_dirs[dir] then
                 seen_dirs[dir] = true
                 local basename = dir:match("([^/]+)$") or dir
-                if basename:lower():find(q, 1, true) then
+                if Repo._lower(basename):find(q, 1, true) then
                     local first_book = Repo.buildBookMeta(c.fp)
                     folders[#folders + 1] = {
                         kind       = "folder",
@@ -8163,7 +8187,7 @@ function Repo.searchAll(query)
         if not cache_table[key] then return {} end
         local out = {}
         for _i, shape in ipairs(cache_table[key].groups) do
-            if (shape.series_name or ""):lower():find(q, 1, true) then
+            if Repo._lower(shape.series_name):find(q, 1, true) then
                 out[#out + 1] = _hydrateGroupShape(shape)
             end
         end

@@ -1457,6 +1457,40 @@ test("searchAll: matches books by title", function()
     assert(r.books[1].title == "Dune")
 end)
 
+test("searchAll: a query in another alphabet matches whatever its case", function()
+    -- string.lower folds ASCII only, so "дюна" never found "Дюна". KOReader's
+    -- util.stringLower does the folding on a device; a stand-in for it here.
+    Repo.invalidateWalkCache()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib") and {".", "..", "a.epub", "b.epub"} or {".", ".."}
+        local i = 0; return function() i = i+1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        if key == "mode" then return "file" end
+        return 0
+    end
+    _G._test_settings  = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    _G._test_bim_data  = {
+        ["/lib/a.epub"] = { title = "Дюна", authors = "Фрэнк Герберт" },
+        ["/lib/b.epub"] = { title = "Lalka", authors = "Bolesław Prus" },
+    }
+    local fold = { ["Д"] = "д", ["Ł"] = "ł" }
+    local saved_util = package.loaded["util"]
+    package.loaded["util"] = { stringLower = function(str)
+        for upper, lower in pairs(fold) do str = str:gsub(upper, lower) end
+        return str:lower()
+    end }
+    local by_title  = Repo.searchAll("дюна")
+    local polish    = Repo.searchAll("bolesŁaw")
+    package.loaded["util"] = saved_util
+    assert(#by_title.books == 1 and by_title.books[1].title == "Дюна",
+        "expected Дюна, got " .. #by_title.books)
+    assert(#polish.books == 1 and polish.books[1].title == "Lalka",
+        "expected Lalka, got " .. #polish.books)
+    -- A query in the book's own capitals matched before and still does.
+    assert(#Repo.searchAll("Дюна").books == 1)
+end)
+
 test("searchAll: matches author groups by name", function()
     Repo.invalidateWalkCache()
     package.loaded["libs/libkoreader-lfs"].dir = function(path)

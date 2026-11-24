@@ -1480,15 +1480,39 @@ test("searchAll: a query in another alphabet matches whatever its case", functio
         for upper, lower in pairs(fold) do str = str:gsub(upper, lower) end
         return str:lower()
     end }
+    Repo._lower_fold = nil
     local by_title  = Repo.searchAll("дюна")
     local polish    = Repo.searchAll("bolesŁaw")
+    -- A query in the book's own capitals matched before and still does.
+    local own_caps  = Repo.searchAll("Дюна")
     package.loaded["util"] = saved_util
+    Repo._lower_fold = nil
     assert(#by_title.books == 1 and by_title.books[1].title == "Дюна",
         "expected Дюна, got " .. #by_title.books)
     assert(#polish.books == 1 and polish.books[1].title == "Lalka",
         "expected Lalka, got " .. #polish.books)
-    -- A query in the book's own capitals matched before and still does.
-    assert(#Repo.searchAll("Дюна").books == 1)
+    assert(#own_caps.books == 1)
+end)
+
+test("Repo._lower: ASCII skips the fold; before util.stringLower, Utf8Proc.lowercase", function()
+    local saved_util, saved_u8 = package.loaded["util"], package.loaded["ffi/utf8proc"]
+    local calls = 0
+    -- A KOReader before v2026.07: util has fixUtf8 but no stringLower.
+    package.loaded["util"] = { fixUtf8 = function(str) return str end }
+    package.loaded["ffi/utf8proc"] = {
+        lowercase = function(str) calls = calls + 1; return (str:gsub("Д", "д"):lower()) end,
+        lowercase_dumb = function() error("the per-codepoint fold is too slow for search") end,
+    }
+    Repo._lower_fold = nil
+    local ascii    = Repo._lower("The Strange Case")
+    local ascii_calls = calls
+    local cyrillic = Repo._lower("Дюна")
+    package.loaded["util"], package.loaded["ffi/utf8proc"] = saved_util, saved_u8
+    Repo._lower_fold = nil
+    assert(ascii == "the strange case")
+    assert(ascii_calls == 0, "ASCII went through the Unicode fold")
+    assert(cyrillic == "дюна", "expected дюна, got " .. tostring(cyrillic))
+    assert(calls == 1)
 end)
 
 test("searchAll: matches author groups by name", function()

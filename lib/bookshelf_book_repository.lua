@@ -5580,23 +5580,36 @@ end
 -- Lower case for matching. string.lower folds ASCII only, so a search for
 -- "дюна" missed "Дюна" and "łódź" missed "Łódź": anything outside ASCII had
 -- to be typed in the book's own capitals. KOReader's util.stringLower folds
--- the whole of Unicode; a KOReader from before it has utf8proc's per-codepoint
--- folding (as TextSegments.upper does for upper case), and plain :lower()
--- stands in where neither is there (the tests' bare Lua).
+-- the whole of Unicode. It is new in v2026.07; before that, the same
+-- Utf8Proc.lowercase it wraps (one C call, in base since 2021). Not
+-- Utf8Proc.lowercase_dumb: it concatenates per codepoint, ~3 s a search over
+-- 1500 books on a PW5. Plain :lower() stands in where neither is there (the
+-- tests' bare Lua).
+--
+-- Search folds every field of every book on each query, so ASCII, where
+-- :lower() gives the same answer, skips the fold: ~230 ms > ~30 ms a search
+-- on a PW5 for an English library. The fold is looked up once, on the first
+-- non-ASCII string; Repo._lower_fold = nil makes the next call look again.
+function Repo._resolveLowerFold()
+    local ok_util, util = pcall(require, "util")
+    if not (ok_util and type(util) == "table") then return false end
+    if type(util.stringLower) == "function" then return util.stringLower end
+    local ok_u8, Utf8Proc = pcall(require, "ffi/utf8proc")
+    if ok_u8 and type(Utf8Proc) == "table" and type(Utf8Proc.lowercase) == "function"
+            and type(util.fixUtf8) == "function" then
+        return function(s) return Utf8Proc.lowercase(util.fixUtf8(s, "?")) end
+    end
+    return false
+end
+
 function Repo._lower(s)
     if type(s) ~= "string" or s == "" then return "" end
-    local ok_util, util = pcall(require, "util")
-    if ok_util and type(util) == "table" then
-        if type(util.stringLower) == "function" then
-            local ok, folded = pcall(util.stringLower, s)
-            if ok and type(folded) == "string" then return folded end
-        end
-        local ok_u8, Utf8Proc = pcall(require, "ffi/utf8proc")
-        if ok_u8 and type(Utf8Proc) == "table" and type(Utf8Proc.lowercase_dumb) == "function"
-                and type(util.fixUtf8) == "function" then
-            local ok, folded = pcall(function() return Utf8Proc.lowercase_dumb(util.fixUtf8(s, "?")) end)
-            if ok and type(folded) == "string" then return folded end
-        end
+    if not s:find("[\128-\255]") then return s:lower() end
+    if Repo._lower_fold == nil then Repo._lower_fold = Repo._resolveLowerFold() end
+    local fold = Repo._lower_fold
+    if fold then
+        local ok, folded = pcall(fold, s)
+        if ok and type(folded) == "string" then return folded end
     end
     return s:lower()
 end

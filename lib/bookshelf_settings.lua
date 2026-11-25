@@ -475,7 +475,10 @@ function Settings:_heroSubItems(keys)
                 -- the brace modifiers are stripped before expansion.
                 local preview = Tokens.menuPreview(resolved.template, book, state)
                 if preview == "" then return label end
-                if #preview > 36 then preview = preview:sub(1, 35) .. "\xE2\x80\xA6" end
+                if #preview > 36 then
+                    local CoverLabel = require("lib/bookshelf_cover_label")
+                    preview = CoverLabel.utf8Cut(preview, 35) .. "\xE2\x80\xA6"
+                end
                 return label .. ": " .. preview
             end,
             checked_func = function()
@@ -1709,7 +1712,10 @@ function Settings:_listLineRow(index, markDirty)
             -- identical code.
             local preview = Tokens.menuPreview(line.template, book, state)
             if preview == "" then return label end
-            if #preview > 36 then preview = preview:sub(1, 35) .. "\xE2\x80\xA6" end
+            if #preview > 36 then
+                local CoverLabel = require("lib/bookshelf_cover_label")
+                preview = CoverLabel.utf8Cut(preview, 35) .. "\xE2\x80\xA6"
+            end
             return label .. ": " .. preview
         end,
         callback = function(touchmenu_instance)

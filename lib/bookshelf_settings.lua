@@ -270,7 +270,9 @@ Wrap content in [if:foo]…[/if] to show it only when the token has a value. Add
                 if preview_book and item.token and not item.token:match("^%[") then
                     local ok2, val = pcall(Tokens.expand, item.token, preview_book, preview_state)
                     if ok2 and val and val ~= "" and val ~= item.token then
-                        if #val > 28 then val = val:sub(1, 27) .. "…" end
+                        if #val > 28 then
+                            val = require("lib/bookshelf_cover_label").utf8Cut(val, 27) .. "…"
+                        end
                         preview = "    \xe2\x86\x92 " .. val
                     end
                 end

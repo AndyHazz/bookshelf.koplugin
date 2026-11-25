@@ -550,4 +550,48 @@ t.test("the shelf reads the books' label choice for the chip on screen", functio
         "the shelf still reads the global label mode directly, past the shelf's own")
 end)
 
+-- A menu row's text is lowercased by KOReader's menu search, which crashes on
+-- a split character, so every cut has to land on a character boundary.
+local function validUtf8(s)
+    local i, n = 1, #s
+    while i <= n do
+        local b = s:byte(i)
+        local len = b < 0x80 and 1 or (b >= 0xC2 and b < 0xE0) and 2
+            or (b >= 0xE0 and b < 0xF0) and 3 or (b >= 0xF0 and b < 0xF5) and 4
+        if not len or i + len - 1 > n then return false end
+        for j = i + 1, i + len - 1 do
+            local c = s:byte(j)
+            if c < 0x80 or c >= 0xC0 then return false end
+        end
+        i = i + len
+    end
+    return true
+end
+
+t.test("a cut never splits a character", function()
+    for _, ch in ipairs({ "\xC3\xA9", "\xE2\x82\xAC", "\xF0\x9F\x93\x9A" }) do
+        for lead = 0, 4 do
+            local s = ("a"):rep(lead) .. ch:rep(20)
+            for max = 1, #s do
+                local cut = CoverLabel.utf8Cut(s, max)
+                assert(#cut <= max, "cut is longer than asked")
+                assert(validUtf8(cut), "split at " .. max .. " with lead " .. lead)
+                assert(#cut > max - #ch, "cut dropped more than one character")
+            end
+        end
+    end
+    assert(CoverLabel.utf8Cut("short", 35) == "short")
+end)
+
+t.test("no settings row cuts its text at a byte count", function()
+    local f = assert(io.open("lib/bookshelf_settings.lua", "rb"))
+    local src = f:read("*a"); f:close()
+    local line_no = 0
+    for line in src:gmatch("([^\n]*)\n") do
+        line_no = line_no + 1
+        assert(not line:find(":sub%(1, *%d+%) *%.%. *\"[\\\226]"),
+            "lib/bookshelf_settings.lua:" .. line_no .. " cuts text by bytes before an ellipsis")
+    end
+end)
+
 t.done()

@@ -79,6 +79,33 @@ test("a file that changed size gets another try", function()
     assert(not G.skipped(s, "/b/fixed.epub"), "a changed file stayed skipped")
 end)
 
+test("a book the deadline ended is skipped like one that crashed", function()
+    local s = store()
+    sizes["/b/endless.epub"] = 700
+    G.skip(s, "/b/endless.epub")
+    assert(G.skipped(s, "/b/endless.epub"))
+    assert(not G.skipped(s, "/b/other.epub"))
+    sizes["/b/endless.epub"] = 701
+    assert(not G.skipped(s, "/b/endless.epub"), "a changed file stayed skipped")
+end)
+
+test("only a render that ran for the whole limit counts as timed out", function()
+    assert(G.timedOut(G.RENDER_LIMIT_S + 0.4))
+    assert(not G.timedOut(G.RENDER_LIMIT_S - 5))
+    assert(not G.timedOut(31.4))
+    assert(not G.timedOut(nil))
+    assert(G.timedOut(12, 10) and not G.timedOut(9, 10))
+end)
+
+test("the scan's child sets the deadline before it opens the book, and the scan skips what it ended", function()
+    local m = io.open("main.lua"):read("*a")
+    local at = assert(m:find("G.childDeadline()", 1, true), "no deadline in the child")
+    local open_at = assert(m:find("DocumentRegistry:openDocument(fp)", at, true), "the deadline comes after the open")
+    assert(open_at - at < 600, "the deadline is not in the render child")
+    local t = assert(m:find("elseif Guard.timedOut(elapsed) then", 1, true))
+    assert(m:find("Guard.skip(BookshelfSettings, fp)", t, true))
+end)
+
 test("a failed render's log line: the error, the room it had, what was free", function()
     eq(G.failureNote("not enough memory", 31457280, 62914560), "not enough memory; room 30 MB, free 60 MB")
     eq(G.failureNote(nil, nil, nil), "no count; room ?, free ?")

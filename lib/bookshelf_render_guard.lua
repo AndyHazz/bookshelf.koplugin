@@ -20,6 +20,10 @@
 --                  goes on a list of books the scan skips (and reports as
 --                  not counted) for as long as the file stays the same size.
 --
+-- A fourth for a book that neither crashes nor runs out of memory but never
+-- finishes: childDeadline() has the kernel end the child after
+-- RENDER_LIMIT_S, and skip() puts the book on the same list.
+--
 -- And one for speed: withoutForcedCollect(fn), around the child's
 -- openDocument.
 local M = {}
@@ -36,6 +40,12 @@ M.SETTING = "page_count_skip_v2"
 -- the same books fail cleanly or finish (confirmed by the reporter: 106
 -- previously skipped books retried, 40 failed, no freeze).
 M.AVAILABLE_SHARE = 0.5
+
+-- How long one book's render may take. A book whose layout never ends held
+-- the scan on a Kindle PW3 until Stop: one child at 100% CPU, memory steady,
+-- so neither the cap nor the crash marker saw it. The slowest of the other
+-- 242 books in that library took 31 s.
+M.RENDER_LIMIT_S = 300
 
 local function readFile(path)
     local f = io.open(path, "r")
@@ -124,6 +134,24 @@ function M.childLimits()
     return set_limit, avail
 end
 
+-- childDeadline(seconds): run in the child, before the render. alarm() has
+-- the kernel end the process (SIGALRM, never handled) once that long has
+-- passed, whatever the engine is doing; the scan then sees a child that
+-- ended without a count. It dies with the child, so nothing is left armed.
+function M.childDeadline(seconds)
+    return pcall(function()
+        local ffi = require("ffi")
+        pcall(ffi.cdef, "unsigned int alarm(unsigned int seconds);")
+        ffi.C.alarm(seconds or M.RENDER_LIMIT_S)
+    end)
+end
+
+-- timedOut(elapsed, seconds) -> true when a render that gave no count ran for
+-- the whole limit: the deadline ended it, not the book failing by itself.
+function M.timedOut(elapsed, seconds)
+    return type(elapsed) == "number" and elapsed >= (seconds or M.RENDER_LIMIT_S)
+end
+
 -- failureNote(err, headroom, avail) -> "why" for the log line of a render that
 -- gave no count: the error, the room the child had over what it started with,
 -- and what the device had free then. MB, rounded.
@@ -183,12 +211,18 @@ function M.takeCrashed(store)
     local fp = readFile(inflightPath())
     M.clear()
     if not fp or fp == "" then return nil end
+    M.skip(store, fp)
+    return fp
+end
+
+-- skip(store, fp): onto the list of books the scan does not render again
+-- while the file stays the same size.
+function M.skip(store, fp)
     local list = store.read(M.SETTING)
     if type(list) ~= "table" then list = {} end
     list[fp] = sizeOf(fp) or -1
     store.save(M.SETTING, list)
     if store.flush then store.flush() end
-    return fp
 end
 
 -- skipped(store, fp) -> true while fp is on the list and still the same size.

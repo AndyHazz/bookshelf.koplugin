@@ -1985,6 +1985,22 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                     end }
             end }
     end
+    -- More of what goes with this book, in reading order: its series, its
+    -- author, its folder. Read when tapped, not when the menu opens (the group
+    -- caches can be cold), so the card is always here and says so if there is
+    -- nothing more.
+    tile_specs[#tile_specs + 1] = { id = "add_more", text = _("Add more to a shelf"),
+        icon = require("lib/bookshelf_curated_ui").ICON_SHELF,
+        after = "shelf",
+        callback = function()
+            require("lib/bookshelf_add_more_ui").open{ book = book, after_id = bw.chip,
+                view_mode = bw._viewMode and bw:_viewMode() or nil,
+                on_done = function(changed)
+                    if not changed then return end
+                    if bw._expireSpineFetch then bw:_expireSpineFetch() end
+                    refreshInPlace()
+                end }
+        end }
     tile_specs[#tile_specs + 1] = { id = "info", text = _("Show book info"), icon = "\xEE\xA7\xBC", -- information-outline
         callback = show_info.callback }
     -- Re-reads the book's own details and cover from the file; the reader's
